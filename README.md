@@ -1,96 +1,70 @@
-# Obsidian Sample Plugin
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+# Keep To Obsidian
 
-This project uses Typescript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in Typescript Definition format, which contains TSDoc comments describing what it does.
+This plugin imports your Google Keep notes into Obsidian. It's useful if you use Google Keep on one of your devices, and Obsidian on another, or if you want to migrate from Google Keep to Obsidian.
 
-**Note:** The Obsidian API is still in early alpha and is subject to change at any time!
+It is still in beta phase - your feedback is welcome. Once complete, it'll offer some premium features. Request early access here. [Link]
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+# Standard vs, Premium
 
-## First time developing plugins?
+## The standard version offers:
 
-Quick starting guide for new plugin devs:
+- An on-demand "Run Keep -> Obsidian" command
+- Download up to 5 notes on demand
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+Try the standard version and send your feedback. [Link]
 
-## Releasing new releases
+## The premium version offers:
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+- Download unlimited notes
+- Two way sync
+- Auto sync
+- Filters to restrict the notes you want to sync
+- Skip filters to speficy notes you want to skip
+- Tagging notes
+- Optional AI-assisted autotagging for notes
+- Optional AI-assisted title generation for notes
+- Targetting different folders for different notes
+- Moving downloaded notes to archive
+- Only download archived notes
+- Overwrite, skip or keep-both duplicates
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+Request early access here. [Link]
 
-## Adding your plugin to the community plugin list
+# Installation
 
-- Check https://github.com/obsidianmd/obsidian-releases/blob/master/plugin-review.md
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+This isn't yet in the community plugin store. Until it's accepted, you can download it using the instructions below:
+Option 1: Use the BRAT plugin
+Option 2: Clone this repositlry 
 
-## How to use
+# Standard Configuration
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+After installation, go to Settings > Community Plugins > Google Keep Sync, in obsidian.
 
-## Manually installing the plugin
+Step 1: Configure:
+- Your Google Keep email
+- The folder to sync to
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+Step 2: Retrieve a Google Keep token
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint .\src\`
+Click Retrieve, and a browser window should open prompting you to log into Google. Once you have done so, we shall generate a token that will be used to access your Google Keep account.
 
-## Funding URL
+** PRIVACY NOTE **: THIS TOKEN IS ONLY STORED ON YOUR COMPUTER. 
 
-You can include funding URLs where people who use your plugin can financially support it.
+See the Security section below.
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+# Premium Configuration
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
-```
+To enable premium features, complete the standard configuration, then login to k2s.lc0rp.com using your Google Account. You'll then be able to access your premium config.
 
-If you have multiple URLs, you can also do:
+Premium currently costs $2.99 per month of $24 per year. [TBD]
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+# Privacy Considerations: What data we exchange
 
-## API Documentation
+The plugin connects to our server (currently k2s.lc0rp.com) similalry to how Obsidian connects to the Obsidian Sync service, to enable premium and AI features.
 
-See https://github.com/obsidianmd/obsidian-api
+When initiating a sync, it'll send your email and token. We do not log or store your notes or credentials in any way.
+
+# Feedback
+
+Send feedback to [TBD]

@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "google-keep-to-obsidian",
+	"name": "Google Keep to Obsidian",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Syncs Google Keep notes to Obsidian",
+	"author": "lc0rp",
+	"authorUrl": "https://github.com/lc0rp",
+	"fundingUrl": "https://github.com/lc0rp",
 	"isDesktopOnly": false
 }

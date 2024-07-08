@@ -1,72 +1,45 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 
-// Remember to rename these classes and interfaces!
-
-interface MyPluginSettings {
-	mySetting: string;
+interface KeepToObsidianPluginSettings {
+	email: string;
+	token: string;
+	saveLocation: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+const DEFAULT_SETTINGS: KeepToObsidianPluginSettings = {
+	email: '',
+	token: '',
+	saveLocation: 'google-keep'
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+const API_URL = 'http://localhost:8000';
+
+export default class KeepToObsidianPlugin extends Plugin {
+	settings: KeepToObsidianPluginSettings;
 
 	async onload() {
 		await this.loadSettings();
 
 		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
+		const ribbonIconEl = this.addRibbonIcon('folder-sync', 'Run Google Keep → Obsidian', (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
+			this.syncNotes();
+			new Notice('Synced Google Keep Notes to Obsidian');
 		});
 		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
+		ribbonIconEl.addClass('keep-to-obsidian-ribbon-class');
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
+		// This adds a command to sync notes
 		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
+			id: 'sync-notes',
+			name: 'Run Google Keep → Obsidian',
 			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
+				this.syncNotes();
 			}
 		});
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new KeepToObsidianSettingTab(this.app, this));
 
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
@@ -89,45 +62,253 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
+
+	async syncNotes() {
+		try {
+			const response = await fetch(`${API_URL}/sync`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.settings.token}`
+				}
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to sync notes');
+			}
+
+			const result = await response.json();
+			const notes = result.notes;
+			const saveLocation = this.settings.saveLocation;
+			// Create saveLocation if it doesn't exist
+			if (!(await this.app.vault.adapter.exists(saveLocation))) {
+				await this.app.vault.createFolder(saveLocation);
+			}
+
+			// Create media subfolder if it doesn't exist
+			const mediaFolder = `${saveLocation}/media`;
+			if (!(await this.app.vault.adapter.exists(mediaFolder))) {
+				await this.app.vault.createFolder(mediaFolder);
+			}
+
+			for (const note of notes) {
+				const md_file_content = note.text;
+				const noteTitle = note.title;
+				const noteFilePath = `${saveLocation}/${noteTitle}.md`;
+
+				// Save the note content to a markdown file
+				await this.app.vault.adapter.write(noteFilePath, md_file_content);
+
+				// Download and save each blob_url
+				for (const blob_url of note.blob_urls) {
+					const blobResponse = await fetch(blob_url);
+					if (!blobResponse.ok) {
+						throw new Error(`Failed to download blob from ${blob_url}`);
+					}
+					const blobData = await blobResponse.arrayBuffer();
+					const blobFileName = blob_url.split('/').pop();
+					const blobFilePath = `${saveLocation}/media/${blobFileName}`;
+					await this.app.vault.adapter.writeBinary(blobFilePath, blobData);
+				}
+			}
+			new Notice('Notes synced successfully');
+		} catch (error) {
+			console.error(error);
+			new Notice('Failed to sync notes');
+		}
+	}
+
+	async retrieveToken() {
+		try {
+			const oauthToken = await this.getOAuthToken();
+			const response = await fetch(`${API_URL}/register`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					email: this.settings.email,
+					oauth_token: oauthToken,
+				}),
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to retrieve token');
+			}
+
+			const result = await response.json();
+			this.settings.token = result.keep_token;
+			await this.saveSettings();
+			new Notice('Token retrieved successfully');
+		} catch (error) {
+			console.error(error);
+			new Notice('Failed to retrieve token');
+		}
+	}
+
+	async getOAuthToken(): Promise<string> {
+		const OAUTH_URL = "https://accounts.google.com/EmbeddedSetup";
+		const GOOGLE_EMAIL = this.settings.email;
+
+		const createOverlayScript = (message: string): string => {
+			return `
+			(function() {
+				let overlay = document.getElementById('oauth-guide-overlay');
+				if (!overlay) {
+					overlay = document.createElement('div');
+					overlay.id = 'oauth-guide-overlay';
+					overlay.style.position = 'fixed';
+					overlay.style.top = '10px';
+					overlay.style.right = '10px';
+					overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+					overlay.style.color = 'white';
+					overlay.style.padding = '20px';
+					overlay.style.borderRadius = '5px';
+					overlay.style.zIndex = '10000';
+					document.body.appendChild(overlay);
+				}
+				overlay.textContent = '${message}';
+			})();
+			`;
+		};
+		const PCR = require("puppeteer-chromium-resolver");
+		const options = {};
+		const stats = await PCR(options);
+		const { chromium } = require('playwright');
+
+		return new Promise<string>(async (resolve, reject) => {
+			const browser = await chromium.launch({ headless: false, executablePath: stats.executablePath });
+			const context = await browser.newContext();
+			const page = await context.newPage();
+
+			await page.goto(OAUTH_URL);
+
+			let oauthToken: string | null = null;
+			const startTime = Date.now();
+			const timeout = 300000; // 5 minutes timeout
+
+			let emailEntered = false;
+			while (!oauthToken && (Date.now() - startTime) < timeout) {
+				const currentUrl = page.url();
+
+				if (currentUrl.includes("accounts.google.com")) {
+					await page.evaluate(createOverlayScript("Step 1/3: Log in with your Google account."));
+					if (!emailEntered) {
+						const emailInput = await page.$('input[type="email"]');
+						if (emailInput) {
+							await emailInput.type(GOOGLE_EMAIL);
+							emailEntered = true;
+						}
+					}
+				}
+
+				if (currentUrl.includes("embeddedsigninconsent")) {
+					await page.evaluate(createOverlayScript("Step 2/3: Review and Agree to terms."));
+				}
+
+				const cookies = await context.cookies();
+				for (const cookie of cookies) {
+					if (cookie.name === "oauth_token") {
+						oauthToken = cookie.value;
+						console.log(`OAuth Token found in cookie: ${oauthToken}`);
+						await page.evaluate(createOverlayScript("Step 3/3: OAuth token successfully! Closing browser..."));
+						break;
+					}
+				}
+
+				// Wait for 1 seconds
+				await page.waitForTimeout(1000);
+			}
+
+			if (!oauthToken) {
+				console.log("Timeout: OAuth token not obtained within the specified time.");
+				await page.evaluate(createOverlayScript("Timeout: OAuth token not obtained. Please try again."));
+				reject(new Error("OAuth token not obtained"));
+			} else {
+				resolve(oauthToken);
+			}
+
+			await page.waitForTimeout(3000);
+			await browser.close();
+		});
+	}
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+const electron = require('electron');
+const path = require('path');
+
+const getChromiumExecutablePath = () => {
+	const platform = process.platform;
+
+	switch (platform) {
+		case 'win32':
+			return path.join(electron.remote.app.getAppPath(), 'node_modules', 'electron', 'dist', 'chrome.exe');
+		case 'darwin':
+			return path.join(electron.remote.app.getAppPath(), 'node_modules', 'electron', 'dist', 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
+		case 'linux':
+			return path.join(electron.remote.app.getAppPath(), 'node_modules', 'electron', 'dist', 'chrome');
+		default:
+			throw new Error(`Unsupported platform: ${platform}`);
 	}
+};
+class KeepToObsidianSettingTab extends PluginSettingTab {
+	plugin: KeepToObsidianPlugin;
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: KeepToObsidianPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
+	// Add a helper method to validate email
+	private isValidEmail(email: string): boolean {
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		return emailRegex.test(email);
+	}
+
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
+		containerEl.createEl('h2', { text: 'Google Keep To Obsidian Settings' });
+
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
+			.setName('Email')
+			.setDesc('Your Google Keep email')
 			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+				.setPlaceholder('example@gmail.com')
+				.setValue(this.plugin.settings.email)
 				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.email = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Sync Token')
+			.setDesc('Your Google Keep sync token (Only stored on your computer)')
+			.addText(text => text
+				.setPlaceholder('Your Google Keep sync token')
+				.setValue(this.plugin.settings.token)
+				.setDisabled(true))
+			.addButton(button => button
+				.setButtonText('Retrieve Token')
+				.onClick(async () => {
+					if (!this.plugin.settings.email || !this.isValidEmail(this.plugin.settings.email)) {
+						new Notice('Please enter a valid email address before retrieving the token.');
+						return;
+					}
+					await this.plugin.retrieveToken();
+					this.display(); // Refresh the settings page
+				}));
+
+		new Setting(containerEl)
+			.setName('Save Location')
+			.setDesc('Where to save synced notes (relative to vault folder)')
+			.addText(text => text
+				.setPlaceholder('google-keep')
+				.setValue(this.plugin.settings.saveLocation)
+				.onChange(async (value) => {
+					this.plugin.settings.saveLocation = value;
 					await this.plugin.saveSettings();
 				}));
 	}
