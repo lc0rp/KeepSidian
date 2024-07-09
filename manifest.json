@@ -1,6 +1,6 @@
 {
-	"id": "google-keep-to-obsidian",
-	"name": "Google Keep to Obsidian",
+	"id": "KeepSidian",
+	"name": "KeepSidian",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
 	"description": "Syncs Google Keep notes to Obsidian",

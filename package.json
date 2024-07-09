@@ -1,5 +1,5 @@
 {
-	"name": "google-keep-to-obsidian-plugin",
+	"name": "KeepSidian",
 	"version": "1.0.0",
 	"description": "This plugin helps sync Google Keep notes to Obsidian",
 	"main": "main.js",

@@ -9,7 +9,7 @@ interface KeepToObsidianPluginSettings {
 const DEFAULT_SETTINGS: KeepToObsidianPluginSettings = {
 	email: '',
 	token: '',
-	saveLocation: 'google-keep'
+	saveLocation: 'KeepSidian'
 }
 
 const API_URL = 'http://localhost:8000';
@@ -27,7 +27,7 @@ export default class KeepToObsidianPlugin extends Plugin {
 			new Notice('Synced Google Keep Notes to Obsidian');
 		});
 		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('keep-to-obsidian-ribbon-class');
+		ribbonIconEl.addClass('KeepSidian-ribbon-class');
 
 		// This adds a command to sync notes
 		this.addCommand({
@@ -270,7 +270,7 @@ class KeepToObsidianSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl('h2', { text: 'Google Keep To Obsidian Settings' });
+		containerEl.createEl('h2', { text: 'KeepSidian Settings' });
 
 		new Setting(containerEl)
 			.setName('Email')
@@ -305,7 +305,7 @@ class KeepToObsidianSettingTab extends PluginSettingTab {
 			.setName('Save Location')
 			.setDesc('Where to save synced notes (relative to vault folder)')
 			.addText(text => text
-				.setPlaceholder('google-keep')
+				.setPlaceholder('KeepSidian')
 				.setValue(this.plugin.settings.saveLocation)
 				.onChange(async (value) => {
 					this.plugin.settings.saveLocation = value;

@@ -1,5 +1,5 @@
 
-# Keep To Obsidian
+# KeepSidian
 
 This plugin imports your Google Keep notes into Obsidian. It's useful if you use Google Keep on one of your devices, and Obsidian on another, or if you want to migrate from Google Keep to Obsidian.
 
