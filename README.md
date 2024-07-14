@@ -5,31 +5,18 @@ This plugin imports your Google Keep notes into Obsidian. It's useful if you use
 
 It is still in beta phase - your feedback is welcome. Once complete, it'll offer some premium features. Request early access here. [Link]
 
-# Standard vs, Premium
+# Starter, Basic and Pro.
 
-## The standard version offers:
+The starter version offers an on-demand "Run Keep -> Obsidian" command that lets you download the 10 most recent notes on demand. You can try the standard version by following the installation instructions below and share your feedback.
 
-- An on-demand "Run Keep -> Obsidian" command
-- Download up to 5 notes on demand
+## The basic and pro versions (coming soon) offer more:
 
-Try the standard version and send your feedback. [Link]
+- Daily sync with basic, and realtime sync with pro.
+- 100 and unlimited notes respectively
+- 2-way sync, filters & tag, optional AI-assisted tagging and title generation
+- Priority, premium support.
 
-## The premium version offers:
-
-- Download unlimited notes
-- Two way sync
-- Auto sync
-- Filters to restrict the notes you want to sync
-- Skip filters to speficy notes you want to skip
-- Tagging notes
-- Optional AI-assisted autotagging for notes
-- Optional AI-assisted title generation for notes
-- Targetting different folders for different notes
-- Moving downloaded notes to archive
-- Only download archived notes
-- Overwrite, skip or keep-both duplicates
-
-Request early access here. [Link]
+Request early access [here](https://umh39lhux3j.typeform.com/to/NKbRukRg)
 
 # Installation
 

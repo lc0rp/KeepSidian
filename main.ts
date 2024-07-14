@@ -1,4 +1,6 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { handleDuplicateNotes, getExistingFileInfo, getUpdatedFileInfo } from './compare/compare';
+import { normalizeNote } from './note/note';
 
 interface KeepToObsidianPluginSettings {
 	email: string;
@@ -12,7 +14,7 @@ const DEFAULT_SETTINGS: KeepToObsidianPluginSettings = {
 	saveLocation: 'KeepSidian'
 }
 
-const API_URL = 'http://localhost:8000';
+const API_URL = 'http://localhost:8080';
 
 export default class KeepToObsidianPlugin extends Plugin {
 	settings: KeepToObsidianPluginSettings;
@@ -92,12 +94,39 @@ export default class KeepToObsidianPlugin extends Plugin {
 			}
 
 			for (const note of notes) {
-				const md_file_content = note.text;
-				const noteTitle = note.title;
-				const noteFilePath = `${saveLocation}/${noteTitle}.md`;
+				const normalizedNote = normalizeNote(note);
+				const noteTitle = normalizedNote.title;
+				let noteFilePath = `${saveLocation}/${noteTitle}.md`;
 
+				// const existingFileInfo = await getExistingFileInfo(noteFilePath, this.app);
+				// const updatedFileInfo = await getUpdatedFileInfo(normalizedNote);
+				// normalizedNote.body += "\n\nUpdated: \n";
+				// for (const [key, value] of Object.entries(updatedFileInfo)) {
+				// 	normalizedNote.body += `${key}: ${value}\n`;
+				// }
+				// normalizedNote.body += "Existing: \n";
+				// for (const [key, value] of Object.entries(existingFileInfo)) {
+				// 	normalizedNote.body += `${key}: ${value}\n`;
+				// }
+				const lastSyncDate = new Date().toISOString();
+
+				// Check if the note file already exists
+				const duplicateNotesAction = await handleDuplicateNotes(noteFilePath, normalizedNote, this.app);
+				if (duplicateNotesAction === 'skip') {
+					continue;
+				} else if (duplicateNotesAction === 'rename') {
+					noteFilePath = noteFilePath.replace(/\.md$/, '');
+					noteFilePath = `${noteFilePath}-conflict-${lastSyncDate}.md`;
+				}
+				
 				// Save the note content to a markdown file
-				await this.app.vault.adapter.write(noteFilePath, md_file_content);
+				// Add syncDate to the frontmatter, which may already exist or not
+				let mdFrontMatterDict = normalizedNote.frontmatterDict;
+				mdFrontMatterDict.LastSynced = lastSyncDate;
+				const mdFrontMatter = Object.entries(mdFrontMatterDict).reduce((acc, [key, value]) => `${acc}\n${key}: ${value}`, '');
+				const mdContentWithSyncDate = `---\n${mdFrontMatter}\n---\n${normalizedNote.body}`;
+
+				await this.app.vault.adapter.write(noteFilePath, mdContentWithSyncDate);
 
 				// Download and save each blob_url
 				for (const blob_url of note.blob_urls) {
@@ -233,24 +262,6 @@ export default class KeepToObsidianPlugin extends Plugin {
 		});
 	}
 }
-
-const electron = require('electron');
-const path = require('path');
-
-const getChromiumExecutablePath = () => {
-	const platform = process.platform;
-
-	switch (platform) {
-		case 'win32':
-			return path.join(electron.remote.app.getAppPath(), 'node_modules', 'electron', 'dist', 'chrome.exe');
-		case 'darwin':
-			return path.join(electron.remote.app.getAppPath(), 'node_modules', 'electron', 'dist', 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
-		case 'linux':
-			return path.join(electron.remote.app.getAppPath(), 'node_modules', 'electron', 'dist', 'chrome');
-		default:
-			throw new Error(`Unsupported platform: ${platform}`);
-	}
-};
 class KeepToObsidianSettingTab extends PluginSettingTab {
 	plugin: KeepToObsidianPlugin;
 
