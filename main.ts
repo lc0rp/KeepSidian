@@ -1,6 +1,8 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import { handleDuplicateNotes, getExistingFileInfo, getUpdatedFileInfo } from './compare/compare';
+import { App, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { handleDuplicateNotes } from './compare/compare';
 import { normalizeNote } from './note/note';
+import PCR from 'puppeteer-chromium-resolver';
+import { chromium } from 'playwright';
 
 interface KeepToObsidianPluginSettings {
 	email: string;
@@ -121,7 +123,7 @@ export default class KeepToObsidianPlugin extends Plugin {
 				
 				// Save the note content to a markdown file
 				// Add syncDate to the frontmatter, which may already exist or not
-				let mdFrontMatterDict = normalizedNote.frontmatterDict;
+				const mdFrontMatterDict = normalizedNote.frontmatterDict;
 				mdFrontMatterDict.LastSynced = lastSyncDate;
 				const mdFrontMatter = Object.entries(mdFrontMatterDict).reduce((acc, [key, value]) => `${acc}\n${key}: ${value}`, '');
 				const mdContentWithSyncDate = `---\n${mdFrontMatter}\n---\n${normalizedNote.body}`;
@@ -200,65 +202,70 @@ export default class KeepToObsidianPlugin extends Plugin {
 			})();
 			`;
 		};
-		const PCR = require("puppeteer-chromium-resolver");
 		const options = {};
 		const stats = await PCR(options);
-		const { chromium } = require('playwright');
 
-		return new Promise<string>(async (resolve, reject) => {
-			const browser = await chromium.launch({ headless: false, executablePath: stats.executablePath });
-			const context = await browser.newContext();
-			const page = await context.newPage();
+		return new Promise<string>((resolve, reject) => {
+			(async()=> {
+				try {
+					const browser = await chromium.launch({ headless: false, executablePath: stats.executablePath });
+					const context = await browser.newContext();
+					const page = await context.newPage();
 
-			await page.goto(OAUTH_URL);
+					await page.goto(OAUTH_URL);
 
-			let oauthToken: string | null = null;
-			const startTime = Date.now();
-			const timeout = 300000; // 5 minutes timeout
+					let oauthToken: string | null = null;
+					const startTime = Date.now();
+					const timeout = 300000; // 5 minutes timeout
 
-			let emailEntered = false;
-			while (!oauthToken && (Date.now() - startTime) < timeout) {
-				const currentUrl = page.url();
+					let emailEntered = false;
+					while (!oauthToken && (Date.now() - startTime) < timeout) {
+						const currentUrl = page.url();
 
-				if (currentUrl.includes("accounts.google.com")) {
-					await page.evaluate(createOverlayScript("Step 1/3: Log in with your Google account."));
-					if (!emailEntered) {
-						const emailInput = await page.$('input[type="email"]');
-						if (emailInput) {
-							await emailInput.type(GOOGLE_EMAIL);
-							emailEntered = true;
+						if (currentUrl.includes("accounts.google.com")) {
+							await page.evaluate(createOverlayScript("Step 1/3: Log in with your Google account."));
+							if (!emailEntered) {
+								const emailInput = await page.$('input[type="email"]');
+								if (emailInput) {
+									await emailInput.type(GOOGLE_EMAIL);
+									emailEntered = true;
+								}
+							}
 						}
+
+						if (currentUrl.includes("embeddedsigninconsent")) {
+							await page.evaluate(createOverlayScript("Step 2/3: Review and Agree to terms."));
+						}
+
+						const cookies = await context.cookies();
+						for (const cookie of cookies) {
+							if (cookie.name === "oauth_token") {
+								oauthToken = cookie.value;
+								console.log(`OAuth Token found in cookie: ${oauthToken}`);
+								await page.evaluate(createOverlayScript("Step 3/3: OAuth token successfully! Closing browser..."));
+								break;
+							}
+						}
+
+						// Wait for 1 seconds
+						await page.waitForTimeout(1000);
 					}
-				}
 
-				if (currentUrl.includes("embeddedsigninconsent")) {
-					await page.evaluate(createOverlayScript("Step 2/3: Review and Agree to terms."));
-				}
-
-				const cookies = await context.cookies();
-				for (const cookie of cookies) {
-					if (cookie.name === "oauth_token") {
-						oauthToken = cookie.value;
-						console.log(`OAuth Token found in cookie: ${oauthToken}`);
-						await page.evaluate(createOverlayScript("Step 3/3: OAuth token successfully! Closing browser..."));
-						break;
+					if (!oauthToken) {
+						console.log("Timeout: OAuth token not obtained within the specified time.");
+						await page.evaluate(createOverlayScript("Timeout: OAuth token not obtained. Please try again."));
+						reject(new Error("OAuth token not obtained"));
+					} else {
+						resolve(oauthToken);
 					}
+
+					await page.waitForTimeout(3000);
+					await browser.close();
+				} catch (error) {
+					console.error(error);
+					reject(error);
 				}
-
-				// Wait for 1 seconds
-				await page.waitForTimeout(1000);
-			}
-
-			if (!oauthToken) {
-				console.log("Timeout: OAuth token not obtained within the specified time.");
-				await page.evaluate(createOverlayScript("Timeout: OAuth token not obtained. Please try again."));
-				reject(new Error("OAuth token not obtained"));
-			} else {
-				resolve(oauthToken);
-			}
-
-			await page.waitForTimeout(3000);
-			await browser.close();
+			})();
 		});
 	}
 }

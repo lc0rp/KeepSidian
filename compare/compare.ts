@@ -1,3 +1,4 @@
+import { App } from "obsidian";
 import { NormalizedNote, normalizeDate, extractFrontmatter } from "../note/note";
 
 interface UpdatedFileInfo {
@@ -24,22 +25,20 @@ function getUpdatedFileInfo(incomingNote: NormalizedNote): UpdatedFileInfo {
     };
 }
 
-async function getExistingFileInfo(noteFilePath: string, app: any): Promise<ExistingFileInfo> {
+async function getExistingFileInfo(noteFilePath: string, app: App): Promise<ExistingFileInfo> {
     const existingContent = await app.vault.adapter.read(noteFilePath);
-    const [existingFrontMatter, existingBody, existingFrontMatterDict] = extractFrontmatter(existingContent);
+    const [, existingBody, existingFrontMatterDict] = extractFrontmatter(existingContent);
 
-    // Get rid of any frontMatter from existingContent
     const existingCreatedDate = normalizeDate(existingFrontMatterDict.Created);
     console.log(existingCreatedDate);
     const existingUpdatedDate = normalizeDate(existingFrontMatterDict.Updated);
     console.log(existingUpdatedDate);
     const existingLastSyncedDate = normalizeDate(existingFrontMatterDict.LastSynced);
     console.log(existingLastSyncedDate);
-
     // Get fsCreatedDate and fsUpdatedDate from noteFilePath
-    const fsCreatedDateTimeStamp = await app.vault.adapter.stat(noteFilePath).then((stat: { ctime?: number }) => stat?.ctime);
+    const fsCreatedDateTimeStamp = await app.vault.adapter.stat(noteFilePath).then((stat) => stat?.ctime);
     console.log(fsCreatedDateTimeStamp);
-    const fsUpdatedDateTimeStamp = await app.vault.adapter.stat(noteFilePath).then((stat: { mtime?: number }) => stat?.mtime);
+    const fsUpdatedDateTimeStamp = await app.vault.adapter.stat(noteFilePath).then((stat) => stat?.mtime);
     console.log(fsUpdatedDateTimeStamp);
     const fsCreatedDate = fsCreatedDateTimeStamp ? new Date(fsCreatedDateTimeStamp) : null;
     console.log(fsCreatedDate);
@@ -60,9 +59,9 @@ async function getExistingFileInfo(noteFilePath: string, app: any): Promise<Exis
 async function handleDuplicateNotes(
     saveLocation: string,
     incomingNote: NormalizedNote,
-    app: any
+    app: App
 ): Promise<'skip' | 'rename' | 'overwrite'> {
-    let noteFilePath = `${saveLocation}/${incomingNote.title}.md`;
+    const noteFilePath = `${saveLocation}/${incomingNote.title}.md`;
     const fileExists = await app.vault.adapter.exists(noteFilePath);
 
     if (fileExists) {
@@ -82,11 +81,9 @@ function checkForDuplicateData(
     const currentDate = new Date();
 
     // Normalize dates for incoming file
-    const incomingCreatedDate = incomingFile.createdDate || currentDate;
     const incomingUpdatedDate = incomingFile.updatedDate || currentDate;
 
     // Normalize dates for existing file
-    const existingCreatedDate = existingFile.createdDate || existingFile.fsCreatedDate;
     const existingUpdatedDate = existingFile.fsUpdatedDate || existingFile.updatedDate || existingFile.fsCreatedDate;
     const lastSyncedDate = existingFile.lastSyncedDate || existingFile.fsCreatedDate;
 
