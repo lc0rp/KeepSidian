@@ -3,6 +3,7 @@ import { handleDuplicateNotes } from './compare/compare';
 import { normalizeNote } from './note/note';
 import PCR from 'puppeteer-chromium-resolver';
 import { chromium } from 'playwright';
+import { normalizePath } from "obsidian";
 
 interface KeepToObsidianPluginSettings {
 	email: string;
@@ -47,12 +48,12 @@ export default class KeepToObsidianPlugin extends Plugin {
 
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
+		// this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
+		// 	console.log('click', evt);
+		// });
 
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		// this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
 	onunload() {
@@ -98,7 +99,7 @@ export default class KeepToObsidianPlugin extends Plugin {
 			for (const note of notes) {
 				const normalizedNote = normalizeNote(note);
 				const noteTitle = normalizedNote.title;
-				let noteFilePath = `${saveLocation}/${noteTitle}.md`;
+				let noteFilePath = normalizePath(`${saveLocation}/${noteTitle}.md`);
 
 				// const existingFileInfo = await getExistingFileInfo(noteFilePath, this.app);
 				// const updatedFileInfo = await getUpdatedFileInfo(normalizedNote);
@@ -241,7 +242,7 @@ export default class KeepToObsidianPlugin extends Plugin {
 						for (const cookie of cookies) {
 							if (cookie.name === "oauth_token") {
 								oauthToken = cookie.value;
-								console.log(`OAuth Token found in cookie: ${oauthToken}`);
+								// console.log(`OAuth Token found in cookie: ${oauthToken}`);
 								await page.evaluate(createOverlayScript("Step 3/3: OAuth token successfully! Closing browser..."));
 								break;
 							}
@@ -252,7 +253,7 @@ export default class KeepToObsidianPlugin extends Plugin {
 					}
 
 					if (!oauthToken) {
-						console.log("Timeout: OAuth token not obtained within the specified time.");
+						// console.log("Timeout: OAuth token not obtained within the specified time.");
 						await page.evaluate(createOverlayScript("Timeout: OAuth token not obtained. Please try again."));
 						reject(new Error("OAuth token not obtained"));
 					} else {
@@ -288,11 +289,9 @@ class KeepToObsidianSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl('h2', { text: 'KeepSidian Settings' });
-
 		new Setting(containerEl)
 			.setName('Email')
-			.setDesc('Your Google Keep email')
+			.setDesc('Your Google Keep email.')
 			.addText(text => text
 				.setPlaceholder('example@gmail.com')
 				.setValue(this.plugin.settings.email)
@@ -302,10 +301,10 @@ class KeepToObsidianSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Sync Token')
-			.setDesc('Your Google Keep sync token (Only stored on your computer)')
+			.setName('Sync token')
+			.setDesc('Your Google Keep sync token (Only stored on your computer).')
 			.addText(text => text
-				.setPlaceholder('Your Google Keep sync token')
+				.setPlaceholder('Your Google Keep sync token.')
 				.setValue(this.plugin.settings.token)
 				.setDisabled(true))
 			.addButton(button => button
@@ -320,8 +319,8 @@ class KeepToObsidianSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Save Location')
-			.setDesc('Where to save synced notes (relative to vault folder)')
+			.setName('Save location')
+			.setDesc('Where to save synced notes (relative to vault folder).')
 			.addText(text => text
 				.setPlaceholder('KeepSidian')
 				.setValue(this.plugin.settings.saveLocation)

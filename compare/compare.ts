@@ -30,20 +30,13 @@ async function getExistingFileInfo(noteFilePath: string, app: App): Promise<Exis
     const [, existingBody, existingFrontMatterDict] = extractFrontmatter(existingContent);
 
     const existingCreatedDate = normalizeDate(existingFrontMatterDict.Created);
-    console.log(existingCreatedDate);
     const existingUpdatedDate = normalizeDate(existingFrontMatterDict.Updated);
-    console.log(existingUpdatedDate);
     const existingLastSyncedDate = normalizeDate(existingFrontMatterDict.LastSynced);
-    console.log(existingLastSyncedDate);
     // Get fsCreatedDate and fsUpdatedDate from noteFilePath
     const fsCreatedDateTimeStamp = await app.vault.adapter.stat(noteFilePath).then((stat) => stat?.ctime);
-    console.log(fsCreatedDateTimeStamp);
     const fsUpdatedDateTimeStamp = await app.vault.adapter.stat(noteFilePath).then((stat) => stat?.mtime);
-    console.log(fsUpdatedDateTimeStamp);
     const fsCreatedDate = fsCreatedDateTimeStamp ? new Date(fsCreatedDateTimeStamp) : null;
-    console.log(fsCreatedDate);
     const fsUpdatedDate = fsUpdatedDateTimeStamp ? new Date(fsUpdatedDateTimeStamp) : null;
-    console.log(fsUpdatedDate);
     
     return {
         // Read from noteFilePath

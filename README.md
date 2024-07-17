@@ -1,57 +1,65 @@
 
 # KeepSidian
 
-This plugin imports your Google Keep notes into Obsidian. It's useful if you use Google Keep on one of your devices, and Obsidian on another, or if you want to migrate from Google Keep to Obsidian.
+Sync Google Keep notes to Obsidian.
 
-It is still in beta phase - your feedback is welcome. Once complete, it'll offer some premium features. Request early access here. [Link]
+If you use both apps or are migrating from Google Keep to Obsidian, this app is for you.
 
-# Starter, Basic and Pro.
+It is still in the beta phase. Please share your feedback in the[ issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
 
-The starter version offers an on-demand "Run Keep -> Obsidian" command that lets you download the 10 most recent notes on demand. You can try the standard version by following the installation instructions below and share your feedback.
+## Sync service
 
-## The basic and pro versions (coming soon) offer more:
+KeepSidian connects to Google Keep via a custom GCP-hosted sync service (currently keepsidian.lc0rp.com), enabling efficient, scalable operation for all note sizes, fast feature iteration, and advanced features like efficient syncing, AI-assisted title generation, and auto-tagging. 
 
-- Daily sync with basic, and realtime sync with pro.
-- 100 and unlimited notes respectively
-- 2-way sync, filters & tag, optional AI-assisted tagging and title generation
-- Priority, premium support.
+### Privacy note
 
-Request early access [here](https://umh39lhux3j.typeform.com/to/NKbRukRg)
+We do not store any notes. 
 
-# Installation
+When you initiate a sync, you'll send your Google Keep email and a token that you will generate during installation. These credentials are stored on your computer, transmitted when you make a sync, and discarded afterward. 
 
-This isn't yet in the community plugin store. Until it's accepted, you can download it using the instructions below:
-Option 1: Use the BRAT plugin
-Option 2: Clone this repositlry 
+We do not log or store your notes or credentials in any way.
 
-# Standard Configuration
+## Standard operation
 
-After installation, go to Settings > Community Plugins > Google Keep Sync, in obsidian.
+In standard mode, the plugin offers an on-demand "Run Keep -> Obsidian" command to download the ten most recent notes on demand. Follow the installation instructions below to try it and share your feedback.
 
-Step 1: Configure:
-- Your Google Keep email
-- The folder to sync to
+## Premium paid service (coming soon):
 
-Step 2: Retrieve a Google Keep token
+**NOTE**:  [You can request Premium early access here.](https://umh39lhux3j.typeform.com/to/NKbRukRg)
 
-Click Retrieve, and a browser window should open prompting you to log into Google. Once you have done so, we shall generate a token that will be used to access your Google Keep account.
+For advanced users, we intend to offer paid features that include the following:  
 
-** PRIVACY NOTE **: THIS TOKEN IS ONLY STORED ON YOUR COMPUTER. 
+| Premium                   | Premium Plus                                                 |
+| ------------------------- | ------------------------------------------------------------ |
+| Daily sync                | Real-time sync                                               |
+| 100 notes                 | Unlimited notes                                              |
+| 2-way sync, filters, tags | Silver features + Optional AI-assisted tagging and title generation |
+| Priority support          | Priority support                                             |
 
-See the Security section below.
+**NOTE**: [Request Premium early access here.](https://umh39lhux3j.typeform.com/to/NKbRukRg)
 
-# Premium Configuration
+## Installation
 
-To enable premium features, complete the standard configuration, then login to k2s.lc0rp.com using your Google Account. You'll then be able to access your premium config.
+KeepSidian is in the process of being added to the community plugin store. Until it's accepted, you can download it using the instructions below:
 
-Premium currently costs $2.99 per month of $24 per year. [TBD]
+- **Option 1**: Use the [Obsidian BRAT plugin](https://github.com/TfTHacker/obsidian42-brat)
+- **Option 2**: Clone this repository in your <obsidian vault path>/.obsidian/plugins
 
-# Privacy Considerations: What data we exchange
+## Standard configuration
 
-The plugin connects to our server (currently k2s.lc0rp.com) similalry to how Obsidian connects to the Obsidian Sync service, to enable premium and AI features.
+After installation, go to "Settings > Community Plugins > KeepSidian" in Obsidian.
 
-When initiating a sync, it'll send your email and token. We do not log or store your notes or credentials in any way.
+### Step 1: Configure:
 
-# Feedback
+- Enter our Google Keep email.
+- Enter the folder to sync to
 
-Send feedback to [TBD]
+### Step 2: Retrieve a Google Keep token
+
+Click "Retrieve Token," and a browser window should open, prompting you to log into Google. Once you have done so, we shall generate a token that will be used to access your Google Keep account.
+
+**PRIVACY NOTE**: THIS TOKEN IS ONLY STORED ON YOUR COMPUTER. 
+
+## Feedback
+
+Please share your feedback in the[ issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
