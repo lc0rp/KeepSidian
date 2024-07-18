@@ -3,13 +3,15 @@
 
 Sync Google Keep notes to Obsidian.
 
-If you use both apps or are migrating from Google Keep to Obsidian, this app is for you.
+As regular users of both Google Keep and Obsidian, we aim to make it easier to use both apps simultaneously by enabling simple, user-friendly data exchange.
 
-It is still in the beta phase. Please share your feedback in the[ issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
+This plugin is still in the beta phase. Please share your feedback in the[ issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
 
-## Sync service
+## Sync server
 
-KeepSidian connects to Google Keep via a custom GCP-hosted sync service (currently keepsidian.lc0rp.com), enabling efficient, scalable operation for all note sizes, fast feature iteration, and advanced features like efficient syncing, AI-assisted title generation, and auto-tagging. 
+The connection to Google Keep is routed via the KeepSidian sync server, which does the heavy lifting. It enables efficient, scalable operation for all note sizes across mobile and web, fast feature iteration, and advanced features like two-way syncing, AI-assisted title generation, and auto-tagging. 
+
+> **Note**: The KeepSidian sync server is a closed-source product. The Obsidian team is being given full access to our private codebase.
 
 ### Privacy note
 
@@ -23,6 +25,13 @@ We do not log or store your notes or credentials in any way.
 
 In standard mode, the plugin offers an on-demand "Run Keep -> Obsidian" command to download the ten most recent notes on demand. Follow the installation instructions below to try it and share your feedback.
 
+The plugin adds the following frontmatter to each synced note:
+
+- GoogleKeepUrl
+- GoogleKeepCreatedDate
+- GoogleKeepUpdatedDate
+- KeepSidianLastSyncedDate
+
 ## Premium paid service (coming soon):
 
 **NOTE**:  [You can request Premium early access here.](https://umh39lhux3j.typeform.com/to/NKbRukRg)
@@ -33,7 +42,7 @@ For advanced users, we intend to offer paid features that include the following:
 | ------------------------- | ------------------------------------------------------------ |
 | Daily sync                | Real-time sync                                               |
 | 100 notes                 | Unlimited notes                                              |
-| 2-way sync, filters, tags | Silver features + Optional AI-assisted tagging and title generation |
+| 2-way sync, filters, tags | Premium features + Optional AI-assisted tagging and title generation |
 | Priority support          | Priority support                                             |
 
 **NOTE**: [Request Premium early access here.](https://umh39lhux3j.typeform.com/to/NKbRukRg)
