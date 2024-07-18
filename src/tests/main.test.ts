@@ -1,5 +1,5 @@
 // import { jest } from '@jest/globals';
-import { App, Plugin, PluginManifest } from 'obsidian';
+import { App, PluginManifest } from 'obsidian';
 import KeepToObsidianPlugin from '../main';
 
 // Mock Obsidian API
@@ -11,7 +11,7 @@ jest.mock('node-fetch');
 describe('KeepToObsidianPlugin', () => {
   let plugin: KeepToObsidianPlugin;
   let mockApp: jest.Mocked<App>;
-  let manifest: PluginManifest = { id: 'keep-to-obsidian', name: 'Keep to Obsidian', author: 'Obsidian', version: '0.0.1', minAppVersion: '0.0.1', description: 'Sync Google Keep notes to Obsidian' }
+  const manifest: PluginManifest = { id: 'keep-to-obsidian', name: 'Keep to Obsidian', author: 'Obsidian', version: '0.0.1', minAppVersion: '0.0.1', description: 'Sync Google Keep notes to Obsidian' }
 
   beforeEach(() => {
     mockApp = new App() as jest.Mocked<App>;

@@ -5,6 +5,8 @@ import PCR from 'puppeteer-chromium-resolver';
 import { chromium } from 'playwright';
 import { normalizePath } from "obsidian";
 
+const API_URL = 'http://localhost:8080';
+
 interface KeepToObsidianPluginSettings {
 	email: string;
 	token: string;
@@ -16,8 +18,6 @@ const DEFAULT_SETTINGS: KeepToObsidianPluginSettings = {
 	token: '',
 	saveLocation: 'KeepSidian'
 }
-
-const API_URL = 'http://localhost:8080';
 
 export default class KeepToObsidianPlugin extends Plugin {
 	settings: KeepToObsidianPluginSettings;
@@ -45,19 +45,6 @@ export default class KeepToObsidianPlugin extends Plugin {
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new KeepToObsidianSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		// this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-		// 	console.log('click', evt);
-		// });
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		// this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-	}
-
-	onunload() {
-
 	}
 
 	async loadSettings() {
@@ -101,17 +88,7 @@ export default class KeepToObsidianPlugin extends Plugin {
 				const noteTitle = normalizedNote.title;
 				let noteFilePath = normalizePath(`${saveLocation}/${noteTitle}.md`);
 
-				// const existingFileInfo = await getExistingFileInfo(noteFilePath, this.app);
-				// const updatedFileInfo = await getUpdatedFileInfo(normalizedNote);
-				// normalizedNote.body += "\n\nUpdated: \n";
-				// for (const [key, value] of Object.entries(updatedFileInfo)) {
-				// 	normalizedNote.body += `${key}: ${value}\n`;
-				// }
-				// normalizedNote.body += "Existing: \n";
-				// for (const [key, value] of Object.entries(existingFileInfo)) {
-				// 	normalizedNote.body += `${key}: ${value}\n`;
-				// }
-				const lastSyncDate = new Date().toISOString();
+				const lastSyncedDate = new Date().toISOString();
 
 				// Check if the note file already exists
 				const duplicateNotesAction = await handleDuplicateNotes(noteFilePath, normalizedNote, this.app);
@@ -119,14 +96,14 @@ export default class KeepToObsidianPlugin extends Plugin {
 					continue;
 				} else if (duplicateNotesAction === 'rename') {
 					noteFilePath = noteFilePath.replace(/\.md$/, '');
-					noteFilePath = `${noteFilePath}-conflict-${lastSyncDate}.md`;
+					noteFilePath = `${noteFilePath}-conflict-${lastSyncedDate}.md`;
 				}
 				
 				// Save the note content to a markdown file
 				// Add syncDate to the frontmatter, which may already exist or not
 				const mdFrontMatterDict = normalizedNote.frontmatterDict;
-				mdFrontMatterDict.LastSynced = lastSyncDate;
-				const mdFrontMatter = Object.entries(mdFrontMatterDict).reduce((acc, [key, value]) => `${acc}\n${key}: ${value}`, '');
+				mdFrontMatterDict.KeepSidianLastSyncedDate = lastSyncedDate;
+				const mdFrontMatter = Object.entries(mdFrontMatterDict).map(([key, value]) => `${key}: ${value}`).join('\n');
 				const mdContentWithSyncDate = `---\n${mdFrontMatter}\n---\n${normalizedNote.body}`;
 
 				await this.app.vault.adapter.write(noteFilePath, mdContentWithSyncDate);
@@ -270,6 +247,7 @@ export default class KeepToObsidianPlugin extends Plugin {
 		});
 	}
 }
+
 class KeepToObsidianSettingTab extends PluginSettingTab {
 	plugin: KeepToObsidianPlugin;
 

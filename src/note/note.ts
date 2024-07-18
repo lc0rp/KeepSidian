@@ -66,9 +66,9 @@ function extractFrontmatter(text: string): [string, string, { [key: string]: str
         frontmatterDict = frontmatter_parts.reduce((acc: { [key: string]: string }, item: string) => {
             const [key, value] = item.split(': ');
             if (key && value) {
-                // Convert key to CamelCase
-                const camelKey = key.replace(/-([a-z])/g, (match, p1) => p1.toUpperCase());
-                acc[camelKey] = value.trim();
+                // Convert key to PascalCase
+                const pascalKey = key.replace(/(^|-)([a-z])/g, (match, p1, p2) => p2.toUpperCase());
+                acc[pascalKey] = value.trim();
             }
             return acc;
         }, {});

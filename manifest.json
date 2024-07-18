@@ -6,5 +6,6 @@
 	"description": "Sync Google Keep notes to Obsidian",
 	"author": "lc0rp",
 	"authorUrl": "https://github.com/lc0rp",
-	"isDesktopOnly": true
+	"isDesktopOnly": true,
+	"main": "main.js"
 }
