@@ -5,7 +5,8 @@ import PCR from 'puppeteer-chromium-resolver';
 import { chromium } from 'playwright';
 import { normalizePath } from "obsidian";
 
-const API_URL = 'http://localhost:8080';
+// const API_URL = 'http://localhost:8080';
+const API_URL = 'https://keepsidianserver-i55qr5tvea-uc.a.run.app'
 
 interface KeepToObsidianPluginSettings {
 	email: string;
