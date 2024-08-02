@@ -1,4 +1,4 @@
-import { App, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Notice, Plugin, PluginSettingTab, RequestUrlResponse, Setting, requestUrl } from 'obsidian';
 import { handleDuplicateNotes } from './compare/compare';
 import { normalizeNote } from './note/note';
 import PCR from 'puppeteer-chromium-resolver';
@@ -27,18 +27,16 @@ export default class KeepToObsidianPlugin extends Plugin {
 		await this.loadSettings();
 
 		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('folder-sync', 'Run Google Keep → Obsidian', (evt: MouseEvent) => {
+		const ribbonIconEl = this.addRibbonIcon('folder-sync', 'Import Google Keep notes.', (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
 			this.syncNotes();
-			new Notice('Synced Google Keep Notes to Obsidian');
+			new Notice('Imported Google Keep notes.');
 		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('KeepSidian-ribbon-class');
 
 		// This adds a command to sync notes
 		this.addCommand({
 			id: 'sync-notes',
-			name: 'Run Google Keep → Obsidian',
+			name: 'Import Google Keep notes.',
 			callback: () => {
 				this.syncNotes();
 			}
@@ -58,17 +56,14 @@ export default class KeepToObsidianPlugin extends Plugin {
 
 	async syncNotes() {
 		try {
-			const response = await fetch(`${API_URL}/sync`, {
+			const response = await requestUrl({
+				url: `${API_URL}/sync`,
 				method: 'GET',
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${this.settings.token}`
 				}
 			});
-
-			if (!response.ok) {
-				throw new Error('Failed to sync notes');
-			}
 
 			const result = await response.json();
 			const notes = result.notes;
@@ -111,27 +106,33 @@ export default class KeepToObsidianPlugin extends Plugin {
 
 				// Download and save each blob_url
 				for (const blob_url of note.blob_urls) {
-					const blobResponse = await fetch(blob_url);
-					if (!blobResponse.ok) {
-						throw new Error(`Failed to download blob from ${blob_url}`);
+					try {
+						const blobResponse: RequestUrlResponse = await requestUrl({
+							url: blob_url,
+						method: 'GET',
+						});
+						const blobData = blobResponse.arrayBuffer;
+						const blobFileName = blob_url.split('/').pop();
+						const blobFilePath = `${saveLocation}/media/${blobFileName}`;
+						await this.app.vault.adapter.writeBinary(blobFilePath, blobData);
+					} catch (error) {
+						console.error(error);
+						throw new Error(`Failed to download blob from ${blob_url}.`);
 					}
-					const blobData = await blobResponse.arrayBuffer();
-					const blobFileName = blob_url.split('/').pop();
-					const blobFilePath = `${saveLocation}/media/${blobFileName}`;
-					await this.app.vault.adapter.writeBinary(blobFilePath, blobData);
 				}
 			}
-			new Notice('Notes synced successfully');
+			new Notice('Notes imported successfully.');
 		} catch (error) {
 			console.error(error);
-			new Notice('Failed to sync notes');
+			new Notice('Failed to import notes.');
 		}
 	}
 
 	async retrieveToken() {
 		try {
 			const oauthToken = await this.getOAuthToken();
-			const response = await fetch(`${API_URL}/register`, {
+			const response: RequestUrlResponse = await requestUrl	({
+				url: `${API_URL}/register`,
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -142,17 +143,13 @@ export default class KeepToObsidianPlugin extends Plugin {
 				}),
 			});
 
-			if (!response.ok) {
-				throw new Error('Failed to retrieve token');
-			}
-
 			const result = await response.json();
 			this.settings.token = result.keep_token;
 			await this.saveSettings();
-			new Notice('Token retrieved successfully');
+			new Notice('Token retrieved successfully.');
 		} catch (error) {
 			console.error(error);
-			new Notice('Failed to retrieve token');
+			new Notice('Failed to retrieve token.');
 		}
 	}
 
@@ -281,9 +278,9 @@ class KeepToObsidianSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Sync token')
-			.setDesc('Your Google Keep sync token (Only stored on your computer).')
+			.setDesc('Your Google Keep import token (Stored on your computer and used for importing notes).')
 			.addText(text => text
-				.setPlaceholder('Your Google Keep sync token.')
+				.setPlaceholder('Your Google Keep import token.')
 				.setValue(this.plugin.settings.token)
 				.setDisabled(true))
 			.addButton(button => button
@@ -299,7 +296,7 @@ class KeepToObsidianSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Save location')
-			.setDesc('Where to save synced notes (relative to vault folder).')
+			.setDesc('Where to save imported notes (relative to vault folder).')
 			.addText(text => text
 				.setPlaceholder('KeepSidian')
 				.setValue(this.plugin.settings.saveLocation)

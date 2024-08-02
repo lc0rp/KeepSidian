@@ -11,7 +11,7 @@ jest.mock('node-fetch');
 describe('KeepToObsidianPlugin', () => {
   let plugin: KeepToObsidianPlugin;
   let mockApp: jest.Mocked<App>;
-  const manifest: PluginManifest = { id: 'keep-to-obsidian', name: 'Keep to Obsidian', author: 'Obsidian', version: '0.0.1', minAppVersion: '0.0.1', description: 'Sync Google Keep notes to Obsidian' }
+  const manifest: PluginManifest = { id: 'keepsidian', name: 'KeepSidian', author: 'lc0rp', version: '0.0.1', minAppVersion: '0.0.1', description: 'Import Google Keep notes.' }
 
   beforeEach(() => {
     mockApp = new App() as jest.Mocked<App>;
@@ -28,12 +28,12 @@ describe('KeepToObsidianPlugin', () => {
       await plugin.onload();
 
       expect(plugin.loadSettings).toHaveBeenCalled();
-      expect(mockAddRibbonIcon).toHaveBeenCalledWith('folder-sync', 'Run Google Keep → Obsidian', expect.any(Function));
+      expect(mockAddRibbonIcon).toHaveBeenCalledWith('folder-sync', 'Import Google Keep notes.', expect.any(Function));
     });
   });
 
   describe('syncNotes', () => {
-    it('should sync notes successfully', async () => {
+    it('should import notes successfully', async () => {
       const mockFetch = fetch as jest.MockedFunction<typeof fetch>;
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -53,7 +53,7 @@ describe('KeepToObsidianPlugin', () => {
       expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/sync'), expect.any(Object));
     });
 
-    it('should handle sync failure', async () => {
+    it('should handle import failure', async () => {
       const mockFetch = fetch as jest.MockedFunction<typeof fetch>;
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -92,7 +92,7 @@ describe('KeepToObsidianPlugin', () => {
       plugin.getOAuthToken = jest.fn().mockResolvedValue('oauth-token');
       plugin.settings = { email: 'test@example.com', token: '', saveLocation: '' };
 
-      await expect(plugin.retrieveToken()).rejects.toThrow('Failed to retrieve token');
+      await expect(plugin.retrieveToken()).rejects.toThrow('Failed to retrieve token.');
     });
   });
 });
