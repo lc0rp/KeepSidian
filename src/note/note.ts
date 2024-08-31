@@ -10,6 +10,7 @@ interface NormalizedNote {
     trashed: boolean;
     labels: string[];
     blobs: string[];
+    blob_urls: string[];
     blob_names: string[];
     media: string[];
     header: string;
@@ -31,10 +32,11 @@ function normalizeNote(note: any): NormalizedNote {
         updated: normalizeDate(note.updated),
         archived: note.archived,
         trashed: note.trashed,
-        labels: note.labels,
-        blobs: note.blobs,
-        blob_names: note.blob_names,
-        media: note.media,
+        labels: Array.isArray(note.labels) ? note.labels : [],
+        blobs: Array.isArray(note.blobs) ? note.blobs : [],
+        blob_urls: Array.isArray(note.blob_urls) ? note.blob_urls : [],
+        blob_names: Array.isArray(note.blob_names) ? note.blob_names : [],
+        media: Array.isArray(note.media) ? note.media : [],
         header: note.header,
         body: '',
         frontmatter: '',

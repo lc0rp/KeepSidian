@@ -1,6 +1,6 @@
 import { App, Notice, Plugin, PluginSettingTab, RequestUrlResponse, Setting, requestUrl } from 'obsidian';
 import { handleDuplicateNotes } from './compare/compare';
-import { normalizeNote } from './note/note';
+import { NormalizedNote, normalizeNote } from './note/note';
 import PCR from 'puppeteer-chromium-resolver';
 import { chromium } from 'playwright';
 import { normalizePath } from "obsidian";
@@ -12,6 +12,12 @@ interface KeepToObsidianPluginSettings {
 	email: string;
 	token: string;
 	saveLocation: string;
+}
+
+// Define the SyncResponse interface
+interface SyncResponse {
+	notes: Array<NormalizedNote>;
+	// Add other top-level properties if they exist in the response
 }
 
 const DEFAULT_SETTINGS: KeepToObsidianPluginSettings = {
@@ -61,12 +67,19 @@ export default class KeepToObsidianPlugin extends Plugin {
 				method: 'GET',
 				headers: {
 					'Content-Type': 'application/json',
+					'email': this.settings.email,
 					'Authorization': `Bearer ${this.settings.token}`
 				}
 			});
 
-			const result = await response.json();
-			const notes = result.notes;
+			// Check if response.json is available
+			const result = typeof response.json === 'function'
+				? await response.json()
+				: response.text ? JSON.parse(response.text) : response;
+
+			// Type assertion
+			const typedResult = result as SyncResponse;
+			const notes = typedResult.notes;
 			const saveLocation = this.settings.saveLocation;
 			// Create saveLocation if it doesn't exist
 			if (!(await this.app.vault.adapter.exists(saveLocation))) {
@@ -94,7 +107,7 @@ export default class KeepToObsidianPlugin extends Plugin {
 					noteFilePath = noteFilePath.replace(/\.md$/, '');
 					noteFilePath = `${noteFilePath}-conflict-${lastSyncedDate}.md`;
 				}
-				
+
 				// Save the note content to a markdown file
 				// Add syncDate to the frontmatter, which may already exist or not
 				const mdFrontMatterDict = normalizedNote.frontmatterDict;
@@ -109,7 +122,7 @@ export default class KeepToObsidianPlugin extends Plugin {
 					try {
 						const blobResponse: RequestUrlResponse = await requestUrl({
 							url: blob_url,
-						method: 'GET',
+							method: 'GET',
 						});
 						const blobData = blobResponse.arrayBuffer;
 						const blobFileName = blob_url.split('/').pop();
@@ -131,7 +144,7 @@ export default class KeepToObsidianPlugin extends Plugin {
 	async retrieveToken() {
 		try {
 			const oauthToken = await this.getOAuthToken();
-			const response: RequestUrlResponse = await requestUrl	({
+			const response: RequestUrlResponse = await requestUrl({
 				url: `${API_URL}/register`,
 				method: 'POST',
 				headers: {
@@ -182,7 +195,7 @@ export default class KeepToObsidianPlugin extends Plugin {
 		const stats = await PCR(options);
 
 		return new Promise<string>((resolve, reject) => {
-			(async()=> {
+			(async () => {
 				try {
 					const browser = await chromium.launch({ headless: false, executablePath: stats.executablePath });
 					const context = await browser.newContext();
