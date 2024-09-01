@@ -1,7 +1,0 @@
-packages:
-  # include packages in subfolders (change as required)
-  - 'apps/**'
-  - 'packages/**'
-  - 'src/**'
-  # if required, exclude directories
-  - '!**/test/**'
