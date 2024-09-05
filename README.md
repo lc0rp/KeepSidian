@@ -21,7 +21,7 @@ This plugin offers an on-demand "Run Keep -> Obsidian" command to download the 5
 
 If more people find this project useful, I may expand the functionality to include daily sync, realtime sync, unlimited notes, 2-way sync, filters, tags or AI-enabled tagging & title generation.
 
-Rank the upcoming features here: [KeepSidian Wishlist]](https://umh39lhux3j.typeform.com/to/NKbRukRg)
+Rank the upcoming features here: [KeepSidian Wishlist](https://umh39lhux3j.typeform.com/to/NKbRukRg)
 
 ## Installation
 
