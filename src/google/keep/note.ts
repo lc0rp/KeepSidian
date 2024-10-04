@@ -16,7 +16,25 @@ interface NormalizedNote {
     header: string;
 }
 
-function normalizeDate(dateString?: string): Date | null {
+interface PreNormalizedNote {
+    title?: string;
+    text?: string;
+    body?: string;
+    created?: string;
+    updated?: string;
+    frontmatter?: string;
+    frontmatterDict?: { [key: string]: string };
+    archived?: boolean;
+    trashed?: boolean;
+    labels?: string[];
+    blobs?: string[];
+    blob_urls?: string[];
+    blob_names?: string[];
+    media?: string[];
+    header?: string;
+}
+
+function normalizeDate(dateString?: string | null): Date | null {
     if (!dateString) {
         return null;
     }
@@ -24,26 +42,26 @@ function normalizeDate(dateString?: string): Date | null {
     return isNaN(date.getTime()) ? null : date;
 }
 
-function normalizeNote(note: any): NormalizedNote {
+function normalizeNote(note: PreNormalizedNote): NormalizedNote {
     const normalizedNote: NormalizedNote = {
-        title: note.title?.trim(),
-        text: note.text?.trim(),
-        created: normalizeDate(note.created),
-        updated: normalizeDate(note.updated),
-        archived: note.archived,
-        trashed: note.trashed,
+        title: note.title?.trim() || '',
+        text: note.text?.trim() || '',
+        created: normalizeDate(note.created) || null,
+        updated: normalizeDate(note.updated) || null,
+        archived: note.archived || false,
+        trashed: note.trashed || false,
         labels: Array.isArray(note.labels) ? note.labels : [],
         blobs: Array.isArray(note.blobs) ? note.blobs : [],
         blob_urls: Array.isArray(note.blob_urls) ? note.blob_urls : [],
         blob_names: Array.isArray(note.blob_names) ? note.blob_names : [],
         media: Array.isArray(note.media) ? note.media : [],
-        header: note.header,
+        header: note.header || '',
         body: '',
         frontmatter: '',
         frontmatterDict: {},
     }
 
-    const [frontmatter, body, frontmatterDict] = extractFrontmatter(note.text);
+    const [frontmatter, body, frontmatterDict] = extractFrontmatter(note.text || '');
     normalizedNote.frontmatter = frontmatter;
     normalizedNote.body = body;
     normalizedNote.frontmatterDict = frontmatterDict;
@@ -81,4 +99,4 @@ function extractFrontmatter(text: string): [string, string, { [key: string]: str
 
 
 export { extractFrontmatter, normalizeNote, normalizeDate };
-export type { NormalizedNote };
+export type { NormalizedNote, PreNormalizedNote };

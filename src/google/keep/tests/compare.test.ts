@@ -1,5 +1,5 @@
 import { normalizeDate, handleDuplicateNotes, checkForDuplicateData } from '../compare';
-import { NormalizedNote } from '../../note/note';
+import { NormalizedNote } from '../note';
 
 describe('normalizeDate', () => {
     it('should return null for undefined input', () => {

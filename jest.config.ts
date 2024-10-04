@@ -8,7 +8,7 @@ const config: Config.InitialOptions = {
     transform: {
         '^.+\\.ts$': 'ts-jest',
     },
-    moduleFileExtensions: ['ts', 'js', 'json', 'node'],
+    moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
     collectCoverage: true,
     coverageDirectory: 'coverage',
     coverageReporters: ['text', 'lcov'],

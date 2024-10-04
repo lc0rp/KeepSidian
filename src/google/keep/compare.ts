@@ -1,5 +1,5 @@
 import { App } from "obsidian";
-import { NormalizedNote, normalizeDate, extractFrontmatter } from "../note/note";
+import { NormalizedNote, normalizeDate, extractFrontmatter } from "./note";
 
 interface UpdatedFileInfo {
     content: string;
