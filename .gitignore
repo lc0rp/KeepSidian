@@ -16,6 +16,9 @@ test-vault/
 *.zip
 dist/
 
+# test
+coverage/
+
 # Exclude sourcemaps
 *.map
 
