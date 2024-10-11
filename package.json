@@ -1,6 +1,6 @@
 {
 	"name": "keepsidian",
-	"version": "1.0.9",
+	"version": "1.0.10",
 	"description": "Sync Google Keep notes to Obsidian",
 	"main": "src/main.js",
 	"scripts": {
