@@ -1,8 +1,9 @@
-import { requestUrl, RequestUrlResponse, Notice } from 'obsidian';
-import { KeepSidianSettingTab } from '../../settings';
+import * as obsidian from 'obsidian';
+import { KeepSidianSettingsTab } from '../../components/KeepSidianSettingsTab';
 import KeepSidianPlugin from 'main';
 import { KEEPSIDIAN_SERVER_URL } from '../../config';
-import { WebviewTag } from 'electron';
+import { WebviewTag, ConsoleMessageEvent } from 'electron';
+import { Notice } from 'obsidian';
 
 declare global {
     interface Window {
@@ -10,7 +11,36 @@ declare global {
     }
 }
 
-async function getOAuthToken(settingsTab: KeepSidianSettingTab, plugin: KeepSidianPlugin, retrieveTokenWebview: WebviewTag): Promise<string> {
+const sanitizeInput = (input: string): string => {
+    return input.replace(/[<>"'&]/g, (char) => {
+        const entities: { [key: string]: string } = {
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+            '&': '&amp;'
+        };
+        return entities[char];
+    });
+};
+
+const sanitizeForJS = (input: string): string => {
+    return input.replace(/[\\"']/g, '\\$&')
+                .replace(/\0/g, '\\0')
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '\\r');
+};
+
+interface TokenResponse {
+    keep_token: string;
+    [key: string]: any;
+}
+
+function isTokenResponse(obj: any): obj is TokenResponse {
+    return typeof obj === 'object' && obj !== null && typeof obj.keep_token === 'string';
+}
+
+async function getOAuthToken(settingsTab: KeepSidianSettingsTab, plugin: KeepSidianPlugin, retrieveTokenWebview: WebviewTag): Promise<string> {
     const OAUTH_URL = "https://accounts.google.com/EmbeddedSetup";
     const GOOGLE_EMAIL = plugin.settings.email;
 
@@ -50,8 +80,8 @@ async function getOAuthToken(settingsTab: KeepSidianSettingTab, plugin: KeepSidi
                 overlay.appendChild(titleElement);
                 overlay.appendChild(messageElement);
             }
-            document.getElementById('oauth-guide-title').textContent = '${title}';
-            document.getElementById('oauth-guide-message').textContent = '${message}';
+            document.getElementById('oauth-guide-title').textContent = '${sanitizeInput(title)}';
+            document.getElementById('oauth-guide-message').textContent = '${sanitizeInput(message)}';
         })();
     `;
 
@@ -59,7 +89,7 @@ async function getOAuthToken(settingsTab: KeepSidianSettingTab, plugin: KeepSidi
         (function() {
             const emailInput = document.querySelector('input[type="email"]');
             if (emailInput) {
-                emailInput.value = '${email}';
+                emailInput.value = '${sanitizeForJS(sanitizeInput(email))}';
                 emailInput.dispatchEvent(new Event('input', { bubbles: true }));
                 emailInput.focus();
             }
@@ -111,19 +141,44 @@ async function getOAuthToken(settingsTab: KeepSidianSettingTab, plugin: KeepSidi
     `;
 
     return new Promise<string>((resolve, reject) => {
+        let intervalId: NodeJS.Timeout | undefined;
+        let messageHandler: ((event: ConsoleMessageEvent) => void) | undefined;
+        let timeoutId: NodeJS.Timeout | undefined;
+
+        const cleanup = () => {
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = undefined;
+            }
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = undefined;
+            }
+            if (messageHandler && retrieveTokenWebview) {
+                retrieveTokenWebview.removeEventListener('console-message', messageHandler);
+                messageHandler = undefined;
+            }
+        };
+
+        // Ensure cleanup happens on promise rejection
+        const wrappedReject = (error: Error) => {
+            cleanup();
+            reject(error);
+        };
+
         (async () => {
             try {
                 if (!retrieveTokenWebview) {
                     throw new Error('Failed to create webview element.');
                 }
 
-                retrieveTokenWebview.loadURL(OAUTH_URL);
+                await retrieveTokenWebview.loadURL(OAUTH_URL);
                 retrieveTokenWebview.show();
 
                 let emailEntered = false;
                 let stepTwoDisplayed = false;
 
-                retrieveTokenWebview.addEventListener('console-message', (event) => {
+                messageHandler = async (event: ConsoleMessageEvent) => {
                     if (event.message === 'buttonClicked') {
                         retrieveTokenWebview.executeJavaScript(createDevToolsInstructionsScript());
     
@@ -133,17 +188,24 @@ async function getOAuthToken(settingsTab: KeepSidianSettingTab, plugin: KeepSidi
                         }, 3000);
                     } else if (event.message.startsWith('oauthToken: ')) {
                         const oauthToken = event.message.split('oauthToken: ')[1];
-                        exchangeOauthToken(settingsTab, plugin, oauthToken);
-                        retrieveTokenWebview.closeDevTools();
-                        retrieveTokenWebview.hide();
-                        resolve(oauthToken);
+                        try {
+                            await exchangeOauthToken(settingsTab, plugin, oauthToken);
+                            cleanup(); // Ensure cleanup happens before resolving
+                            retrieveTokenWebview.closeDevTools();
+                            retrieveTokenWebview.hide();
+                            resolve(oauthToken);
+                        } catch (error) {
+                            wrappedReject(error);
+                        }
                     }
-                });
+                };
+
+                retrieveTokenWebview.addEventListener('console-message', messageHandler);
 
                 const startTime = Date.now();
                 const timeout = 300000; // 5 minutes timeout
 
-                while ((Date.now() - startTime) < timeout) {
+                intervalId = setInterval(async () => {
                     const currentUrl = retrieveTokenWebview.getURL();
                     if (!emailEntered && currentUrl.includes("accounts.google.com")) {
                         await retrieveTokenWebview.executeJavaScript(createOverlayScript("Step 1 of 3: Login Below.", "Please start by logging in with your Google Keep account below."));
@@ -157,31 +219,37 @@ async function getOAuthToken(settingsTab: KeepSidianSettingTab, plugin: KeepSidi
                         await retrieveTokenWebview.executeJavaScript(createButtonClickDetectionScript("I agree"));
                         stepTwoDisplayed = true;
                     }
-                    
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
 
-                reject(new Error('Timeout: OAuth token retrieval process exceeded 5 minutes.'));
+                    if ((Date.now() - startTime) >= timeout) {
+                        wrappedReject(new Error('Timeout: OAuth token retrieval process exceeded 5 minutes.'));
+                    }
+                }, 1000);
+
+                timeoutId = setTimeout(() => {
+                    wrappedReject(new Error('Timeout: OAuth token retrieval process exceeded 5 minutes.'));
+                }, 300000);
             } catch (error) {
-                console.error('Error while opening OAuth URL:', error);
-                reject(error);
+                wrappedReject(error);
+            } finally {
+                cleanup();
             }
         })();
     });
 }
 
-export async function initRetrieveToken(settingsTab: KeepSidianSettingTab, plugin: KeepSidianPlugin, retrieveTokenWebview: WebviewTag) {
+export async function initRetrieveToken(settingsTab: KeepSidianSettingsTab, plugin: KeepSidianPlugin, retrieveTokenWebview: WebviewTag) {
     try {
         await getOAuthToken(settingsTab, plugin, retrieveTokenWebview);
     } catch (error) {
         console.error('Failed to retrieve token:', error);
-        new Notice('Failed to retrieve token.');
+        new Notice(`Failed to retrieve token: ${error.message}`);
+        throw error;
     }
 }
 
-export async function exchangeOauthToken(settingsTab: KeepSidianSettingTab, plugin: KeepSidianPlugin, oauthToken: string) {
+export async function exchangeOauthToken(settingsTab: KeepSidianSettingsTab, plugin: KeepSidianPlugin, oauthToken: string) {
     try {
-        const response: RequestUrlResponse = await requestUrl({
+        const response: obsidian.RequestUrlResponse = await obsidian.requestUrl({
             url: `${KEEPSIDIAN_SERVER_URL}/register`,
             method: 'POST',
             headers: {
@@ -193,17 +261,31 @@ export async function exchangeOauthToken(settingsTab: KeepSidianSettingTab, plug
             }),
         });
 
-        const result = await response.json;
-        if (result.keep_token) {
+        // Check status before parsing JSON
+        if (!response.status || response.status < 200 || response.status >= 300) {
+            throw new Error(`Server returned status ${response.status}`);
+        }
+
+        try {
+            const result = await response.json;
+            if (!isTokenResponse(result)) {
+                throw new Error('Invalid response format');
+            }
+
+            if (!result.keep_token) {
+                throw new Error('Server response missing keep_token');
+            }
+    
             plugin.settings.token = result.keep_token;
             await plugin.saveSettings();
             settingsTab.display();
             new Notice('Token exchanged successfully.');
-        } else {
-            throw new Error('Failed to exchange token');
+        } catch (e) {
+            throw new Error('Failed to parse server response: ' + e,);
         }
     } catch (error) {
         console.error('Error exchanging OAuth token:', error);
-        new Notice('Failed to exchange OAuth token.');
+        new Notice(`Failed to exchange OAuth token: ${error.message}`);
+        throw error;
     }
 }

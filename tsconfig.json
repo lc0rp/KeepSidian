@@ -11,6 +11,7 @@
     "importHelpers": true,
     "isolatedModules": true,
     "strictNullChecks": true,
+    "esModuleInterop": true,
     "lib": [
       "DOM",
       "ES5",
@@ -20,7 +21,9 @@
   },
   "include": [
     "src/**/*.ts",
-    "src/types/**/*.d.ts"
+    "src/types/**/*.d.ts",
+    "__mocks__/electron.ts",
+    "__mocks__/obsidian.ts"
   ],
   "exclude": ["dist/**/*"]
 }

@@ -6,3 +6,25 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+/* Add these styles to your existing styles.css file */
+
+.subscription-active {
+    background-color: var(--background-modifier-success);
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.setting-item.subscription-active .setting-item-control {
+    color: var(--text-success);
+    font-weight: bold;
+}
+
+.premium-features-list {
+    margin: 12px 0;
+    padding-left: 24px;
+}
+
+.premium-features-list li {
+    margin: 4px 0;
+}

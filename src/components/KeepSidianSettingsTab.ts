@@ -1,34 +1,16 @@
-import { connectToGoogleDrive } from './google/drive/auth';
-import { initRetrieveToken, exchangeOauthToken } from './google/keep/token';
-import KeepSidianPlugin from "main";
-import { App, Notice, PluginSettingTab, Setting } from "obsidian";
+import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
 import { WebviewTag } from "electron";
+import { exchangeOauthToken, initRetrieveToken } from "../google/keep/token";
+import KeepSidianPlugin from "main";
+import { PluginSettingTab, App, Setting, Notice } from "obsidian";
 
-export interface KeepSidianPluginSettings {
-	email: string;
-	token: string;
-	saveLocation: string;
-	gdriveToken: string;
-	gdriveRefreshToken: string;
-	gdriveSourceLocation: string;
-	gdriveSaveLocation: string;
-}
-
-export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
-	email: '',
-	token: '',
-	saveLocation: 'Google Keep',
-	gdriveToken: '',
-	gdriveRefreshToken: '',
-	gdriveSourceLocation: 'Obsidian Files',
-	gdriveSaveLocation: 'Google Drive'
-}
-
-export class KeepSidianSettingTab extends PluginSettingTab {
+export class KeepSidianSettingsTab extends PluginSettingTab {
 	private retrieveTokenWebView: WebviewTag;
+	private plugin: KeepSidianPlugin;
 
-	constructor(app: App, private plugin: KeepSidianPlugin) {
+	constructor(app: App, plugin: KeepSidianPlugin) {
 		super(app, plugin);
+		this.plugin = plugin;
 	}
 
 	private isValidEmail(email: string): boolean {
@@ -36,15 +18,26 @@ export class KeepSidianSettingTab extends PluginSettingTab {
 		return emailRegex.test(email);
 	}
 
-	display(): void {
+	async display(): Promise<void> {
 		const { containerEl } = this;
 		containerEl.empty();
+
+		// Basic settings
+		containerEl.createEl('h2', { text: 'KeepSidian Settings' });
 
 		this.addEmailSetting(containerEl);
 		this.addSyncTokenSetting(containerEl);
 		this.createRetrieveTokenWebView(containerEl);
 		this.addSaveLocationSetting(containerEl);
-		// this.addGoogleDriveSettings(containerEl);
+		this.addSubscriptionSettings(containerEl);
+	}
+
+	private addSubscriptionSettings(containerEl: HTMLElement): void {
+		const subscriptionTab = new SubscriptionSettingsTab(
+			containerEl,
+			this.plugin
+		);
+		subscriptionTab.display();
 	}
 
 	private addEmailSetting(containerEl: HTMLElement): void {
@@ -64,15 +57,16 @@ export class KeepSidianSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('Sync token')
 			.setDesc('Your Google Keep sync token is a unique code that authorizes this plugin to access your Google Keep data. You can retrieve it by clicking the "Retrieve token" button.')
-			.addText(text => {text
-				.setPlaceholder('Your Google Keep sync token.')
+			.addText(text => {
+				text
+					.setPlaceholder('Your Google Keep sync token.')
 				.setValue(this.plugin.settings.token)
 				.onChange(async (value) => {
 					this.plugin.settings.token = value;
 					await this.plugin.saveSettings();
 				});
-				text.inputEl.addEventListener('paste', this.handleTokenPaste.bind(this));		
-				text.inputEl.type='password';
+				text.inputEl.addEventListener('paste', this.handleTokenPaste.bind(this));
+				text.inputEl.type = 'password';
 				const toggleButton = text.inputEl.parentElement?.createEl('button', { text: 'Show' });
 				toggleButton?.addEventListener('click', (e) => {
 					e.preventDefault();
@@ -87,7 +81,7 @@ export class KeepSidianSettingTab extends PluginSettingTab {
 			})
 			.addButton(button => button
 				.setButtonText('Retrieve token')
-				.onClick(this.handleRetrieveToken.bind(this)));
+				.onClick(this.handleRetrieveToken.bind(this))); 
 	}
 
 	private async handleTokenPaste(event: ClipboardEvent): Promise<void> {
@@ -121,43 +115,9 @@ export class KeepSidianSettingTab extends PluginSettingTab {
 				}));
 	}
 
-	private addGoogleDriveSettings(containerEl: HTMLElement): void {
-		new Setting(containerEl)
-			.setName('Connect to Google Drive')
-			.setDesc('Authorize this plugin to access your Google Drive.')
-			.addButton(button => button
-				.setButtonText('Connect')
-				.onClick(async () => {
-					await connectToGoogleDrive(this.plugin);
-					this.display();
-				}));
-
-		new Setting(containerEl)
-			.setName('Google Drive source location')
-			.setDesc('The folder in your Google Drive that you want to import.')
-			.addText(text => text
-				.setPlaceholder('Obsidian Files')
-				.setValue(this.plugin.settings.gdriveSourceLocation)
-				.onChange(async (value) => {
-					this.plugin.settings.gdriveSourceLocation = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Google Drive save location')
-			.setDesc('Where to save imported Google Drive files (relative to vault folder).')
-			.addText(text => text
-				.setPlaceholder('Google Drive')
-				.setValue(this.plugin.settings.gdriveSaveLocation)
-				.onChange(async (value) => {
-					this.plugin.settings.gdriveSaveLocation = value;
-					await this.plugin.saveSettings();
-				}));
-	}
-
 	private createRetrieveTokenWebView(containerEl: HTMLElement): void {
 		this.retrieveTokenWebView = containerEl.createEl('webview' as keyof HTMLElementTagNameMap, {
-			attr: {style: 'width: 100%; height: 600px;'}
+			attr: { style: 'width: 100%; height: 600px;' }
 		}) as WebviewTag;
 		this.retrieveTokenWebView.src = "https://accounts.google.com/EmbeddedSetup";
 		this.retrieveTokenWebView.setAttribute('disablewebsecurity', 'true');
