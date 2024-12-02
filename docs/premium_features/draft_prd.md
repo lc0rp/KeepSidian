@@ -10,9 +10,9 @@ With this feature, the plugin checks if the user id subscribed, and then display
     3. Provide a "Check Subscription" option in plugin settings, which refreshes and caches subscription info.
     4. Invalidate the cache upon cache timeout/expiry, or when the user's email address changes.
     5. Display the subscription status in the plugin settings
-2. In plugin settings, display information about the premium features and how to subscribe.
+2. In plugin settings, display information about the premium features and why subscribe.
     1. Everyone sees general premium features info
-    2. Only inactive subscribers see the 'how to subscribe' section
+    2. Only inactive subscribers see the 'Why subscribe' section
     3. Active subscribers see information about their subscription in the plugin settings.
 3. If subscription is active, expose extra features in the plugin settings, with the ability for the user to toggle them on/off
     1. Filter notes 

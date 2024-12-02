@@ -28,6 +28,7 @@ export class NoteImportOptionsModal extends Modal {
     async onOpen() {
         const { contentEl } = this;
         contentEl.createEl('h2', { text: 'Import Options' });
+        contentEl.createEl('p', { text: 'Thanks for subscribing! Update the premium options for this import below.' });
         const premiumFeatureValues = { ...this.plugin.settings.premiumFeatures };
         await SubscriptionSettingsTab.displayPremiumFeaturesServer(contentEl, this.plugin, premiumFeatureValues);
 

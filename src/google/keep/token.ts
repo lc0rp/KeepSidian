@@ -44,9 +44,11 @@ async function getOAuthToken(settingsTab: KeepSidianSettingsTab, plugin: KeepSid
     const OAUTH_URL = "https://accounts.google.com/EmbeddedSetup";
     const GOOGLE_EMAIL = plugin.settings.email;
 
-    const createButtonClickDetectionScript = (buttonText: string): string => `
+    const createButtonClickDetectionScript = (buttonText: string[]): string => `
         (function() {
-            const button = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes("${buttonText}"));
+            const button = Array.from(document.querySelectorAll('button')).find(el => 
+                ${buttonText.map(text => `el.textContent.includes("${text}")`).join(' || ')}
+            );
             if (button) {
                 console.log("Found button.");
                 button.addEventListener('click', () => console.log("buttonClicked"));
@@ -216,7 +218,7 @@ async function getOAuthToken(settingsTab: KeepSidianSettingsTab, plugin: KeepSid
                     if (emailEntered && !stepTwoDisplayed && currentUrl.includes("embeddedsigninconsent")) {
                         await retrieveTokenWebview.executeJavaScript(createOverlayScript("Step 2 of 3: Accept Service Terms.", "Great! Next, please review and agree to the terms below."));
                         await new Promise(resolve => setTimeout(resolve, 500));
-                        await retrieveTokenWebview.executeJavaScript(createButtonClickDetectionScript("I agree"));
+                        await retrieveTokenWebview.executeJavaScript(createButtonClickDetectionScript(["I agree", "Acepto"]));
                         stepTwoDisplayed = true;
                     }
 

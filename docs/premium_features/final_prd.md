@@ -51,7 +51,7 @@ This document outlines the detailed requirements and implementation guidelines t
 - **General Premium Features Info**:
   - Display information about the premium features to all users
 - **Conditional Sections**:
-  - Inactive Subscribers: Show a "How to Subscribe" section with instructions and benefits
+  - Inactive Subscribers: Show a "Why Subscribe?" section with instructions and benefits
   - Active Subscribers: Display detailed information about their subscription
 
 ### 3. Premium Features Configuration
@@ -251,7 +251,7 @@ curl -X GET \
   - Display general information about premium features to all users
 - **Conditional Rendering**:
   - Inactive Subscribers:
-    - Show the "How to Subscribe" section with relevant links and information
+    - Show the "Why Subscribe?" section with relevant links and information
   - Active Subscribers:
     - Display subscription details (e.g., plan name, expiration date)
     - Provide toggles and inputs for premium feature configurations

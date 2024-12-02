@@ -164,7 +164,7 @@ describe('SubscriptionSettingsTab', () => {
             
             await subscriptionTab.display();
 
-            expect(containerEl.querySelector('h4')?.textContent).toBe('How to Subscribe');
+            expect(containerEl.querySelector('h4')?.textContent).toBe('Why Subscribe?');
             expect(containerEl.querySelectorAll('li').length).toBe(5); // Check benefit list items
             expect(Setting).toHaveBeenCalledWith(expect.anything());
         });

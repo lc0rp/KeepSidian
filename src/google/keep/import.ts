@@ -27,32 +27,51 @@ interface PremiumFeatureFlags {
     };
 }
 
-export async function importGoogleKeepNotes(plugin: KeepSidianPlugin) {
+async function importGoogleKeepNotesBase(
+    plugin: KeepSidianPlugin,
+    fetchFunction: (plugin: KeepSidianPlugin, offset: number, limit: number) => Promise<GoogleKeepImportResponse>
+) {
     try {
-        const response = await fetchNotes(plugin);
-        await processAndSaveNotes(plugin, response.notes);
+        let offset = 0;
+        const limit = 50;
+        let hasError = false;
+        
+        while (!hasError) {
+            try {
+                const response = await fetchFunction(plugin, offset, limit);
+                if (!response.notes || response.notes.length === 0) {
+                    break;
+                }
+                await processAndSaveNotes(plugin, response.notes);
+                offset += limit;
+            } catch (error) {
+                console.error(`Error fetching notes at offset ${offset}:`, error);
+                hasError = true;
+            }
+        }
+
         new Notice('Notes imported successfully.');
     } catch (error) {
         console.error(error);
         new Notice('Failed to import notes.');
     }
+}
+
+export async function importGoogleKeepNotes(plugin: KeepSidianPlugin) {
+    await importGoogleKeepNotesBase(plugin, fetchNotes);
 }
 
 export async function importGoogleKeepNotesWithOptions(plugin: KeepSidianPlugin, options: NoteImportOptions) {
-    try {
-        const featureFlags = convertOptionsToFeatureFlags(options);
-        const response = await fetchNotesWithPremiumFeatures(plugin, featureFlags);
-        await processAndSaveNotes(plugin, response.notes);
-        new Notice('Notes imported successfully.');
-    } catch (error) {
-        console.error(error);
-        new Notice('Failed to import notes.');
-    }
+    const featureFlags = convertOptionsToFeatureFlags(options);
+    await importGoogleKeepNotesBase(
+        plugin,
+        (plugin, offset, limit) => fetchNotesWithPremiumFeatures(plugin, featureFlags, offset, limit)
+    );
 }
 
-export async function fetchNotes(plugin: KeepSidianPlugin): Promise<GoogleKeepImportResponse> {
+export async function fetchNotes(plugin: KeepSidianPlugin, offset = 0, limit = 100): Promise<GoogleKeepImportResponse> {
     const response = await requestUrl({
-        url: `${KEEPSIDIAN_SERVER_URL}/keep/sync`,
+        url: `${KEEPSIDIAN_SERVER_URL}/keep/sync?offset=${offset}&limit=${limit}`,
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -66,10 +85,12 @@ export async function fetchNotes(plugin: KeepSidianPlugin): Promise<GoogleKeepIm
 
 export async function fetchNotesWithPremiumFeatures(
     plugin: KeepSidianPlugin, 
-    featureFlags: PremiumFeatureFlags
+    featureFlags: PremiumFeatureFlags,
+    offset = 0,
+    limit = 100
 ): Promise<GoogleKeepImportResponse> {
     const response = await requestUrl({
-        url: `${KEEPSIDIAN_SERVER_URL}/keep/sync/premium`,
+        url: `${KEEPSIDIAN_SERVER_URL}/keep/sync/premium?offset=${offset}&limit=${limit}`,
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 import { Setting } from "obsidian";
 import KeepSidianPlugin from "main";
 import { PremiumFeatureSettings } from "types/subscription";
+import { KEEPSIDIAN_SERVER_URL } from '../config';
 
 export class SubscriptionSettingsTab {
     private containerEl: HTMLElement;
@@ -70,7 +71,7 @@ export class SubscriptionSettingsTab {
     static async displayPremiumFeaturesServer(containerEl: HTMLElement, plugin: KeepSidianPlugin, premiumFeatureValues: PremiumFeatureSettings): Promise<void> {
         // 3.2 Filter Notes
         new Setting(containerEl)
-            .setName('Include notes containing')
+            .setName('Only include notes containing')
             .setDesc('Terms to include (comma-separated).')
             .addText(text => text
                 .setPlaceholder('term1, term2, ...')
@@ -93,8 +94,8 @@ export class SubscriptionSettingsTab {
 
         // 3.3 Title Updates
         new Setting(containerEl)
-            .setName('Update title')
-            .setDesc('Update title based on note content. Original title will be saved in note.')
+            .setName('Smart Titles')
+            .setDesc('Suggest titles based on note content. Original title will be saved in note.')
             .addToggle(toggle => toggle
                 .setValue(premiumFeatureValues.updateTitle)
                 .onChange(async (value) => {
@@ -104,8 +105,8 @@ export class SubscriptionSettingsTab {
 
         // 3.4 Tag Suggestions
         new Setting(containerEl)
-            .setName('Suggest tags')
-            .setDesc('Add tags based on note content.')
+            .setName('Auto-Tags')
+            .setDesc('Generate tags based on note content.')
             .addToggle(toggle => toggle
                 .setValue(premiumFeatureValues.suggestTags)
                 .onChange(async (value) => {
@@ -115,7 +116,7 @@ export class SubscriptionSettingsTab {
 
         new Setting(containerEl)
             .setName('Maximum tags')
-            .setDesc('Maximum number of tags to suggest.')
+            .setDesc('Maximum number of tags to generate.')
             .addSlider(slider => slider
                 .setLimits(1, 10, 1)
                 .setValue(premiumFeatureValues.maxTags)
@@ -126,7 +127,7 @@ export class SubscriptionSettingsTab {
 
         new Setting(containerEl)
             .setName('Tag prefix')
-            .setDesc('Prefix to identify added tags (leave empty for none).')
+            .setDesc('Prefix to identify generated tags (leave empty for none).')
             .addText(text => text
                 .setValue(premiumFeatureValues.tagPrefix)
                 .setPlaceholder('auto-')
@@ -138,7 +139,7 @@ export class SubscriptionSettingsTab {
 
         new Setting(containerEl)
             .setName('Limit to existing tags')
-            .setDesc('Only suggest tags that already exist in your vault.')
+            .setDesc('Only generate tags that already exist in your vault.')
             .addToggle(toggle => toggle
                 .setValue(premiumFeatureValues.limitToExistingTags)
                 .onChange(async (value) => {
@@ -151,17 +152,26 @@ export class SubscriptionSettingsTab {
     private async displayInactiveSubscriber(): Promise<void> {
         const { containerEl } = this;
 
-        containerEl.createEl('h4', { text: 'How to Subscribe' });
+        containerEl.createEl('h4', { text: 'Why Subscribe?' });
 
-        const benefitsList = containerEl.createEl('ul');
+        const benefitsList = containerEl.createEl('ul', { attr: { style: 'font-size: 0.9em' } });
         [
-            'Two-way sync between Google Keep and Obsidian',
-            'Smart title suggestions based on note content',
-            'Automatic tag generation and management',
-            'Advanced note filtering options',
-            'Priority support'
+            'Smart Titles: Auto-suggestions from note content.',
+            'Auto-Tags: Instant tag generation & management.',
+            'Advanced Filters: Sync only what you need.',
+            'Priority Support: Your questions answered first.',
+            'Two-Way Sync: Keep notes updated, Coming soon.',
+            'Early Access: First to get new features.',
+            'And more!'
         ].forEach(benefit => {
-            benefitsList.createEl('li', { text: benefit });
+            const li = benefitsList.createEl('li');
+            const [title, description] = benefit.split(':');
+            if (description) {
+                li.createSpan({text: title, attr: {style: 'font-weight: bold'}});
+                li.createSpan({text: ':' + description});
+            } else {
+                li.createSpan({text: benefit});
+            }
         });
 
         new Setting(containerEl)
@@ -170,7 +180,7 @@ export class SubscriptionSettingsTab {
             .addButton(button => button
                 .setButtonText('Subscribe')
                 .onClick(() => {
-                    window.open('https://keepsidian.com/subscribe', '_blank');
+                    window.open(`${KEEPSIDIAN_SERVER_URL}/subscribe`, '_blank');
                 }));
     }
 
