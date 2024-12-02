@@ -6,6 +6,9 @@ export interface KeepSidianPluginSettings {
 	saveLocation: string;
 	subscriptionCache?: SubscriptionCache;
 	premiumFeatures: PremiumFeatureSettings;
+	gdriveToken?: string;
+	gdriveRefreshToken?: string;
+	gdriveSaveLocation?: string;
 }
 
 export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
@@ -13,7 +16,10 @@ export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
 	token: '',
 	saveLocation: 'Google Keep',
 	subscriptionCache: undefined,
-	premiumFeatures: DEFAULT_PREMIUM_FEATURES
+	premiumFeatures: DEFAULT_PREMIUM_FEATURES,
+	gdriveToken: undefined,
+	gdriveRefreshToken: undefined,
+	gdriveSaveLocation: undefined
 }
 
 
