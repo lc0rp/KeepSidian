@@ -1,7 +1,7 @@
 {
 	"id": "keepsidian",
 	"name": "KeepSidian",
-	"version": "1.0.13",
+	"version": "1.0.14",
 	"minAppVersion": "1.6.5",
 	"description": "Import Google Keep notes.",
 	"author": "lc0rp",
