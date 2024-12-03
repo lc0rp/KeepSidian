@@ -44,7 +44,8 @@ export class SubscriptionSettingsTab {
     static async displayPremiumFeaturesLocal(containerEl: HTMLElement, plugin: KeepSidianPlugin, premiumFeatureValues: PremiumFeatureSettings): Promise<void> {
 
         // 3.1 Auto Sync
-        new Setting(containerEl)
+        // TODO: Implement auto sync
+        /* new Setting(containerEl)
             .setName('Auto Sync')
             .setDesc('Automatically sync your notes at regular intervals')
             .addToggle(toggle => toggle
@@ -65,7 +66,7 @@ export class SubscriptionSettingsTab {
                     premiumFeatureValues.syncIntervalMinutes = value;
                     // TODO: Save settings
                 }))
-            .setDisabled(!premiumFeatureValues.autoSync);
+            .setDisabled(!premiumFeatureValues.autoSync); */
     }
 
     static async displayPremiumFeaturesServer(containerEl: HTMLElement, plugin: KeepSidianPlugin, premiumFeatureValues: PremiumFeatureSettings): Promise<void> {

@@ -15,29 +15,47 @@ When you start a sync, you will provide your Google Keep email and a token gener
 
 ## Sync command
 
-This plugin offers an on-demand "Run Keep -> Obsidian" command to download the 50 most recent notes on demand. Follow the installation instructions below to try it and share your feedback. 
+This plugin offers an on-demand "Run Keep -> Obsidian" command to download ~the 50 most recent~ all notes on demand. Follow the installation instructions below to try it and share your feedback. 
+
+## Subscriber features
+
+I intend to make most features available to all users, however, some features may incur additional processing, third party costs or developer time. Those shall be released to subscribers. In v1.0.14 the subscriber features are:
+- Advanced filters
+- AI assisted auto-tagging
+- AI-enabled title generation
 
 ## Future roadmap
 
-If more people find this project useful, I may expand the functionality to include daily sync, realtime sync, unlimited notes, 2-way sync, filters, tags or AI-enabled tagging & title generation.
+If more people find this project useful, I may expand the functionality to include the following features. I'll endevour to atures that can increase cost significantly will be made available to 
+
+- Daily sync
+- Realtime sync
+- Archiving
+- Downloading Archived Notes
+- Unlimited notes (Shipped in v1.0.14)
+- 2-way sync
+- Advanced filters (Shipped in v1.0.14 to Subscribers)
+- AI assisted auto-tagging (Shipped in v1.0.14 to Subscribers)
+- AI-enabled title generation (Shipped in v1.0.14 to Subscribers)
 
 Rank the upcoming features here: [KeepSidian Wishlist](https://umh39lhux3j.typeform.com/to/NKbRukRg)
 
 ## Installation
 
-KeepSidian is in the process of being added to the community plugin store. Until it's accepted, you can download it using the instructions below:
+KeepSidian can be installed from the community plugin store, as well as a few other options outlined below.
 
 ### Get the plugin
 
-- **Option 1**: Use the [Obsidian BRAT plugin](https://github.com/TfTHacker/obsidian42-brat)
-- **Option 2**: Clone this repository in your <obsidian vault path>/.obsidian/plugins
+- **Option 1 (Preferred)**: Use the Obsidian community plugin store
+- **Option 2**: Use the [Obsidian BRAT plugin](https://github.com/TfTHacker/obsidian42-brat)
+- **Option 3**: Clone this repository in your <obsidian vault path>/.obsidian/plugins
 
 After installation, go to "Settings > Community Plugins > KeepSidian" in Obsidian.
 
 ### Configure:
 
-- Enter our Google Keep email.
-- Enter the folder to sync to
+- Enter your Google Keep email.
+- Enter the folder to sync to.
 
 ### Retrieve a Google Keep token
 
