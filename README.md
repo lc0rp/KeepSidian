@@ -17,14 +17,21 @@ When you start a sync, you will provide your Google Keep email and a token gener
 
 This plugin offers an on-demand "Run Keep -> Obsidian" command to download ~the 50 most recent~ all notes on demand. Follow the installation instructions below to try it and share your feedback. 
 
-## Subscriber features
+## Features
+
+> **Ranking the upcoming features here!**
+> - [KeepSidian wishlist](https://umh39lhux3j.typeform.com/to/NKbRukRg) - Google keep features.
+> - [Google Calendar features](hhttps://umh39lhux3j.typeform.com/to/WuDedfWN) (coming soon): I'd love to hear what you want for this feature.
+> 
+
+### Subscriber features
 
 I intend to make most features available to all users, however, some features may incur additional processing, third party costs or developer time. Those shall be released to subscribers. In v1.0.14 the subscriber features are:
 - Advanced filters
 - AI assisted auto-tagging
 - AI-enabled title generation
 
-## Future roadmap
+### Future roadmap
 
 If more people find this project useful, I may expand the functionality to include the following features. I'll endevour to atures that can increase cost significantly will be made available to 
 
@@ -38,15 +45,18 @@ If more people find this project useful, I may expand the functionality to inclu
 - AI assisted auto-tagging (Shipped in v1.0.14 to Subscribers)
 - AI-enabled title generation (Shipped in v1.0.14 to Subscribers)
 
-Rank the upcoming features here: [KeepSidian Wishlist](https://umh39lhux3j.typeform.com/to/NKbRukRg)
+> **Me again! Please anking the upcoming features here!**
+> - [KeepSidian wishlist](https://umh39lhux3j.typeform.com/to/NKbRukRg) - Google keep features.
+> - [Google Calendar features](hhttps://umh39lhux3j.typeform.com/to/WuDedfWN) (coming soon): I'd love to hear what you want for this feature.
+> 
 
 ## Installation
 
-KeepSidian can be installed from the community plugin store, as well as a few other options outlined below.
+KeepSidian can be installed from the [community plugin store](https://obsidian.md/plugins?id=keepsidian), as well as a few other options outlined below.
 
 ### Get the plugin
 
-- **Option 1 (Preferred)**: Use the Obsidian community plugin store
+- **Option 1 (Preferred)**: Via the [Obsidian community plugin store](https://obsidian.md/plugins?id=keepsidian)
 - **Option 2**: Use the [Obsidian BRAT plugin](https://github.com/TfTHacker/obsidian42-brat)
 - **Option 3**: Clone this repository in your <obsidian vault path>/.obsidian/plugins
 
