@@ -19,7 +19,7 @@ This plugin offers an on-demand "Run Keep -> Obsidian" command to download ~the 
 
 ## Features
 
-> **Ranking the upcoming features here!**
+> **Rank the upcoming features here!**
 > - [KeepSidian wishlist](https://umh39lhux3j.typeform.com/to/NKbRukRg) - Google keep features.
 > - [Google Calendar features](hhttps://umh39lhux3j.typeform.com/to/WuDedfWN) (coming soon): I'd love to hear what you want for this feature.
 > 
@@ -45,7 +45,7 @@ If more people find this project useful, I may expand the functionality to inclu
 - AI assisted auto-tagging (Shipped in v1.0.14 to Subscribers)
 - AI-enabled title generation (Shipped in v1.0.14 to Subscribers)
 
-> **Me again! Please anking the upcoming features here!**
+> **Me again! Please rank the upcoming features here!**
 > - [KeepSidian wishlist](https://umh39lhux3j.typeform.com/to/NKbRukRg) - Google keep features.
 > - [Google Calendar features](hhttps://umh39lhux3j.typeform.com/to/WuDedfWN) (coming soon): I'd love to hear what you want for this feature.
 > 
