@@ -35,6 +35,7 @@ async function importGoogleKeepNotesBase(
         let offset = 0;
         const limit = 50;
         let hasError = false;
+        let foundError: Error | null = null;
         
         while (!hasError) {
             try {
@@ -47,7 +48,12 @@ async function importGoogleKeepNotesBase(
             } catch (error) {
                 console.error(`Error fetching notes at offset ${offset}:`, error);
                 hasError = true;
+                foundError = error as Error;
             }
+        }
+
+        if (foundError) {
+            throw foundError;
         }
 
         new Notice('Notes imported successfully.');
