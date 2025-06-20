@@ -6,6 +6,7 @@ import { KeepSidianSettingsTab } from '../KeepSidianSettingsTab';
 import KeepSidianPlugin from '../../main';
 import { SubscriptionService } from 'services/subscription';
 import { initRetrieveToken } from '../../google/keep/token';
+import { exchangeOauthToken } from '../../google/keep/token';
 
 jest.mock('../NoteImportOptionsModal', () => ({
     NoteImportOptionsModal: jest.fn().mockImplementation(() => ({
@@ -76,6 +77,9 @@ describe('KeepSidianSettingsTab', () => {
         };
         plugin.subscriptionService = mockSubscriptionService();
         settingsTab = new KeepSidianSettingsTab(app, plugin);
+        
+        // Reset the exchangeOauthToken mock
+        (exchangeOauthToken as jest.Mock).mockReset();
     });
 
     test('should instantiate correctly', () => {
@@ -103,7 +107,7 @@ describe('KeepSidianSettingsTab', () => {
         expect((settingsTab as any).isValidEmail('invalid-email')).toBe(false);
     });
 
-    test('should handle token paste with valid token', async () => {
+    test('should handle oauth2_4 token paste specially', async () => {
         const event = {
             preventDefault: jest.fn(),
             clipboardData: {
@@ -111,49 +115,26 @@ describe('KeepSidianSettingsTab', () => {
             },
         } as unknown as ClipboardEvent;
 
-        // Remove the mock of exchangeOauthToken
-        // Instead, mock requestUrl
-
-        // Mock requestUrl from obsidian
-        const mockRequestUrl = jest.fn().mockResolvedValue({
-            json: async () => ({
-                // Mock response data
-                accessToken: 'mock_access_token',
-                refreshToken: 'mock_refresh_token',
-            }),
-            status: 200,
-        });
-
-        // Mock obsidian module to return mockRequestUrl
-        jest.mock('obsidian', () => ({
-            ...jest.requireActual('obsidian'),
-            requestUrl: mockRequestUrl,
-        }));
+        (exchangeOauthToken as jest.Mock).mockResolvedValue(undefined);
 
         await (settingsTab as any).handleTokenPaste(event);
 
         expect(event.preventDefault).toHaveBeenCalled();
-        //expect(mockRequestUrl).toHaveBeenCalled();
+        expect(exchangeOauthToken).toHaveBeenCalledWith(settingsTab, plugin, 'oauth2_4/token_value');
     });
 
-    test('should not handle token paste with invalid token', async () => {
+    test('should let non-oauth2_4 pastes through normally', async () => {
         const event = {
             preventDefault: jest.fn(),
             clipboardData: {
-                getData: jest.fn().mockReturnValue('invalid_token'),
+                getData: jest.fn().mockReturnValue('any_other_text'),
             },
         } as unknown as ClipboardEvent;
 
-        const exchangeOauthTokenMock = jest.fn();
-        jest.mock('../../google/keep/token', () => ({
-            exchangeOauthToken: exchangeOauthTokenMock,
-            initRetrieveToken: jest.fn(),
-        }));
-
         await (settingsTab as any).handleTokenPaste(event);
 
-        expect(event.preventDefault).toHaveBeenCalled();
-        expect(exchangeOauthTokenMock).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+        expect(exchangeOauthToken).not.toHaveBeenCalled();
     });
 
     test('should handle retrieve token with valid email', async () => {

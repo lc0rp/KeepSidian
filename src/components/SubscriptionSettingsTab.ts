@@ -19,7 +19,7 @@ export class SubscriptionSettingsTab {
         
         // General info about premium features
         new Setting(containerEl)
-            .setName('Premium Features')
+            .setName('Premium features')
             .setDesc('Get access to advanced features like two-way sync, title suggestions, and automatic tag creation.')
             .addExtraButton(button => button
                 .setIcon('refresh')
@@ -95,7 +95,7 @@ export class SubscriptionSettingsTab {
 
         // 3.3 Title Updates
         new Setting(containerEl)
-            .setName('Smart Titles')
+            .setName('Smart titles')
             .setDesc('Suggest titles based on note content. Original title will be saved in note.')
             .addToggle(toggle => toggle
                 .setValue(premiumFeatureValues.updateTitle)
@@ -106,7 +106,7 @@ export class SubscriptionSettingsTab {
 
         // 3.4 Tag Suggestions
         new Setting(containerEl)
-            .setName('Auto-Tags')
+            .setName('Auto-tags')
             .setDesc('Generate tags based on note content.')
             .addToggle(toggle => toggle
                 .setValue(premiumFeatureValues.suggestTags)
@@ -153,16 +153,16 @@ export class SubscriptionSettingsTab {
     private async displayInactiveSubscriber(): Promise<void> {
         const { containerEl } = this;
 
-        containerEl.createEl('h4', { text: 'Why Subscribe?' });
+        containerEl.createEl('h4', { text: 'Why subscribe?' });
 
         const benefitsList = containerEl.createEl('ul', { attr: { style: 'font-size: 0.9em' } });
         [
-            'Smart Titles: Auto-suggestions from note content.',
-            'Auto-Tags: Instant tag generation & management.',
-            'Advanced Filters: Sync only what you need.',
-            'Priority Support: Your questions answered first.',
-            'Two-Way Sync: Keep notes updated, Coming soon.',
-            'Early Access: First to get new features.',
+            'Smart titles: Auto-suggestions from note content.',
+            'Auto-tags: Instant tag generation & management.',
+            'Advanced filters: Sync only what you need.',
+            'Priority support: Your questions answered first.',
+            'Two-way sync: Keep notes updated, Coming soon.',
+            'Early access: First to get new features.',
             'And more!'
         ].forEach(benefit => {
             const li = benefitsList.createEl('li');
@@ -176,7 +176,7 @@ export class SubscriptionSettingsTab {
         });
 
         new Setting(containerEl)
-            .setName('Subscribe Now')
+            .setName('Subscribe now')
             .setDesc('Get access to all premium features')
             .addButton(button => button
                 .setButtonText('Subscribe')
@@ -191,9 +191,8 @@ export class SubscriptionSettingsTab {
 
         // Show subscription details
         new Setting(containerEl)
-            .setName('Subscription Status')
-            .setDesc('Active')
-            .setClass('subscription-active');
+            .setName('✅ Active subscription')
+            .setDesc('Your subscription is active. You can configure your premium settings below.');
 
         if (subscriptionInfo?.plan_details) {
             new Setting(containerEl)

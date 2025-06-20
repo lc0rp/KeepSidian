@@ -8,6 +8,36 @@ import { PremiumFeatureSettings } from '../../types/subscription';
 import { SubscriptionService } from 'services/subscription';
 import { KeepSidianSettingsTab } from '../KeepSidianSettingsTab';
 
+// Mock KEEPSIDIAN_SERVER_URL from config.ts
+jest.mock('../../config', () => ({
+    KEEPSIDIAN_SERVER_URL: 'https://keepsidian.com'
+}));
+
+// Polyfill for HTMLElement.createSpan for the JSDOM environment
+if (typeof HTMLElement.prototype.createSpan !== 'function') {
+    HTMLElement.prototype.createSpan = function(param) {
+        const span = document.createElement('span');
+        let cls = "";
+        if (typeof param === 'object' && param !== null && 'cls' in param) {
+            const paramCls = param.cls;
+            if (typeof paramCls === 'string') {
+                cls = paramCls;
+            } else if (Array.isArray(paramCls)) {
+                cls = paramCls.join(" ");
+            } else {
+                cls = "";
+            }
+        } else if (typeof param === 'string') {
+            cls = param;
+        }
+        if (cls) {
+            span.className = cls;
+        }
+        this.appendChild(span);
+        return span;
+    };
+}
+
 // Mock the Setting class
 jest.mock('obsidian', () => ({
     ...jest.requireActual('obsidian'),
@@ -50,8 +80,8 @@ jest.mock('obsidian', () => ({
         this.addText = jest.fn().mockImplementation(function (cb) {
             cb({
                 setValue: jest.fn().mockReturnThis(),
-                setPlaceholder: jest.fn().mockReturnThis(),
                 onChange: jest.fn().mockReturnThis(),
+                setPlaceholder: jest.fn().mockReturnThis(),
             });
             return this;
         });
@@ -164,8 +194,8 @@ describe('SubscriptionSettingsTab', () => {
             
             await subscriptionTab.display();
 
-            expect(containerEl.querySelector('h4')?.textContent).toBe('Why Subscribe?');
-            expect(containerEl.querySelectorAll('li').length).toBe(5); // Check benefit list items
+            expect(containerEl.querySelector('h4')?.textContent).toBe('Why subscribe?');
+            expect(containerEl.querySelectorAll('li').length).toBe(7); // Check benefit list items
             expect(Setting).toHaveBeenCalledWith(expect.anything());
         });
 
@@ -182,7 +212,7 @@ describe('SubscriptionSettingsTab', () => {
 
             expect(Setting).toHaveBeenCalledWith(expect.anything());
             // Verify subscription status display
-            expect(containerEl.textContent).toContain('Subscription Status');
+            expect(containerEl.textContent).toContain('✅ Active subscription');
         });
     });
 
@@ -191,21 +221,22 @@ describe('SubscriptionSettingsTab', () => {
             jest.spyOn(plugin.subscriptionService, 'isSubscriptionActive').mockResolvedValue(true);
         });
 
-        it('should display auto sync settings', async () => {
+        // Auto-sync is not yet enabled
+        /* it('should display auto sync settings', async () => {
             await subscriptionTab.display();
 
             expect(Setting).toHaveBeenCalledWith(expect.anything());
             // Verify auto sync toggle and interval settings
-            expect(containerEl.textContent).toContain('Auto Sync');
-            expect(containerEl.textContent).toContain('Sync Interval');
-        });
+            expect(containerEl.textContent).toContain('Auto sync');
+            expect(containerEl.textContent).toContain('Sync interval');
+        }); */
 
         it('should display tag suggestion settings', async () => {
             await subscriptionTab.display();
 
             expect(Setting).toHaveBeenCalledWith(expect.anything());
             // Verify tag suggestion settings
-            expect(containerEl.textContent).toContain('Suggest tags');
+            expect(containerEl.textContent).toContain('Auto-tags');
             expect(containerEl.textContent).toContain('Maximum tags');
             expect(containerEl.textContent).toContain('Tag prefix');
         });
@@ -215,7 +246,7 @@ describe('SubscriptionSettingsTab', () => {
 
             expect(Setting).toHaveBeenCalledWith(expect.anything());
             // Verify note filtering settings
-            expect(containerEl.textContent).toContain('Include notes containing');
+            expect(containerEl.textContent).toContain('Only include notes containing');
             expect(containerEl.textContent).toContain('Exclude notes containing');
         });
     });

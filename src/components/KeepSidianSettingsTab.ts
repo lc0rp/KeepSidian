@@ -23,12 +23,16 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		containerEl.empty();
 
 		// Basic settings
-		containerEl.createEl('h2', { text: 'KeepSidian Settings' });
+		containerEl.createEl('h3', { text: 'KeepSidian Settings' });
 
 		this.addEmailSetting(containerEl);
-		this.addSyncTokenSetting(containerEl);
-		this.createRetrieveTokenWebView(containerEl);
 		this.addSaveLocationSetting(containerEl);
+		
+		// Sync Token section
+		containerEl.createEl('h3', { text: 'Sync Token Settings' });
+		this.addSyncTokenSetting(containerEl);
+		
+		this.createRetrieveTokenWebView(containerEl);
 		this.addSubscriptionSettings(containerEl);
 	}
 
@@ -56,17 +60,17 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 	private addSyncTokenSetting(containerEl: HTMLElement): void {
 		new Setting(containerEl)
 			.setName('Sync token')
-			.setDesc('Your Google Keep sync token is a unique code that authorizes this plugin to access your Google Keep data. You can retrieve it by clicking the "Retrieve token" button.')
+			.setDesc('This token authorizes access to your Google Keep data. Retrieve your token below.')
 			.addText(text => {
 				text
-					.setPlaceholder('Your Google Keep sync token.')
-				.setValue(this.plugin.settings.token)
-				.onChange(async (value) => {
-					this.plugin.settings.token = value;
-					await this.plugin.saveSettings();
-				});
-				text.inputEl.addEventListener('paste', this.handleTokenPaste.bind(this));
+					.setPlaceholder('Google Keep sync token.')
+					.setValue(this.plugin.settings.token)
+					.onChange(async (value) => {
+						this.plugin.settings.token = value;
+						await this.plugin.saveSettings();
+					});
 				text.inputEl.type = 'password';
+				text.inputEl.addEventListener('paste', this.handleTokenPaste.bind(this));
 				const toggleButton = text.inputEl.parentElement?.createEl('button', { text: 'Show' });
 				toggleButton?.addEventListener('click', (e) => {
 					e.preventDefault();
@@ -78,19 +82,29 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 						toggleButton.textContent = 'Show';
 					}
 				});
-			})
+			});
+
+		new Setting(containerEl)
+			.setName('Retrieve your sync token')
+			.setDesc('Get your token automatically using our "Retrieval wizard" or manually using the "Github KIM instructions".')
 			.addButton(button => button
-				.setButtonText('Retrieve token')
-				.onClick(this.handleRetrieveToken.bind(this))); 
+				.setButtonText('Retrieval wizard')
+				.onClick(this.handleRetrieveToken.bind(this)))
+			.addButton(button => button
+				.setButtonText('Github KIM instructions')
+				.onClick(() => {
+					window.open('https://github.com/djsudduth/keep-it-markdown', '_blank');
+				}));
 	}
 
 	private async handleTokenPaste(event: ClipboardEvent): Promise<void> {
-		event.preventDefault();
 		const pastedText = event.clipboardData?.getData('text');
 		if (pastedText && pastedText.includes('oauth2_4')) {
+			event.preventDefault();
 			await exchangeOauthToken(this, this.plugin, pastedText);
 			this.display();
 		}
+		// If the text doesn't contain 'oauth2_4', we don't prevent the default paste behavior
 	}
 
 	private async handleRetrieveToken(): Promise<void> {
