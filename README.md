@@ -1,12 +1,12 @@
 # KeepSidian
 
+> ⚠️ **Note**: Not affiliated with the Android app Keepsidian. For Android app questions, please see [👉 this thread](https://forum.obsidian.md/t/app-keepsidian/101491/15).
+
 Sync Google Keep notes to Obsidian.
 
 As a regular user of both Google Keep and Obsidian, I set out to make it easier to exchange data between both apps.
 
 This plugin is only supports one-way download for now, from Google Keep to Obsidian. Please share your feedback in the [issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
-
-> ⚠️ **Note**: Not affiliated with the Android app Keepsidian. For Android app questions, please see [👉 this thread](https://forum.obsidian.md/t/app-keepsidian/101491/15).
 
 ## KIM based sync server
 
