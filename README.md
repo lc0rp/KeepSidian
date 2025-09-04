@@ -1,6 +1,6 @@
 # KeepSidian
 
-> ⚠️ **Note**: Not affiliated with the Android app Keepsidian. For Android app questions, please see [👉 this thread](https://forum.obsidian.md/t/app-keepsidian/101491/15).
+> ⚠️ **Note**: Not affiliated with the Android app Capsidian (Formerly "Keepsidian"). For Android app questions, please see [👉 this thread](https://forum.obsidian.md/t/app-keepsidian/101491/15).
 
 Sync Google Keep notes to Obsidian.
 
