@@ -86,6 +86,11 @@ The plugin adds the following frontmatter to each synced note:
 - GoogleKeepUpdatedDate
 - KeepSidianLastSyncedDate
 
+## Other plugins
+
+- [Obsidian Task Roles](https://github.com/lc0rp/obsidian-task-roles/) - Assignee & Role Tracking for your Obsidian Tasks.
+- [Checkbox Bulk Dates](https://github.com/lc0rp/obsidian-checkbox-bulk-dates) - Add creation dates to unchecked checkboxes.
+
 ## Feedback
 
 Please share your feedback in the [issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
