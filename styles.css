@@ -29,6 +29,121 @@ If your plugin does not need CSS, delete this file.
     margin: 4px 0;
 }
 
+/* KeepSidian: Status bar progress meter */
+.keepsidian-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.keepsidian-status .keepsidian-status-text {
+    white-space: nowrap;
+}
+
+.keepsidian-progress {
+    position: relative;
+    width: 64px;
+    height: 4px;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--background-modifier-border);
+}
+
+.keepsidian-progress-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 0%;
+    background: var(--text-accent);
+    opacity: 0.85;
+}
+
+.keepsidian-progress.indeterminate .keepsidian-progress-bar {
+    left: -40%;
+    width: 40%;
+    animation: ks-indeterminate 1.2s ease-in-out infinite;
+}
+
+.keepsidian-progress.complete .keepsidian-progress-bar {
+    left: 0;
+    width: 100%;
+    animation: none;
+    background: var(--text-success);
+    opacity: 0.9;
+}
+
+.keepsidian-progress.failed .keepsidian-progress-bar {
+    left: 0;
+    width: 100%;
+    animation: none;
+    background: var(--text-error, #ff5c57);
+}
+
+@keyframes ks-indeterminate {
+    0% { left: -40%; width: 40%; }
+    50% { left: 20%; width: 60%; }
+    100% { left: 100%; width: 40%; }
+}
+
+/* KeepSidian: Progress modal styles */
+.keepsidian-modal {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 360px;
+}
+
+.keepsidian-modal-title {
+    margin: 0 0 4px 0;
+    color: var(--text-accent);
+    font-weight: 700;
+}
+
+.keepsidian-modal-progress {
+    position: relative;
+    width: 100%;
+    height: 8px;
+    border-radius: 6px;
+    background: var(--background-modifier-border);
+    overflow: hidden;
+}
+
+.keepsidian-modal-progress-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 25%;
+    background: var(--interactive-accent);
+    opacity: 0.9;
+}
+
+.keepsidian-modal-progress.indeterminate .keepsidian-modal-progress-bar {
+    left: -25%;
+    animation: ks-modal-indeterminate 1.2s ease-in-out infinite;
+}
+
+.keepsidian-modal-progress.complete .keepsidian-modal-progress-bar {
+    width: 100%;
+    background: var(--text-success);
+}
+
+.keepsidian-modal-progress.failed .keepsidian-modal-progress-bar {
+    width: 100%;
+    background: var(--text-error, #ff5c57);
+}
+
+@keyframes ks-modal-indeterminate {
+    0% { left: -30%; width: 30%; }
+    50% { left: 35%; width: 40%; }
+    100% { left: 100%; width: 30%; }
+}
+
+.keepsidian-modal-status {
+    color: var(--text-muted);
+}
+
 .requires-subscription {
     opacity: 0.6;
 }

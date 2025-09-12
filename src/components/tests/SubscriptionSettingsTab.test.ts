@@ -7,6 +7,7 @@ import KeepSidianPlugin from '../../main';
 import { PremiumFeatureSettings } from '../../types/subscription';
 import { SubscriptionService } from 'services/subscription';
 import { KeepSidianSettingsTab } from '../KeepSidianSettingsTab';
+import { DEFAULT_SETTINGS } from '../../types/keepsidian-plugin-settings';
 
 // Mock KEEPSIDIAN_SERVER_URL from config.ts
 jest.mock('../../config', () => ({
@@ -165,6 +166,7 @@ describe('SubscriptionSettingsTab', () => {
         app = new App();
         plugin = new KeepSidianPlugin(app, TEST_MANIFEST);
         plugin.settings = {
+            ...DEFAULT_SETTINGS,
             email: '',
             token: '',
             saveLocation: '',

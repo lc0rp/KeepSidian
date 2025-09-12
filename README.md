@@ -18,6 +18,12 @@ When you start a sync, you will provide your Google Keep email and a token gener
 
 This plugin offers an on-demand "Run Keep -> Obsidian" command to download ~the 50 most recent~ all notes on demand. Follow the installation instructions below to try it and share your feedback.
 
+When a sync is running you'll see a persistent toast and a status bar indicator showing progress. Hovering over the status bar shows a tooltip identifying it as KeepSidian sync progress, and clicking the status bar opens a dialog with a progress bar and stats about the current sync.
+
+## Auto sync
+
+Enable automatic syncing on a daily schedule by default. Subscribers can customize the interval in hours. Each sync writes details to a `_keepsidian.log` file in the target directory.
+
 ## Features
 
 > **Please rank the upcoming features here!**

@@ -25,8 +25,9 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		// Basic settings
 		containerEl.createEl('h3', { text: 'KeepSidian Settings' });
 
-		this.addEmailSetting(containerEl);
-		this.addSaveLocationSetting(containerEl);
+                this.addEmailSetting(containerEl);
+                this.addSaveLocationSetting(containerEl);
+                await this.addAutoSyncSettings(containerEl);
 		
 		// Sync Token section
 		containerEl.createEl('h3', { text: 'Sync Token Settings' });
@@ -116,18 +117,70 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		this.display();
 	}
 
-	private addSaveLocationSetting(containerEl: HTMLElement): void {
-		new Setting(containerEl)
-			.setName('Save location')
-			.setDesc('Where to save imported notes (relative to vault folder).')
-			.addText(text => text
+        private addSaveLocationSetting(containerEl: HTMLElement): void {
+                new Setting(containerEl)
+                        .setName('Save location')
+                        .setDesc('Where to save imported notes (relative to vault folder).')
+                        .addText(text => text
 				.setPlaceholder('KeepSidian')
 				.setValue(this.plugin.settings.saveLocation)
 				.onChange(async (value) => {
 					this.plugin.settings.saveLocation = value;
 					await this.plugin.saveSettings();
-				}));
-	}
+                                  }));
+        }
+
+        private async addAutoSyncSettings(containerEl: HTMLElement): Promise<void> {
+                containerEl.createEl('h3', { text: 'Auto Sync' });
+
+                new Setting(containerEl)
+                        .setName('Enable auto sync')
+                        .setDesc('Automatically sync your notes at regular intervals.')
+                        .addToggle(toggle => toggle
+                                .setValue(this.plugin.settings.autoSyncEnabled)
+                                .onChange(async (value) => {
+                                        this.plugin.settings.autoSyncEnabled = value;
+                                        await this.plugin.saveSettings();
+                                        if (value) {
+                                                this.plugin.startAutoSync();
+                                        } else {
+                                                this.plugin.stopAutoSync();
+                                        }
+                                }));
+
+                const intervalSetting = new Setting(containerEl)
+                        .setName('Sync interval (hours)')
+                        .setDesc('Requires subscription')
+                        .addText(text => text
+                                .setPlaceholder('24')
+                                .setValue(this.plugin.settings.autoSyncIntervalHours.toString())
+                                .onChange(async (value) => {
+                                        const num = Number(value);
+                                        if (!isNaN(num) && num > 0) {
+                                                this.plugin.settings.autoSyncIntervalHours = num;
+                                                await this.plugin.saveSettings();
+                                                if (this.plugin.settings.autoSyncEnabled) {
+                                                        this.plugin.startAutoSync();
+                                                }
+                                        }
+                                }));
+
+                const isSubscribed = await this.plugin.subscriptionService.isSubscriptionActive();
+                if (!isSubscribed) {
+                        intervalSetting.setDisabled(true);
+                }
+
+                new Setting(containerEl)
+                        .setName('Sync log file')
+                        .setDesc('Log file name stored in target directory.')
+                        .addText(text => text
+                                .setPlaceholder('_keepsidian.log')
+                                .setValue(this.plugin.settings.syncLogPath)
+                                .onChange(async (value) => {
+                                        this.plugin.settings.syncLogPath = value;
+                                        await this.plugin.saveSettings();
+                                }));
+        }
 
 	private createRetrieveTokenWebView(containerEl: HTMLElement): void {
 		this.retrieveTokenWebView = containerEl.createEl('webview' as keyof HTMLElementTagNameMap, {

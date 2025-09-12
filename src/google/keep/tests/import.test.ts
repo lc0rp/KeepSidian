@@ -1,4 +1,9 @@
-import { requestUrl, Notice, RequestUrlResponse } from 'obsidian';
+jest.mock('obsidian', () => ({
+    requestUrl: jest.fn(),
+    normalizePath: jest.fn(),
+    Notice: jest.fn(),
+}));
+import { requestUrl, RequestUrlResponse, Notice } from 'obsidian';
 import * as obsidian from 'obsidian';
 import {
     importGoogleKeepNotes,
@@ -16,11 +21,6 @@ import * as importModule from '../import';
 import * as attachmentsModule from '../attachments';
 
 // Mock the external modules
-jest.mock('obsidian', () => ({
-    requestUrl: jest.fn(),
-    normalizePath: jest.fn(),
-    Notice: jest.fn(),
-}));
 jest.mock('../compare');
 jest.mock('main');
 
@@ -62,14 +62,14 @@ describe('Google Keep Import Functions', () => {
 
     describe('importGoogleKeepNotes', () => {
         it('should successfully import notes', async () => {
-            await importGoogleKeepNotes(mockPlugin);
+            await expect(importGoogleKeepNotes(mockPlugin)).resolves.toBe(0);
             expect(requestUrl).toHaveBeenCalled();
-            expect(Notice).toHaveBeenCalledWith('Notes imported successfully.');
+            expect(Notice).toHaveBeenCalledWith('Imported Google Keep notes.');
         });
 
         it('should handle errors during import', async () => {
             (requestUrl as jest.Mock).mockRejectedValue(new Error('Network error'));
-            await importGoogleKeepNotes(mockPlugin);
+            await expect(importGoogleKeepNotes(mockPlugin)).rejects.toThrow('Network error');
             expect(Notice).toHaveBeenCalledWith('Failed to import notes.');
         });
     });
@@ -95,7 +95,7 @@ describe('Google Keep Import Functions', () => {
 
         it('should handle errors with premium features', async () => {
             (requestUrl as jest.Mock).mockRejectedValue(new Error('Premium feature error'));
-            await importGoogleKeepNotesWithOptions(mockPlugin, mockOptions);
+            await expect(importGoogleKeepNotesWithOptions(mockPlugin, mockOptions)).rejects.toThrow('Premium feature error');
             expect(Notice).toHaveBeenCalledWith('Failed to import notes.');
         });
     });
