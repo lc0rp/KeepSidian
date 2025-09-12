@@ -1,4 +1,8 @@
-import { requestUrl, Notice, RequestUrlResponse } from 'obsidian';
+jest.mock('obsidian', () => ({
+    requestUrl: jest.fn(),
+    normalizePath: jest.fn(),
+}));
+import { requestUrl, RequestUrlResponse } from 'obsidian';
 import * as obsidian from 'obsidian';
 import {
     importGoogleKeepNotes,
@@ -16,11 +20,6 @@ import * as importModule from '../import';
 import * as attachmentsModule from '../attachments';
 
 // Mock the external modules
-jest.mock('obsidian', () => ({
-    requestUrl: jest.fn(),
-    normalizePath: jest.fn(),
-    Notice: jest.fn(),
-}));
 jest.mock('../compare');
 jest.mock('main');
 
@@ -62,15 +61,13 @@ describe('Google Keep Import Functions', () => {
 
     describe('importGoogleKeepNotes', () => {
         it('should successfully import notes', async () => {
-            await importGoogleKeepNotes(mockPlugin);
+            await expect(importGoogleKeepNotes(mockPlugin)).resolves.toBeUndefined();
             expect(requestUrl).toHaveBeenCalled();
-            expect(Notice).toHaveBeenCalledWith('Notes imported successfully.');
         });
 
         it('should handle errors during import', async () => {
             (requestUrl as jest.Mock).mockRejectedValue(new Error('Network error'));
-            await importGoogleKeepNotes(mockPlugin);
-            expect(Notice).toHaveBeenCalledWith('Failed to import notes.');
+            await expect(importGoogleKeepNotes(mockPlugin)).rejects.toThrow('Network error');
         });
     });
 
@@ -95,8 +92,7 @@ describe('Google Keep Import Functions', () => {
 
         it('should handle errors with premium features', async () => {
             (requestUrl as jest.Mock).mockRejectedValue(new Error('Premium feature error'));
-            await importGoogleKeepNotesWithOptions(mockPlugin, mockOptions);
-            expect(Notice).toHaveBeenCalledWith('Failed to import notes.');
+            await expect(importGoogleKeepNotesWithOptions(mockPlugin, mockOptions)).rejects.toThrow('Premium feature error');
         });
     });
 

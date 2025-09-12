@@ -1,4 +1,4 @@
-import { requestUrl, RequestUrlResponse, Notice } from 'obsidian';
+import { requestUrl, RequestUrlResponse } from 'obsidian';
 import { KEEPSIDIAN_SERVER_URL } from '../../config';
 import { normalizeNote, PreNormalizedNote } from './note';
 import { normalizePath } from "obsidian";
@@ -9,7 +9,7 @@ import { processAttachments } from './attachments';
 
 interface GoogleKeepImportResponse {
     notes: Array<PreNormalizedNote>;
-    // Add other top-level properties if they exist in the response
+    total_notes?: number;
 }
 
 interface PremiumFeatureFlags {
@@ -31,35 +31,19 @@ async function importGoogleKeepNotesBase(
     plugin: KeepSidianPlugin,
     fetchFunction: (plugin: KeepSidianPlugin, offset: number, limit: number) => Promise<GoogleKeepImportResponse>
 ) {
-    try {
-        let offset = 0;
-        const limit = 50;
-        let hasError = false;
-        let foundError: Error | null = null;
-        
-        while (!hasError) {
-            try {
-                const response = await fetchFunction(plugin, offset, limit);
-                if (!response.notes || response.notes.length === 0) {
-                    break;
-                }
-                await processAndSaveNotes(plugin, response.notes);
-                offset += limit;
-            } catch (error) {
-                console.error(`Error fetching notes at offset ${offset}:`, error);
-                hasError = true;
-                foundError = error as Error;
-            }
+    let offset = 0;
+    const limit = 50;
+    while (true) {
+        const response = await fetchFunction(plugin, offset, limit);
+        // Inform plugin about total notes if provided by API
+        if (typeof response.total_notes === 'number' && (plugin as any).setTotalNotes) {
+            try { (plugin as any).setTotalNotes(response.total_notes); } catch {}
         }
-
-        if (foundError) {
-            throw foundError;
+        if (!response.notes || response.notes.length === 0) {
+            break;
         }
-
-        new Notice('Notes imported successfully.');
-    } catch (error) {
-        console.error(error);
-        new Notice('Failed to import notes.');
+        await processAndSaveNotes(plugin, response.notes);
+        offset += limit;
     }
 }
 
@@ -77,7 +61,7 @@ export async function importGoogleKeepNotesWithOptions(plugin: KeepSidianPlugin,
 
 export async function fetchNotes(plugin: KeepSidianPlugin, offset = 0, limit = 100): Promise<GoogleKeepImportResponse> {
     const response = await requestUrl({
-        url: `${KEEPSIDIAN_SERVER_URL}/keep/sync?offset=${offset}&limit=${limit}`,
+        url: `${KEEPSIDIAN_SERVER_URL}/keep/sync/v2?offset=${offset}&limit=${limit}`,
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -96,7 +80,7 @@ export async function fetchNotesWithPremiumFeatures(
     limit = 100
 ): Promise<GoogleKeepImportResponse> {
     const response = await requestUrl({
-        url: `${KEEPSIDIAN_SERVER_URL}/keep/sync/premium?offset=${offset}&limit=${limit}`,
+        url: `${KEEPSIDIAN_SERVER_URL}/keep/sync/premium/v2?offset=${offset}&limit=${limit}`,
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -162,6 +146,9 @@ export async function processAndSaveNotes(plugin: KeepSidianPlugin, notes: PreNo
 
     for (const note of notes) {
         await processAndSaveNote(plugin, note, saveLocation);
+        if (typeof (plugin as any).reportSyncProgress === 'function') {
+            (plugin as any).reportSyncProgress();
+        }
     }
 }
 

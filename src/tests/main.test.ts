@@ -41,6 +41,11 @@ describe('KeepSidianPlugin', () => {
         plugin.addRibbonIcon = jest.fn();
         plugin.addCommand = jest.fn();
         plugin.addSettingTab = jest.fn();
+        plugin.addStatusBarItem = jest.fn(() => ({
+            setText: jest.fn(),
+            addEventListener: jest.fn(),
+            setAttribute: jest.fn()
+        } as any));
 
         const mockSubscriptionService = {
             isSubscriptionActive: jest.fn().mockResolvedValue(false),
@@ -75,21 +80,23 @@ describe('KeepSidianPlugin', () => {
             const importMock = jest.spyOn(ImportModule, 'importGoogleKeepNotes').mockResolvedValue();
 
             await plugin.onload();
-            const ribbonClickHandler = (plugin.addRibbonIcon as jest.Mock).mock.calls[0][2];
 
-            await ribbonClickHandler({} as MouseEvent);
-            await new Promise(process.nextTick);
+            await plugin.importNotes();
+            await new Promise(resolve => setTimeout(resolve, 0));
 
             expect(importMock).toHaveBeenCalled();
             expect(importMock).toHaveBeenCalledWith(plugin);
             expect(NoteImportOptionsModal).not.toHaveBeenCalled();
-            expect(Notice).toHaveBeenCalledWith('Imported Google Keep notes.');
+            expect(Notice).toHaveBeenCalledWith('Syncing Google Keep Notes...', 0);
+            expect(plugin.progressNotice).not.toBeNull();
+            const statusEl = (plugin.addStatusBarItem as jest.Mock).mock.results[0].value;
+            expect(statusEl.setAttribute).toHaveBeenCalledWith('aria-label', 'KeepSidian sync progress');
+            expect(statusEl.setAttribute).toHaveBeenCalledWith('title', 'KeepSidian sync progress');
         });
 
         it('should show options modal for premium users', async () => {
             await plugin.onload(); // Initialize the plugin and subscriptionService
 
-            // Spy on isSubscriptionActive after subscriptionService is initialized
             const isSubscriptionActiveSpy = jest
                 .spyOn(plugin.subscriptionService, 'isSubscriptionActive')
                 .mockResolvedValue(true);
@@ -98,22 +105,17 @@ describe('KeepSidianPlugin', () => {
                 .spyOn(ImportModule, 'importGoogleKeepNotes')
                 .mockResolvedValue();
 
-            // Create spy for showImportOptionsModal
             const showModalSpy = jest
                 .spyOn(plugin, 'showImportOptionsModal')
                 .mockImplementation(async () => { });
 
-            await new Promise((resolve) => setTimeout(resolve, 0));
+            await plugin.importNotes();
+            await new Promise(resolve => setTimeout(resolve, 0));
 
-            const ribbonClickHandler = (plugin.addRibbonIcon as jest.Mock).mock.calls[0][2];
-            await ribbonClickHandler({} as MouseEvent);
-            await new Promise((resolve) => setTimeout(resolve, 0));
-
-            expect(isSubscriptionActiveSpy).toHaveBeenCalled(); // Now Jest recognizes the spy
+            expect(isSubscriptionActiveSpy).toHaveBeenCalled();
             expect(showModalSpy).toHaveBeenCalled();
             expect(importMock).not.toHaveBeenCalled();
 
-            // Clean up
             showModalSpy.mockRestore();
             isSubscriptionActiveSpy.mockRestore();
             importMock.mockRestore();

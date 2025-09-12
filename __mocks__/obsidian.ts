@@ -19,11 +19,19 @@ export class Plugin {
   saveData() {}
   registerDomEvent() {}
   registerInterval() {}
+  addStatusBarItem() {
+    const el = document.createElement('div') as any;
+    el.setText = function(text: string) { this.textContent = text; };
+    return el;
+  }
 }
 
-export class Notice {
-  constructor(message: string) {}
-}
+export const Notice = jest.fn().mockImplementation(function (this: any, message: string, timeout?: number) {
+  this.message = message;
+  this.timeout = timeout;
+});
+Notice.prototype.setMessage = function(message: string) { this.message = message; };
+Notice.prototype.hide = function() {};
 
 export class PluginSettingTab {
   app: App;
@@ -99,11 +107,19 @@ export class Setting {
 export class Modal {
   app: App;
   titleEl: HTMLElement = document.createElement('div');
-  contentEl: HTMLElement = document.createElement('div');
+  contentEl: HTMLElement;
   modalEl: HTMLElement = document.createElement('div');
 
   constructor(app: App) {
     this.app = app;
+    this.contentEl = document.createElement('div');
+    (this.contentEl as any).empty = function() { this.innerHTML = ''; };
+    (this.contentEl as any).createEl = function(tagName: string, options?: any) {
+      const el = document.createElement(tagName);
+      if (options?.text) { el.textContent = options.text; }
+      this.appendChild(el);
+      return el;
+    };
   }
 
   open() {}
