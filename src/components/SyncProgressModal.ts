@@ -18,7 +18,12 @@ class BaseModal extends (ObsidianModal as any || class {
     }
     open() {}
     close() {}
-}) {}
+}) {
+    constructor(app: App) {
+        // Ensure TS knows our super accepts an argument while remaining runtime-safe
+        super(app as any);
+    }
+}
 
 export class SyncProgressModal extends BaseModal {
     private progressWrapEl: HTMLDivElement;
@@ -37,22 +42,32 @@ export class SyncProgressModal extends BaseModal {
         contentEl.classList.add('keepsidian-modal');
 
         // Title
-        const titleEl = contentEl.createEl('h2', { text: 'Sync Progress' });
+        const titleEl = (contentEl as any).createEl
+            ? (contentEl as any).createEl('h2', { text: 'Sync Progress' })
+            : (() => { const el = document.createElement('h2'); el.textContent = 'Sync Progress'; contentEl.appendChild(el); return el; })();
         (titleEl as HTMLElement).classList.add('keepsidian-modal-title');
 
         // Progress bar (custom, indeterminate by default)
-        this.progressWrapEl = contentEl.createEl('div') as HTMLDivElement;
+        this.progressWrapEl = (contentEl as any).createEl
+            ? (contentEl as any).createEl('div') as HTMLDivElement
+            : (() => { const el = document.createElement('div'); contentEl.appendChild(el); return el as HTMLDivElement; })();
         this.progressWrapEl.className = 'keepsidian-modal-progress indeterminate';
-        this.progressBarEl = this.progressWrapEl.createEl('div') as HTMLDivElement;
+        this.progressBarEl = (this.progressWrapEl as any).createEl
+            ? (this.progressWrapEl as any).createEl('div') as HTMLDivElement
+            : (() => { const el = document.createElement('div'); this.progressWrapEl.appendChild(el); return el as HTMLDivElement; })();
         this.progressBarEl.className = 'keepsidian-modal-progress-bar';
 
         // Status text
-        this.statusEl = contentEl.createEl('div', { text: 'Processed 0 notes' });
+        this.statusEl = (contentEl as any).createEl
+            ? (contentEl as any).createEl('div', { text: 'Processed 0 notes' })
+            : (() => { const el = document.createElement('div'); el.textContent = 'Processed 0 notes'; contentEl.appendChild(el); return el; })();
         (this.statusEl as HTMLElement).classList.add('keepsidian-modal-status');
         this.statusEl.setAttribute('aria-live', 'polite');
 
         // Close button
-        const button = contentEl.createEl('button', { text: 'OK' });
+        const button = (contentEl as any).createEl
+            ? (contentEl as any).createEl('button', { text: 'OK' })
+            : (() => { const el = document.createElement('button'); el.textContent = 'OK'; contentEl.appendChild(el); return el; })();
         (button as HTMLElement).classList.add('mod-cta');
         button.addEventListener('click', () => this.close());
     }

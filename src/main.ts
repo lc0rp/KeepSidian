@@ -351,7 +351,9 @@ export default class KeepSidianPlugin extends Plugin {
 		this.autoSyncInterval = window.setInterval(() => {
 			this.importNotes(true);
 		}, intervalMs);
-		this.registerInterval(this.autoSyncInterval);
+		if (typeof (this as any).registerInterval === 'function') {
+			(this as any).registerInterval(this.autoSyncInterval);
+		}
 	}
 
 	stopAutoSync() {
