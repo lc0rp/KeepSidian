@@ -30,7 +30,7 @@ export class SubscriptionSettingsTab {
                 }));
 
         const isActive = await this.plugin.subscriptionService.isSubscriptionActive();
-        await SubscriptionSettingsTab.displayPremiumFeatures(containerEl, this.plugin, isActive);
+        SubscriptionSettingsTab.displayPremiumFeatures(containerEl, this.plugin, isActive);
 
         if (!isActive) {
             await this.displayInactiveSubscriber();
@@ -39,12 +39,12 @@ export class SubscriptionSettingsTab {
         }
     }
 
-    static async displayPremiumFeatures(containerEl: HTMLElement, plugin: KeepSidianPlugin, isActive: boolean): Promise<void> {
-        await this.displayPremiumFeaturesLocal(containerEl, plugin, plugin.settings.premiumFeatures, isActive);
-        await this.displayPremiumFeaturesServer(containerEl, plugin, plugin.settings.premiumFeatures, isActive);
+    static displayPremiumFeatures(containerEl: HTMLElement, plugin: KeepSidianPlugin, isActive: boolean): void {
+        this.displayPremiumFeaturesLocal(containerEl, plugin, plugin.settings.premiumFeatures, isActive);
+        this.displayPremiumFeaturesServer(containerEl, plugin, plugin.settings.premiumFeatures, isActive);
     }
 
-    static async displayPremiumFeaturesLocal(containerEl: HTMLElement, plugin: KeepSidianPlugin, premiumFeatureValues: PremiumFeatureSettings, isActive: boolean): Promise<void> {
+    static displayPremiumFeaturesLocal(containerEl: HTMLElement, plugin: KeepSidianPlugin, premiumFeatureValues: PremiumFeatureSettings, isActive: boolean): void {
 
         // 3.1 Auto Sync
         // TODO: Implement auto sync
@@ -72,7 +72,7 @@ export class SubscriptionSettingsTab {
             .setDisabled(!premiumFeatureValues.autoSync); */
     }
 
-    static async displayPremiumFeaturesServer(containerEl: HTMLElement, plugin: KeepSidianPlugin, premiumFeatureValues: PremiumFeatureSettings, isActive: boolean): Promise<void> {
+    static displayPremiumFeaturesServer(containerEl: HTMLElement, plugin: KeepSidianPlugin, premiumFeatureValues: PremiumFeatureSettings, isActive: boolean): void {
         const descSuffix = isActive ? '' : ' (requires a subscription)';
 
         // 3.2 Filter Notes
