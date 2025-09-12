@@ -1,4 +1,8 @@
-import { requestUrl, Notice, RequestUrlResponse } from 'obsidian';
+jest.mock('obsidian', () => ({
+    requestUrl: jest.fn(),
+    normalizePath: jest.fn(),
+}));
+import { requestUrl, RequestUrlResponse } from 'obsidian';
 import * as obsidian from 'obsidian';
 import {
     importGoogleKeepNotes,
@@ -16,11 +20,6 @@ import * as importModule from '../import';
 import * as attachmentsModule from '../attachments';
 
 // Mock the external modules
-jest.mock('obsidian', () => ({
-    requestUrl: jest.fn(),
-    normalizePath: jest.fn(),
-    Notice: jest.fn(),
-}));
 jest.mock('../compare');
 jest.mock('main');
 
@@ -62,7 +61,7 @@ describe('Google Keep Import Functions', () => {
 
     describe('importGoogleKeepNotes', () => {
         it('should successfully import notes', async () => {
-            await importGoogleKeepNotes(mockPlugin);
+            await expect(importGoogleKeepNotes(mockPlugin)).resolves.toBeUndefined();
             expect(requestUrl).toHaveBeenCalled();
             expect(Notice).toHaveBeenCalledWith('Imported Google Keep notes.');
         });
