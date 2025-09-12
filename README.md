@@ -86,6 +86,10 @@ The plugin adds the following frontmatter to each synced note:
 - GoogleKeepUpdatedDate
 - KeepSidianLastSyncedDate
 
+## Conflict resolution
+
+When a local note and its Google Keep counterpart have both been modified since the last sync, KeepSidian now attempts to merge the differing bodies of the notes. The frontmatter of the existing note is preserved and excluded from the merge comparison. If the merge succeeds, the note is updated in place; otherwise, the incoming version is saved as a separate `-conflict-<timestamp>.md` file.
+
 ## Other plugins
 
 - [Obsidian Task Roles](https://github.com/lc0rp/obsidian-task-roles/) - Assignee & Role Tracking for your Obsidian Tasks.

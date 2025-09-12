@@ -43,7 +43,8 @@ describe('Google Keep Import Functions', () => {
                     adapter: {
                         exists: jest.fn().mockImplementation(() => Promise.resolve(false)),
                         write: jest.fn(),
-                        writeBinary: jest.fn()
+                        writeBinary: jest.fn(),
+                        read: jest.fn()
                     },
                     createFolder: jest.fn()
                 }
@@ -212,14 +213,46 @@ describe('Google Keep Import Functions', () => {
             expect(mockPlugin.app.vault.adapter.write).not.toHaveBeenCalled();
         });
 
-        it('should rename note file if duplicate action is rename', async () => {
-            jest.spyOn(noteModule, 'normalizeNote').mockReturnValue(normalizedNote);
-            jest.spyOn(compareModule, 'handleDuplicateNotes').mockResolvedValue('rename');
-            jest.spyOn(Date.prototype, 'toISOString').mockReturnValue('2023-01-01T00:00:00.000Z');
-            jest.spyOn(obsidian, 'normalizePath').mockReturnValue(`${mockPlugin.settings.saveLocation}/${note.title}.md`);
-            await importModule.processAndSaveNote(mockPlugin, note, mockPlugin.settings.saveLocation);
+        it('should merge note file if duplicate action is rename and merge succeeds', async () => {
+            const existingContent = `---\nExisting: true\n---\nLine 1`;
+            const incomingNote: noteModule.PreNormalizedNote = { title: 'Note 1', body: 'Line 1\nLine 2', frontmatterDict: { Incoming: 'true' } };
+            const incomingNormalized: noteModule.NormalizedNote = {
+                ...normalizedNote,
+                body: 'Line 1\nLine 2',
+                frontmatterDict: { Incoming: 'true' }
+            };
 
-            const expectedFilePath = `${mockPlugin.settings.saveLocation}/${note.title}-conflict-2023-01-01T00:00:00.000Z.md`;
+            jest.spyOn(noteModule, 'normalizeNote').mockReturnValue(incomingNormalized);
+            jest.spyOn(compareModule, 'handleDuplicateNotes').mockResolvedValue('rename');
+            jest.spyOn(mockPlugin.app.vault.adapter, 'read').mockResolvedValue(existingContent);
+            jest.spyOn(Date.prototype, 'toISOString').mockReturnValue('2023-01-01T00:00:00.000Z');
+            jest.spyOn(obsidian, 'normalizePath').mockReturnValue(`${mockPlugin.settings.saveLocation}/${incomingNote.title}.md`);
+
+            await importModule.processAndSaveNote(mockPlugin, incomingNote, mockPlugin.settings.saveLocation);
+
+            const expectedFilePath = `${mockPlugin.settings.saveLocation}/${incomingNote.title}.md`;
+            const expectedContent = `---\nExisting: true\nKeepSidianLastSyncedDate: 2023-01-01T00:00:00.000Z\n---\nLine 1\nLine 2`;
+            expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalledWith(expectedFilePath, expectedContent);
+        });
+
+        it('should rename note file if merge has conflicts', async () => {
+            const existingContent = `---\nExisting: true\n---\nLine 1\nLine A`;
+            const incomingNote: noteModule.PreNormalizedNote = { title: 'Note 1', body: 'Line 1\nLine B', frontmatterDict: { Incoming: 'true' } };
+            const incomingNormalized: noteModule.NormalizedNote = {
+                ...normalizedNote,
+                body: 'Line 1\nLine B',
+                frontmatterDict: { Incoming: 'true' }
+            };
+
+            jest.spyOn(noteModule, 'normalizeNote').mockReturnValue(incomingNormalized);
+            jest.spyOn(compareModule, 'handleDuplicateNotes').mockResolvedValue('rename');
+            jest.spyOn(mockPlugin.app.vault.adapter, 'read').mockResolvedValue(existingContent);
+            jest.spyOn(Date.prototype, 'toISOString').mockReturnValue('2023-01-01T00:00:00.000Z');
+            jest.spyOn(obsidian, 'normalizePath').mockReturnValue(`${mockPlugin.settings.saveLocation}/${incomingNote.title}.md`);
+
+            await importModule.processAndSaveNote(mockPlugin, incomingNote, mockPlugin.settings.saveLocation);
+
+            const expectedFilePath = `${mockPlugin.settings.saveLocation}/${incomingNote.title}-conflict-2023-01-01T00:00:00.000Z.md`;
             expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalledWith(expectedFilePath, expect.any(String));
         });
 
