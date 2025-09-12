@@ -28,3 +28,13 @@ If your plugin does not need CSS, delete this file.
 .premium-features-list li {
     margin: 4px 0;
 }
+
+.requires-subscription {
+    opacity: 0.6;
+}
+
+.requires-subscription .setting-item-name::after {
+    content: '\1F512';
+    /* Unicode lock icon */
+    margin-left: 4px;
+}
