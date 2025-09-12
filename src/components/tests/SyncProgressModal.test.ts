@@ -13,8 +13,8 @@ describe('SyncProgressModal', () => {
         const modal = new SyncProgressModal(app);
         modal.onOpen();
         modal.setProgress(5);
-        expect(modal['statsEl'].textContent).toContain('5');
+        expect(modal['statusEl'].textContent).toContain('5');
         modal.setComplete(true, 5);
-        expect(modal['statsEl'].textContent).toContain('Synced 5 notes');
+        expect(modal['statusEl'].textContent).toContain('Synced 5 notes');
     });
 });

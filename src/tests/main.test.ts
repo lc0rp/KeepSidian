@@ -77,7 +77,7 @@ describe('KeepSidianPlugin', () => {
     describe('importNotes', () => {
         it('should use basic import for non-premium users', async () => {
             plugin.subscriptionService.isSubscriptionActive = jest.fn().mockResolvedValue(false);
-            const importMock = jest.spyOn(ImportModule, 'importGoogleKeepNotes').mockResolvedValue();
+            const importMock = jest.spyOn(ImportModule, 'importGoogleKeepNotes').mockResolvedValue(0);
 
             await plugin.onload();
 
@@ -103,7 +103,7 @@ describe('KeepSidianPlugin', () => {
 
             const importMock = jest
                 .spyOn(ImportModule, 'importGoogleKeepNotes')
-                .mockResolvedValue();
+                .mockResolvedValue(0);
 
             const showModalSpy = jest
                 .spyOn(plugin, 'showImportOptionsModal')
@@ -118,6 +118,43 @@ describe('KeepSidianPlugin', () => {
 
             showModalSpy.mockRestore();
             isSubscriptionActiveSpy.mockRestore();
+            importMock.mockRestore();
+        });
+    });
+
+    describe('auto sync', () => {
+        beforeEach(() => {
+            jest.useFakeTimers();
+        });
+
+        afterEach(() => {
+            jest.useRealTimers();
+        });
+
+        it('should start auto sync when enabled', async () => {
+            plugin.loadData = jest.fn().mockResolvedValue({ autoSyncEnabled: true, autoSyncIntervalHours: 1 });
+            const importSpy = jest.spyOn(plugin, 'importNotes').mockResolvedValue();
+            await plugin.onload();
+            jest.advanceTimersByTime(60 * 60 * 1000);
+            expect(importSpy).toHaveBeenCalledWith(true);
+        });
+
+        it('should log sync results to file', async () => {
+            plugin.subscriptionService.isSubscriptionActive = jest.fn().mockResolvedValue(false);
+            plugin.settings = { ...DEFAULT_SETTINGS };
+            plugin.app = {
+                vault: {
+                    adapter: {
+                        exists: jest.fn().mockResolvedValue(false),
+                        read: jest.fn().mockResolvedValue(''),
+                        write: jest.fn().mockResolvedValue(undefined)
+                    }
+                }
+            } as any;
+            const importMock = jest.spyOn(ImportModule, 'importGoogleKeepNotes').mockResolvedValue(0);
+            (require('obsidian') as any).normalizePath = (p: string) => p;
+            await plugin.importNotes();
+            expect(plugin.app.vault.adapter.write).toHaveBeenCalled();
             importMock.mockRestore();
         });
     });

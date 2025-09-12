@@ -5,6 +5,7 @@ import { App, PluginSettingTab, Notice } from 'obsidian';
 import { KeepSidianSettingsTab } from '../KeepSidianSettingsTab';
 import KeepSidianPlugin from '../../main';
 import { SubscriptionService } from 'services/subscription';
+import { DEFAULT_SETTINGS } from '../../types/keepsidian-plugin-settings';
 import { initRetrieveToken } from '../../google/keep/token';
 import { exchangeOauthToken } from '../../google/keep/token';
 
@@ -59,6 +60,7 @@ describe('KeepSidianSettingsTab', () => {
         app = new App();
         plugin = new KeepSidianPlugin(app, TEST_MANIFEST);
         plugin.settings = {
+            ...DEFAULT_SETTINGS,
             email: '',
             token: '',
             saveLocation: '',
