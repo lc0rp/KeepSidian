@@ -16,7 +16,7 @@ export class SubscriptionSettingsTab {
         const { containerEl } = this;
 
         containerEl.createEl('h3', { text: 'Premium Features' });
-        
+
         // General info about premium features
         new Setting(containerEl)
             .setName('Premium features')
@@ -25,23 +25,26 @@ export class SubscriptionSettingsTab {
                 .setIcon('refresh')
                 .setTooltip('Check subscription status')
                 .onClick(async () => {
-                    // TODO: Implement refresh subscription check
+                    await this.plugin.subscriptionService.checkSubscription();
+                    this.display();
                 }));
-        
-        if (!await this.plugin.subscriptionService.isSubscriptionActive()) {
+
+        const isActive = await this.plugin.subscriptionService.isSubscriptionActive();
+        SubscriptionSettingsTab.displayPremiumFeatures(containerEl, this.plugin, isActive);
+
+        if (!isActive) {
             await this.displayInactiveSubscriber();
         } else {
             await this.displayActiveSubscriber();
-            await SubscriptionSettingsTab.displayPremiumFeatures(containerEl, this.plugin);
         }
     }
 
-    static async displayPremiumFeatures(containerEl: HTMLElement, plugin: KeepSidianPlugin): Promise<void> {
-        await this.displayPremiumFeaturesLocal(containerEl, plugin, plugin.settings.premiumFeatures);
-        await this.displayPremiumFeaturesServer(containerEl, plugin, plugin.settings.premiumFeatures);
+    static displayPremiumFeatures(containerEl: HTMLElement, plugin: KeepSidianPlugin, isActive: boolean): void {
+        this.displayPremiumFeaturesLocal(containerEl, plugin, plugin.settings.premiumFeatures, isActive);
+        this.displayPremiumFeaturesServer(containerEl, plugin, plugin.settings.premiumFeatures, isActive);
     }
 
-    static async displayPremiumFeaturesLocal(containerEl: HTMLElement, plugin: KeepSidianPlugin, premiumFeatureValues: PremiumFeatureSettings): Promise<void> {
+    static displayPremiumFeaturesLocal(containerEl: HTMLElement, plugin: KeepSidianPlugin, premiumFeatureValues: PremiumFeatureSettings, isActive: boolean): void {
 
         // 3.1 Auto Sync
         // TODO: Implement auto sync
@@ -69,11 +72,13 @@ export class SubscriptionSettingsTab {
             .setDisabled(!premiumFeatureValues.autoSync); */
     }
 
-    static async displayPremiumFeaturesServer(containerEl: HTMLElement, plugin: KeepSidianPlugin, premiumFeatureValues: PremiumFeatureSettings): Promise<void> {
+    static displayPremiumFeaturesServer(containerEl: HTMLElement, plugin: KeepSidianPlugin, premiumFeatureValues: PremiumFeatureSettings, isActive: boolean): void {
+        const descSuffix = isActive ? '' : ' (requires a subscription)';
+
         // 3.2 Filter Notes
-        new Setting(containerEl)
+        const includeSetting = new Setting(containerEl)
             .setName('Only include notes containing')
-            .setDesc('Terms to include (comma-separated).')
+            .setDesc('Terms to include (comma-separated).' + descSuffix)
             .addText(text => text
                 .setPlaceholder('term1, term2, ...')
                 .setValue(premiumFeatureValues.includeNotesTerms.join(', '))
@@ -81,10 +86,11 @@ export class SubscriptionSettingsTab {
                     premiumFeatureValues.includeNotesTerms = value.split(',').map(k => k.trim()).filter(k => k);
                     // TODO: Save settings
                 }));
+        if (!isActive) includeSetting.setClass('requires-subscription');
 
-        new Setting(containerEl)
+        const excludeSetting = new Setting(containerEl)
             .setName('Exclude notes containing')
-            .setDesc('Terms to skip (comma-separated).')
+            .setDesc('Terms to skip (comma-separated).' + descSuffix)
             .addText(text => text
                 .setPlaceholder('term1, term2, ...')
                 .setValue(premiumFeatureValues.excludeNotesTerms.join(', '))
@@ -92,43 +98,47 @@ export class SubscriptionSettingsTab {
                     premiumFeatureValues.excludeNotesTerms = value.split(',').map(k => k.trim()).filter(k => k);
                     // TODO: Save settings
                 }));
+        if (!isActive) excludeSetting.setClass('requires-subscription');
 
         // 3.3 Title Updates
-        new Setting(containerEl)
+        const titleSetting = new Setting(containerEl)
             .setName('Smart titles')
-            .setDesc('Suggest titles based on note content. Original title will be saved in note.')
+            .setDesc('Suggest titles based on note content. Original title will be saved in note.' + descSuffix)
             .addToggle(toggle => toggle
                 .setValue(premiumFeatureValues.updateTitle)
                 .onChange(async (value) => {
                     premiumFeatureValues.updateTitle = value;
                     // TODO: Save settings
                 }));
+        if (!isActive) titleSetting.setClass('requires-subscription');
 
         // 3.4 Tag Suggestions
-        new Setting(containerEl)
+        const autoTagSetting = new Setting(containerEl)
             .setName('Auto-tags')
-            .setDesc('Generate tags based on note content.')
+            .setDesc('Generate tags based on note content.' + descSuffix)
             .addToggle(toggle => toggle
                 .setValue(premiumFeatureValues.suggestTags)
                 .onChange(async (value) => {
                     premiumFeatureValues.suggestTags = value;
                     // TODO: Save settings
                 }));
+        if (!isActive) autoTagSetting.setClass('requires-subscription');
 
-        new Setting(containerEl)
+        const maxTagsSetting = new Setting(containerEl)
             .setName('Maximum tags')
-            .setDesc('Maximum number of tags to generate.')
+            .setDesc('Maximum number of tags to generate.' + descSuffix)
             .addSlider(slider => slider
                 .setLimits(1, 10, 1)
                 .setValue(premiumFeatureValues.maxTags)
                 .onChange(async (value) => {
                     premiumFeatureValues.maxTags = value;
                 }))
-        .setDisabled(!premiumFeatureValues.suggestTags);
+            .setDisabled(!premiumFeatureValues.suggestTags);
+        if (!isActive) maxTagsSetting.setClass('requires-subscription');
 
-        new Setting(containerEl)
+        const tagPrefixSetting = new Setting(containerEl)
             .setName('Tag prefix')
-            .setDesc('Prefix to identify generated tags (leave empty for none).')
+            .setDesc('Prefix to identify generated tags (leave empty for none).' + descSuffix)
             .addText(text => text
                 .setValue(premiumFeatureValues.tagPrefix)
                 .setPlaceholder('auto-')
@@ -137,10 +147,11 @@ export class SubscriptionSettingsTab {
                     // TODO: Save settings
                 }))
             .setDisabled(!premiumFeatureValues.suggestTags);
+        if (!isActive) tagPrefixSetting.setClass('requires-subscription');
 
-        new Setting(containerEl)
+        const limitSetting = new Setting(containerEl)
             .setName('Limit to existing tags')
-            .setDesc('Only generate tags that already exist in your vault.')
+            .setDesc('Only generate tags that already exist in your vault.' + descSuffix)
             .addToggle(toggle => toggle
                 .setValue(premiumFeatureValues.limitToExistingTags)
                 .onChange(async (value) => {
@@ -148,6 +159,7 @@ export class SubscriptionSettingsTab {
                     // TODO: Save settings
                 }))
             .setDisabled(!premiumFeatureValues.suggestTags);
+        if (!isActive) limitSetting.setClass('requires-subscription');
     }
 
     private async displayInactiveSubscriber(): Promise<void> {

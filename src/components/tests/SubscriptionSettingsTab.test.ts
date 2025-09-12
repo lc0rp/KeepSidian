@@ -191,14 +191,14 @@ describe('SubscriptionSettingsTab', () => {
     });
 
     describe('display()', () => {
-        it('should display inactive subscriber view when subscription is not active', async () => {
+        it('should display premium settings with subscription prompt when subscription is not active', async () => {
             jest.spyOn(plugin.subscriptionService, 'isSubscriptionActive').mockResolvedValue(false);
-            
+
             await subscriptionTab.display();
 
             expect(containerEl.querySelector('h4')?.textContent).toBe('Why subscribe?');
-            expect(containerEl.querySelectorAll('li').length).toBe(7); // Check benefit list items
-            expect(Setting).toHaveBeenCalledWith(expect.anything());
+            expect(containerEl.textContent).toContain('Auto-tags');
+            expect(containerEl.textContent).toContain('requires a subscription');
         });
 
         it('should display active subscriber view when subscription is active', async () => {
@@ -212,44 +212,29 @@ describe('SubscriptionSettingsTab', () => {
 
             await subscriptionTab.display();
 
-            expect(Setting).toHaveBeenCalledWith(expect.anything());
-            // Verify subscription status display
             expect(containerEl.textContent).toContain('✅ Active subscription');
+            expect(containerEl.textContent).toContain('Auto-tags');
+            expect(containerEl.textContent).not.toContain('requires a subscription');
         });
     });
 
     describe('Premium Features Display', () => {
-        beforeEach(() => {
+        it('should display tag suggestion settings for subscribers', async () => {
             jest.spyOn(plugin.subscriptionService, 'isSubscriptionActive').mockResolvedValue(true);
-        });
-
-        // Auto-sync is not yet enabled
-        /* it('should display auto sync settings', async () => {
             await subscriptionTab.display();
 
-            expect(Setting).toHaveBeenCalledWith(expect.anything());
-            // Verify auto sync toggle and interval settings
-            expect(containerEl.textContent).toContain('Auto sync');
-            expect(containerEl.textContent).toContain('Sync interval');
-        }); */
-
-        it('should display tag suggestion settings', async () => {
-            await subscriptionTab.display();
-
-            expect(Setting).toHaveBeenCalledWith(expect.anything());
-            // Verify tag suggestion settings
             expect(containerEl.textContent).toContain('Auto-tags');
             expect(containerEl.textContent).toContain('Maximum tags');
             expect(containerEl.textContent).toContain('Tag prefix');
         });
 
-        it('should display note filtering settings', async () => {
+        it('should display note filtering settings for non-subscribers', async () => {
+            jest.spyOn(plugin.subscriptionService, 'isSubscriptionActive').mockResolvedValue(false);
             await subscriptionTab.display();
 
-            expect(Setting).toHaveBeenCalledWith(expect.anything());
-            // Verify note filtering settings
             expect(containerEl.textContent).toContain('Only include notes containing');
             expect(containerEl.textContent).toContain('Exclude notes containing');
+            expect(containerEl.textContent).toContain('requires a subscription');
         });
     });
 
