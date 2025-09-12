@@ -18,6 +18,10 @@ When you start a sync, you will provide your Google Keep email and a token gener
 
 This plugin offers an on-demand "Run Keep -> Obsidian" command to download ~the 50 most recent~ all notes on demand. Follow the installation instructions below to try it and share your feedback.
 
+## Auto sync
+
+Enable automatic syncing on a daily schedule by default. Subscribers can customize the interval in hours. Each sync writes details to a `_keepsidian.log` file in the target directory.
+
 ## Features
 
 > **Please rank the upcoming features here!**

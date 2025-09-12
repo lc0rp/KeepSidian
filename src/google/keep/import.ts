@@ -30,13 +30,14 @@ interface PremiumFeatureFlags {
 async function importGoogleKeepNotesBase(
     plugin: KeepSidianPlugin,
     fetchFunction: (plugin: KeepSidianPlugin, offset: number, limit: number) => Promise<GoogleKeepImportResponse>
-) {
+ ): Promise<number> {
     try {
         let offset = 0;
         const limit = 50;
         let hasError = false;
         let foundError: Error | null = null;
-        
+        let totalImported = 0;
+
         while (!hasError) {
             try {
                 const response = await fetchFunction(plugin, offset, limit);
@@ -44,6 +45,7 @@ async function importGoogleKeepNotesBase(
                     break;
                 }
                 await processAndSaveNotes(plugin, response.notes);
+                totalImported += response.notes.length;
                 offset += limit;
             } catch (error) {
                 console.error(`Error fetching notes at offset ${offset}:`, error);
@@ -56,24 +58,26 @@ async function importGoogleKeepNotesBase(
             throw foundError;
         }
 
-        new Notice('Notes imported successfully.');
+        new Notice('Imported Google Keep notes.');
+        return totalImported;
     } catch (error) {
         console.error(error);
         new Notice('Failed to import notes.');
+        throw error;
     }
-}
+ }
 
-export async function importGoogleKeepNotes(plugin: KeepSidianPlugin) {
-    await importGoogleKeepNotesBase(plugin, fetchNotes);
-}
+ export async function importGoogleKeepNotes(plugin: KeepSidianPlugin): Promise<number> {
+    return await importGoogleKeepNotesBase(plugin, fetchNotes);
+ }
 
-export async function importGoogleKeepNotesWithOptions(plugin: KeepSidianPlugin, options: NoteImportOptions) {
+ export async function importGoogleKeepNotesWithOptions(plugin: KeepSidianPlugin, options: NoteImportOptions): Promise<number> {
     const featureFlags = convertOptionsToFeatureFlags(options);
-    await importGoogleKeepNotesBase(
+    return await importGoogleKeepNotesBase(
         plugin,
         (plugin, offset, limit) => fetchNotesWithPremiumFeatures(plugin, featureFlags, offset, limit)
     );
-}
+ }
 
 export async function fetchNotes(plugin: KeepSidianPlugin, offset = 0, limit = 100): Promise<GoogleKeepImportResponse> {
     const response = await requestUrl({
