@@ -1,4 +1,4 @@
-import { requestUrl, RequestUrlResponse } from 'obsidian';
+import { requestUrl, RequestUrlResponse, Notice } from "obsidian";
 import { KEEPSIDIAN_SERVER_URL } from '../../config';
 import { normalizeNote, PreNormalizedNote } from './note';
 import { normalizePath } from "obsidian";
