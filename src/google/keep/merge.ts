@@ -33,8 +33,8 @@ export function mergeNoteBodies(existingBody: string, incomingBody: string): { m
     let ai = 0, bi = 0;
     let conflict = false;
     for (const line of lcs) {
-        let aEnd = existingLines.indexOf(line, ai);
-        let bEnd = incomingLines.indexOf(line, bi);
+        const aEnd = existingLines.indexOf(line, ai);
+        const bEnd = incomingLines.indexOf(line, bi);
         const aSegment = existingLines.slice(ai, aEnd);
         const bSegment = incomingLines.slice(bi, bEnd);
         if (aSegment.length && bSegment.length) {

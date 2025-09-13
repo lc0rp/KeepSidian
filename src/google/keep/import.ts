@@ -1,4 +1,4 @@
-import { requestUrl, RequestUrlResponse, Notice } from "obsidian";
+import { RequestUrlResponse, Notice } from "obsidian";
 import { KEEPSIDIAN_SERVER_URL } from '../../config';
 import { normalizeNote, PreNormalizedNote, extractFrontmatter } from './note';
 import { normalizePath } from "obsidian";
@@ -7,6 +7,12 @@ import { handleDuplicateNotes } from './compare';
 import { mergeNoteBodies } from './merge';
 import { NoteImportOptions } from 'components/NoteImportOptionsModal';
 import { processAttachments } from './attachments';
+import { httpGetJson, httpPostJson } from '../../services/http';
+import {
+    CONFLICT_FILE_SUFFIX,
+    MEDIA_FOLDER_NAME,
+    FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
+} from '../../features/keep/constants';
 
 interface GoogleKeepImportResponse {
     notes: Array<PreNormalizedNote>;
@@ -90,37 +96,32 @@ async function importGoogleKeepNotesBase(
  }
 
 export async function fetchNotes(plugin: KeepSidianPlugin, offset = 0, limit = 100): Promise<GoogleKeepImportResponse> {
-    const response = await requestUrl({
-        url: `${KEEPSIDIAN_SERVER_URL}/keep/sync/v2?offset=${offset}&limit=${limit}`,
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-User-Email': plugin.settings.email,
-            'Authorization': `Bearer ${plugin.settings.token}`
-        }
-    });
-
-    return parseResponse(response);
+    const url = `${KEEPSIDIAN_SERVER_URL}/keep/sync/v2?offset=${offset}&limit=${limit}`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'X-User-Email': plugin.settings.email,
+        'Authorization': `Bearer ${plugin.settings.token}`,
+    };
+    return await httpGetJson<GoogleKeepImportResponse>(url, headers);
 }
 
 export async function fetchNotesWithPremiumFeatures(
-    plugin: KeepSidianPlugin, 
+    plugin: KeepSidianPlugin,
     featureFlags: PremiumFeatureFlags,
     offset = 0,
     limit = 100
 ): Promise<GoogleKeepImportResponse> {
-    const response = await requestUrl({
-        url: `${KEEPSIDIAN_SERVER_URL}/keep/sync/premium/v2?offset=${offset}&limit=${limit}`,
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-User-Email': plugin.settings.email,
-            'Authorization': `Bearer ${plugin.settings.token}`
-        },
-        body: JSON.stringify({ feature_flags: featureFlags })
-    });
-
-    return parseResponse(response);
+    const url = `${KEEPSIDIAN_SERVER_URL}/keep/sync/premium/v2?offset=${offset}&limit=${limit}`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'X-User-Email': plugin.settings.email,
+        'Authorization': `Bearer ${plugin.settings.token}`,
+    };
+    return await httpPostJson<GoogleKeepImportResponse, { feature_flags: PremiumFeatureFlags }>(
+        url,
+        { feature_flags: featureFlags },
+        headers
+    );
 }
 
 export function parseResponse(response: RequestUrlResponse): GoogleKeepImportResponse {
@@ -169,7 +170,7 @@ export async function processAndSaveNotes(plugin: KeepSidianPlugin, notes: PreNo
     }
 
     // Create media subfolder if it doesn't exist
-    const mediaFolder = `${saveLocation}/media`;
+    const mediaFolder = `${saveLocation}/${MEDIA_FOLDER_NAME}`;
     if (!(await plugin.app.vault.adapter.exists(mediaFolder))) {
         await plugin.app.vault.createFolder(mediaFolder);
     }
@@ -205,11 +206,11 @@ export async function processAndSaveNote(plugin: KeepSidianPlugin, note: PreNorm
             mdFrontMatterDict = existingFrontMatterDict;
         } else {
             noteFilePath = noteFilePath.replace(/\.md$/, '');
-            noteFilePath = `${noteFilePath}-conflict-${lastSyncedDate}.md`;
+            noteFilePath = `${noteFilePath}${CONFLICT_FILE_SUFFIX}${lastSyncedDate}.md`;
         }
     }
 
-    mdFrontMatterDict.KeepSidianLastSyncedDate = lastSyncedDate;
+    mdFrontMatterDict[FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY] = lastSyncedDate;
     const mdFrontMatter = Object.entries(mdFrontMatterDict).map(([key, value]) => `${key}: ${value}`).join('\n');
     const mdContentWithSyncDate = `---\n${mdFrontMatter}\n---\n${bodyToWrite}`;
 

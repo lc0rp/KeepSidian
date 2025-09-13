@@ -63,6 +63,13 @@ export class PluginSettingTab {
   }
 }
 
+// Minimal normalizePath mock to mirror Obsidian API behavior in tests
+export function normalizePath(p: string): string {
+  if (!p) return '';
+  // Replace backslashes and collapse duplicate slashes
+  return p.replace(/\\/g, '/').replace(/\/+/g, '/');
+}
+
 export class SubscriptionSettingsTab {
   containerEl: HTMLElement;
   plugin: Plugin;

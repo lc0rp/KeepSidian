@@ -1,5 +1,10 @@
 import { App } from "obsidian";
 import { NormalizedNote, normalizeDate, extractFrontmatter } from "./note";
+import {
+    FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY,
+    FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY,
+    FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
+} from '../../features/keep/constants';
 
 interface UpdatedFileInfo {
     content: string;
@@ -29,9 +34,15 @@ async function getExistingFileInfo(noteFilePath: string, app: App): Promise<Exis
     const existingContent = await app.vault.adapter.read(noteFilePath);
     const [, existingBody, existingFrontMatterDict] = extractFrontmatter(existingContent);
 
-    const existingCreatedDate = normalizeDate(existingFrontMatterDict.GoogleKeepCreatedDate);
-    const existingUpdatedDate = normalizeDate(existingFrontMatterDict.GoogleKeepUpdatedDate);
-    const existingLastSyncedDate = normalizeDate(existingFrontMatterDict.KeepSidianLastSyncedDate);
+    const existingCreatedDate = normalizeDate(
+        existingFrontMatterDict[FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY]
+    );
+    const existingUpdatedDate = normalizeDate(
+        existingFrontMatterDict[FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY]
+    );
+    const existingLastSyncedDate = normalizeDate(
+        existingFrontMatterDict[FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY]
+    );
     // Get fsCreatedDate and fsUpdatedDate from noteFilePath
     const fsCreatedDateTimeStamp = await app.vault.adapter.stat(noteFilePath).then((stat) => stat?.ctime);
     const fsUpdatedDateTimeStamp = await app.vault.adapter.stat(noteFilePath).then((stat) => stat?.mtime);

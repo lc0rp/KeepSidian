@@ -63,7 +63,7 @@ For users with an active subscription, expose extra features in the plugin setti
   - Checkbox: "Auto sync"
     - Description: Automatically sync your notes at regular intervals
   - Slider: Sync Interval
-    - Description: How often to sync (in minutes)
+    - Description: How often to sync (in hours)
 
 #### 3.2 Filter Notes
 
@@ -177,18 +177,23 @@ The project files are structured to integrate the new features into existing fil
 
 - 400 Bad Request: When X-User-Email header is missing or invalid
   - Missing Header:
+
     ```json
     {
       "error": "X-User-Email header is required"
     }
     ```
+
   - Invalid Email Format:
+
     ```json
     {
       "error": "Invalid email format"
     }
     ```
+
 - 500 Internal Server Error: For unexpected errors
+
     ```json
     {
       "error": "Internal server error"

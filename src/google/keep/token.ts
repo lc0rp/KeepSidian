@@ -231,9 +231,7 @@ async function getOAuthToken(settingsTab: KeepSidianSettingsTab, plugin: KeepSid
                     wrappedReject(new Error('Timeout: OAuth token retrieval process exceeded 5 minutes.'));
                 }, 300000);
             } catch (error) {
-                wrappedReject(error);
-            } finally {
-                cleanup();
+                wrappedReject(error as Error);
             }
         })();
     });
@@ -269,25 +267,37 @@ export async function exchangeOauthToken(settingsTab: KeepSidianSettingsTab, plu
         }
 
         try {
-            const result = await response.json;
-            if (!isTokenResponse(result)) {
+            // Obsidian requestUrl exposes `json` as a parsed object (not a function).
+            // However, be defensive and also support fetch-like responses or fallback to text parsing.
+            let parsed: any;
+            const maybeJson: any = (response as any).json;
+            if (typeof maybeJson === 'function') {
+                parsed = await maybeJson.call(response);
+            } else if (maybeJson !== undefined) {
+                parsed = maybeJson;
+            } else {
+                const text = (response as any).text ?? '';
+                parsed = text ? JSON.parse(text) : undefined;
+            }
+
+            if (!isTokenResponse(parsed)) {
                 throw new Error('Invalid response format');
             }
 
-            if (!result.keep_token) {
+            if (!parsed.keep_token) {
                 throw new Error('Server response missing keep_token');
             }
-    
-            plugin.settings.token = result.keep_token;
+
+            plugin.settings.token = parsed.keep_token;
             await plugin.saveSettings();
             settingsTab.display();
             new Notice('Token exchanged successfully.');
         } catch (e) {
-            throw new Error('Failed to parse server response: ' + e,);
+            throw new Error('Failed to parse server response: ' + e);
         }
     } catch (error) {
         console.error('Error exchanging OAuth token:', error);
-        new Notice(`Failed to exchange OAuth token: ${error.message}`);
+        new Notice(`Failed to exchange OAuth token: ${(error as Error).message}`);
         throw error;
     }
 }

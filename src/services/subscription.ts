@@ -1,6 +1,7 @@
 import { SubscriptionInfo, SubscriptionCache } from '../types/subscription';
 import { Notice } from 'obsidian';
 import { KEEPSIDIAN_SERVER_URL } from '../config';
+import { httpGetJson } from './http';
 
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
@@ -43,19 +44,8 @@ export class SubscriptionService {
   }
 
   private async fetchSubscriptionInfo(email: string): Promise<SubscriptionInfo> {
-    const response = await fetch(`${KEEPSIDIAN_SERVER_URL}/subscriber/info`, {
-      method: 'GET',
-      headers: {
-        'X-User-Email': email,
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to fetch subscription info');
-    }
-
-    return response.json();
+    const url = `${KEEPSIDIAN_SERVER_URL}/subscriber/info`;
+    return await httpGetJson<SubscriptionInfo>(url, { 'X-User-Email': email });
   }
 
   async isSubscriptionActive(forceRefresh = false): Promise<boolean> {

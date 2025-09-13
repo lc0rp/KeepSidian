@@ -1,17 +1,17 @@
 import { SubscriptionService } from '../subscription';
 import { SubscriptionInfo, SubscriptionCache } from '../../types/subscription';
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-// Mock fetch globally
-const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
-global.fetch = mockFetch as any;
-global.console.error = jest.fn();
+import * as obsidian from 'obsidian';
 
-// Mock Notice class from Obsidian
+// Mock Obsidian requestUrl + Notice
 jest.mock('obsidian', () => ({
   Notice: class {
-    constructor(public message: string) { }
-  }
+    constructor(public message: string) {}
+  },
+  requestUrl: jest.fn(),
 }));
+
+global.console.error = jest.fn();
 
 describe('SubscriptionService', () => {
   let service: SubscriptionService;
@@ -50,8 +50,8 @@ describe('SubscriptionService', () => {
       mockSetCache
     );
 
-    // Reset fetch mock
-    mockFetch.mockReset();
+    // Reset requestUrl mock
+    (obsidian.requestUrl as jest.Mock).mockReset();
   });
 
   describe('checkSubscription', () => {
@@ -59,7 +59,7 @@ describe('SubscriptionService', () => {
       mockGetEmail.mockReturnValue('');
       const result = await service.checkSubscription();
       expect(result).toBeNull();
-      expect(mockFetch).not.toHaveBeenCalled();
+      expect(obsidian.requestUrl).not.toHaveBeenCalled();
     });
 
     it('should use cached data if available and not expired', async () => {
@@ -72,7 +72,7 @@ describe('SubscriptionService', () => {
 
       const result = await service.checkSubscription();
       expect(result).toEqual(mockSubscriptionInfo);
-      expect(mockFetch).not.toHaveBeenCalled();
+      expect(obsidian.requestUrl).not.toHaveBeenCalled();
     });
 
     it('should fetch new data if cache is expired', async () => {
@@ -84,17 +84,14 @@ describe('SubscriptionService', () => {
       mockGetCache.mockReturnValue(cachedInfo);
 
       const mockResponse = {
-        ok: true,
         status: 200,
-        statusText: 'OK',
-        headers: new Headers({ 'Content-type': 'application/json' }),
-        json: async () => mockSubscriptionInfo,
-      } as Response;
-      mockFetch.mockResolvedValueOnce(mockResponse);
+        json: mockSubscriptionInfo,
+      };
+      (obsidian.requestUrl as any).mockResolvedValueOnce(mockResponse);
 
       const result = await service.checkSubscription();
       expect(result).toEqual(mockSubscriptionInfo);
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(obsidian.requestUrl).toHaveBeenCalledTimes(1);
       expect(mockSetCache).toHaveBeenCalled();
     });
 
@@ -108,17 +105,14 @@ describe('SubscriptionService', () => {
 
       // Create a proper Response mock
       const mockResponse = {
-        ok: true,
         status: 200,
-        statusText: 'OK',
-        headers: new Headers({ 'Content-type': 'application/json' }),
-        json: async () => mockSubscriptionInfo,
-      } as Response;
-      mockFetch.mockResolvedValueOnce(mockResponse);
+        json: mockSubscriptionInfo,
+      };
+      (obsidian.requestUrl as any).mockResolvedValueOnce(mockResponse);
 
       const result = await service.checkSubscription();
       expect(result).toEqual(mockSubscriptionInfo);
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(obsidian.requestUrl).toHaveBeenCalledTimes(1);
       expect(mockSetCache).toHaveBeenCalled();
     });
 
@@ -132,30 +126,24 @@ describe('SubscriptionService', () => {
 
       // Create a proper Response mock
       const mockResponse = {
-        ok: true,
         status: 200,
-        statusText: 'OK',
-        headers: new Headers({ 'Content-type': 'application/json' }),
-        json: async () => mockSubscriptionInfo,
-      } as Response;
-      mockFetch.mockResolvedValueOnce(mockResponse);
+        json: mockSubscriptionInfo,
+      };
+      (obsidian.requestUrl as any).mockResolvedValueOnce(mockResponse);
 
       const result = await service.checkSubscription(true);
       expect(result).toEqual(mockSubscriptionInfo);
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(obsidian.requestUrl).toHaveBeenCalledTimes(1);
       expect(mockSetCache).toHaveBeenCalled();
     });
 
     it('should handle API errors gracefully', async () => {
       // Create a proper error Response mock
       const mockResponse = {
-        ok: false,
         status: 400,
-        statusText: 'Bad Request',
-        headers: new Headers({ 'Content-type': 'application/json' }),
-        json: async () => ({ error: 'API Error' }),
-      } as Response;
-      mockFetch.mockResolvedValueOnce(mockResponse);
+        json: { error: 'API Error' },
+      };
+      (obsidian.requestUrl as any).mockResolvedValueOnce(mockResponse);
 
       const result = await service.checkSubscription();
       expect(result).toBeNull();
@@ -164,7 +152,7 @@ describe('SubscriptionService', () => {
     });
 
     it('should handle network errors gracefully', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      (obsidian.requestUrl as any).mockRejectedValueOnce(new Error('Network error'));
 
       const result = await service.checkSubscription();
       expect(result).toBeNull();
