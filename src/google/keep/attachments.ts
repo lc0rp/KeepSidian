@@ -1,9 +1,20 @@
 // attachments.ts
-import KeepSidianPlugin from 'main';
 import { requestUrl } from 'obsidian';
 import { MEDIA_FOLDER_NAME } from '../../features/keep/constants';
 
-export async function processAttachments(plugin: KeepSidianPlugin, blobUrls: string[], saveLocation: string) {
+interface VaultAdapterLike {
+  writeBinary: (path: string, data: ArrayBuffer) => Promise<void> | void;
+}
+
+interface VaultLike {
+  adapter: VaultAdapterLike;
+}
+
+interface AppLike {
+  vault: VaultLike;
+}
+
+export async function processAttachments(app: AppLike, blobUrls: string[], saveLocation: string) {
     for (const blob_url of blobUrls) {
         try {
             // Validate URL format
@@ -23,7 +34,7 @@ export async function processAttachments(plugin: KeepSidianPlugin, blobUrls: str
             const blobFileName = url.pathname.split('/').pop();
             if (blobFileName) {
                 const blobFilePath = `${saveLocation}/${MEDIA_FOLDER_NAME}/${blobFileName}`;
-                await plugin.app.vault.adapter.writeBinary(blobFilePath, blobData);
+                await app.vault.adapter.writeBinary(blobFilePath, blobData);
             }
         } catch (error) {
             console.error(error);

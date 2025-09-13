@@ -61,14 +61,14 @@ Note on Obsidian CSS: keeping styles.css at repo root is normal for plugins; don
 
 ## Medium Refactors
 
-- Slim main.ts: Extract progress UI and logging to src/app/sync-ui.ts and src/app/logging.ts and keep src/main.ts:1 to lifecycle + high‑level orchestration only.
+[x] - Slim main.ts: Extract progress UI and logging to src/app/sync-ui.ts and src/app/logging.ts and keep src/main.ts:1 to lifecycle + high‑level orchestration only. (DONE)
 
 Split import flow:
-- src/features/keep/sync.ts orchestrates pagination, dedupe/merge, persistence, and progress callbacks.
-src/integrations/server/keepApi.ts holds fetchNotes and fetchNotesWithPremiumFeatures.
+[x] - src/features/keep/sync.ts orchestrates pagination, dedupe/merge, persistence, and progress callbacks. (DONE)
+[x] - src/integrations/server/keepApi.ts holds fetchNotes and fetchNotesWithPremiumFeatures. (DONE)
 
 Narrow interfaces over KeepSidianPlugin:
-- Replace imports like import KeepSidianPlugin from 'main' in lower layers (src/google/keep/attachments.ts:1, src/google/keep/import.ts:1) with small interfaces (e.g., { vault: { adapter: { exists, write, writeBinary, stat }}}) passed in, improving testability and reducing coupling.
+[x] - Replace imports like import KeepSidianPlugin from 'main' in lower layers (src/google/keep/attachments.ts:1, src/google/keep/import.ts:1) with small interfaces (e.g., { vault: { adapter: { exists, write, writeBinary, stat }}}) passed in, improving testability and reducing coupling. (DONE for attachments; import.ts now facades new modules)
 
 ## Bigger Wins (Optional)
 
@@ -81,10 +81,10 @@ Narrow interfaces over KeepSidianPlugin:
 
 ## Concrete File Targets
 
-- src/main.ts:1: Extract status bar + modal logic and logging into src/app/sync-ui.ts and src/app/logging.ts.
+- src/main.ts:1: Extract status bar + modal logic and logging into src/app/sync-ui.ts and src/app/logging.ts. (DONE)
 [x] - src/services/subscription.ts:1: Replace fetch with an http.ts wrapper built on requestUrl for consistency with Obsidian. (DONE)
-- src/google/keep/import.ts:1: Move fetchNotes* to src/integrations/server/keepApi.ts, keep orchestration in src/features/keep/sync.ts.
-- src/google/keep/attachments.ts:1: Replace direct KeepSidianPlugin dependency with a minimal adapter interface argument.
+[x] - src/google/keep/import.ts:1: Move fetchNotes* to src/integrations/server/keepApi.ts, keep orchestration in src/features/keep/sync.ts. (DONE)
+[x] - src/google/keep/attachments.ts:1: Replace direct KeepSidianPlugin dependency with a minimal adapter interface argument. (DONE)
 - jest.config.ts:1: Update moduleNameMapper after alias/barrel changes.
 
 ## Why this helps

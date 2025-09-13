@@ -1,4 +1,4 @@
-import { Notice, Plugin, normalizePath } from "obsidian";
+import { Notice, Plugin } from "obsidian";
 import {
 	importGoogleKeepNotes,
 	importGoogleKeepNotesWithOptions,
@@ -14,6 +14,8 @@ import {
 	NoteImportOptionsModal,
 } from "./components/NoteImportOptionsModal";
 import { SyncProgressModal } from "./components/SyncProgressModal";
+import { startSyncUI, finishSyncUI, setTotalNotes as uiSetTotalNotes, reportSyncProgress } from './app/sync-ui';
+import { logSync } from './app/logging';
 
 export default class KeepSidianPlugin extends Plugin {
 	settings: KeepSidianPluginSettings;
@@ -90,22 +92,18 @@ export default class KeepSidianPlugin extends Plugin {
 				this.app,
 				this,
 				async (options: NoteImportOptions) => {
-					this.startSyncUI();
+					startSyncUI(this);
 					try {
 						const count = await importGoogleKeepNotesWithOptions(
 							this,
-							options
+							options,
+							{ setTotalNotes: (n) => uiSetTotalNotes(this, n), reportProgress: () => reportSyncProgress(this) }
 						);
-						await this.logSync(
-							`Manual sync successful: ${count} notes`
-						);
-						this.finishSyncUI(true);
+						await logSync(this, `Manual sync successful: ${count} notes`);
+						finishSyncUI(this, true);
 					} catch (error) {
-						this.finishSyncUI(false);
-						await this.logSync(
-							"Failed to import Google Keep notes: " +
-								(error as Error).message
-						);
+						finishSyncUI(this, false);
+						await logSync(this, "Failed to import Google Keep notes: " + (error as Error).message);
 						resolve();
 					}
 				}
@@ -122,227 +120,19 @@ export default class KeepSidianPlugin extends Plugin {
 				await this.showImportOptionsModal();
 				return;
 			} else {
-				this.startSyncUI();
+				startSyncUI(this);
 				try {
-					const count = await importGoogleKeepNotes(this);
-					await this.logSync(
-						`${
-							auto ? "Auto" : "Manual"
-						} sync successful: ${count} notes`
-					);
-					this.finishSyncUI(true);
+					const count = await importGoogleKeepNotes(this, { setTotalNotes: (n) => uiSetTotalNotes(this, n), reportProgress: () => reportSyncProgress(this) });
+					await logSync(this, `${auto ? "Auto" : "Manual"} sync successful: ${count} notes`);
+					finishSyncUI(this, true);
 				} catch (error) {
-					this.finishSyncUI(false);
-					await this.logSync(
-						`${auto ? "Auto" : "Manual"} sync failed: ${
-							error.message
-						}`
-					);
+					finishSyncUI(this, false);
+					await logSync(this, `${auto ? "Auto" : "Manual"} sync failed: ${error.message}`);
 				}
 			}
 		} catch (error) {
-			await this.logSync(
-				`${auto ? "Auto" : "Manual"} sync failed: ${error.message}`
-			);
+			await logSync(this, `${auto ? "Auto" : "Manual"} sync failed: ${error.message}`);
 		}
-	}
-
-	startSyncUI() {
-		this.processedNotes = 0;
-		this.totalNotes = null;
-		if (!this.statusBarItemEl) {
-			this.statusBarItemEl = this.addStatusBarItem();
-			this.statusBarItemEl.addEventListener("click", () => {
-				if (!this.progressModal) {
-					this.progressModal = new SyncProgressModal(this.app, () => {
-						this.progressModal = null;
-					});
-				}
-				this.progressModal.setProgress(
-					this.processedNotes,
-					this.totalNotes ?? undefined
-				);
-				this.progressModal.open();
-			});
-			this.statusBarItemEl.setAttribute(
-				"aria-label",
-				"KeepSidian sync progress"
-			);
-			this.statusBarItemEl.setAttribute(
-				"title",
-				"KeepSidian sync progress"
-			);
-
-			// Build a compact visual progress meter inside the status bar item
-			if ((this.statusBarItemEl as any).classList) {
-				this.statusBarItemEl.classList.add("keepsidian-status");
-			}
-
-			// Text label
-			this.statusTextEl = document.createElement("span");
-			this.statusTextEl.className = "keepsidian-status-text";
-			this.statusTextEl.textContent = "Sync: 0/?";
-			if ((this.statusBarItemEl as any).appendChild) {
-				this.statusBarItemEl.appendChild(this.statusTextEl);
-			} else if ((this.statusBarItemEl as any).setText) {
-				(this.statusBarItemEl as any).setText("Sync: 0/?");
-			}
-
-			// Progress container + animated bar (indeterminate)
-			this.progressContainerEl = document.createElement("div");
-			this.progressContainerEl.className =
-				"keepsidian-progress indeterminate";
-			this.progressBarEl = document.createElement("div");
-			this.progressBarEl.className = "keepsidian-progress-bar";
-			this.progressContainerEl.appendChild(this.progressBarEl);
-			if ((this.statusBarItemEl as any).appendChild) {
-				this.statusBarItemEl.appendChild(this.progressContainerEl);
-			}
-		} else {
-			// If already created, ensure elements exist and are reset
-			if (!this.statusTextEl) {
-				this.statusTextEl = document.createElement("span");
-				this.statusTextEl.className = "keepsidian-status-text";
-				if ((this.statusBarItemEl as any).appendChild) {
-					this.statusBarItemEl.appendChild(this.statusTextEl);
-				}
-			}
-			if (!this.progressContainerEl) {
-				this.progressContainerEl = document.createElement("div");
-				this.progressContainerEl.className =
-					"keepsidian-progress indeterminate";
-				this.progressBarEl = document.createElement("div");
-				this.progressBarEl.className = "keepsidian-progress-bar";
-				this.progressContainerEl.appendChild(this.progressBarEl);
-				if ((this.statusBarItemEl as any).appendChild) {
-					this.statusBarItemEl.appendChild(this.progressContainerEl);
-				}
-			}
-			// Reset progress visuals
-			this.progressContainerEl.style.display = "";
-			this.progressContainerEl.classList.remove("complete", "failed");
-			this.progressContainerEl.classList.add("indeterminate");
-			if (this.progressBarEl) {
-				this.progressBarEl.classList.remove("paused");
-				this.progressBarEl.style.width = "";
-			}
-			this.statusTextEl.textContent = "Sync: 0/?";
-		}
-
-		// Persistent notice while syncing
-		this.progressNotice = new Notice("Syncing Google Keep Notes...", 0);
-	}
-
-	reportSyncProgress() {
-		this.processedNotes += 1;
-		const total = this.totalNotes ?? undefined;
-		if (this.statusTextEl) {
-			this.statusTextEl.textContent = total
-				? `Sync: ${this.processedNotes}/${total}`
-				: `Sync: ${this.processedNotes}`;
-		} else if (
-			this.statusBarItemEl &&
-			(this.statusBarItemEl as any).setText
-		) {
-			(this.statusBarItemEl as any).setText(
-				total
-					? `Sync: ${this.processedNotes}/${total}`
-					: `Sync: ${this.processedNotes}`
-			);
-		}
-		if (
-			this.progressContainerEl &&
-			this.progressBarEl &&
-			typeof total === "number" &&
-			total > 0
-		) {
-			this.progressContainerEl.classList.remove("indeterminate");
-			const pct = Math.max(
-				0,
-				Math.min(100, Math.round((this.processedNotes / total) * 100))
-			);
-			this.progressBarEl.style.width = pct + "%";
-		}
-		this.progressModal?.setProgress(this.processedNotes, total);
-	}
-
-	finishSyncUI(success: boolean) {
-		if (this.progressNotice) {
-			const setter = (this.progressNotice as any).setMessage;
-			if (typeof setter === "function") {
-				setter.call(
-					this.progressNotice,
-					success
-						? "Synced Google Keep Notes."
-						: "Failed to sync Google Keep Notes."
-				);
-			}
-			if (success) {
-				const hider = (this.progressNotice as any).hide;
-				if (typeof hider === "function") {
-					setTimeout(() => hider.call(this.progressNotice), 4000);
-				}
-			}
-		}
-		const total = this.totalNotes ?? undefined;
-		if (this.statusTextEl) {
-			this.statusTextEl.textContent = success
-				? typeof total === "number"
-					? `Synced ${this.processedNotes}/${total} notes`
-					: `Synced ${this.processedNotes} notes`
-				: "Sync failed";
-		} else if (
-			this.statusBarItemEl &&
-			(this.statusBarItemEl as any).setText
-		) {
-			(this.statusBarItemEl as any).setText(
-				success
-					? typeof total === "number"
-						? `Synced ${this.processedNotes}/${total} notes`
-						: `Synced ${this.processedNotes} notes`
-					: "Sync failed"
-			);
-		}
-		// Stop or hide the progress animation
-		if (this.progressContainerEl) {
-			this.progressContainerEl.classList.toggle("complete", !!success);
-			this.progressContainerEl.classList.toggle("failed", !success);
-			// Keep the bar visible briefly; consumer can click to see details
-			setTimeout(() => {
-				if (this.progressContainerEl) {
-					this.progressContainerEl.style.display = "none";
-				}
-			}, 3000);
-		}
-		this.progressModal?.setComplete(success, this.processedNotes);
-	}
-
-	// Called by import flow when API reveals total number of notes
-	setTotalNotes(total: number) {
-		if (typeof total !== "number" || total <= 0) return;
-		this.totalNotes = total;
-		// Update UI immediately
-		if (this.statusTextEl) {
-			this.statusTextEl.textContent = `Sync: ${this.processedNotes}/${total}`;
-		} else if (
-			this.statusBarItemEl &&
-			(this.statusBarItemEl as any).setText
-		) {
-			(this.statusBarItemEl as any).setText(
-				`Sync: ${this.processedNotes}/${total}`
-			);
-		}
-		if (this.progressContainerEl) {
-			this.progressContainerEl.classList.remove("indeterminate");
-		}
-		if (this.progressBarEl) {
-			const pct = Math.max(
-				0,
-				Math.min(100, Math.round((this.processedNotes / total) * 100))
-			);
-			this.progressBarEl.style.width = pct + "%";
-		}
-		this.progressModal?.setProgress(this.processedNotes, total);
 	}
 
 	startAutoSync() {
@@ -363,22 +153,5 @@ export default class KeepSidianPlugin extends Plugin {
 		}
 	}
 
-	private async logSync(message: string) {
-		try {
-			const logPath = normalizePath(
-				`${this.settings.saveLocation}/${this.settings.syncLogPath}`
-			);
-			let existing = "";
-			if (await this.app.vault.adapter.exists(logPath)) {
-				existing = await this.app.vault.adapter.read(logPath);
-			}
-			const timestamp = new Date().toISOString();
-			await this.app.vault.adapter.write(
-				logPath,
-				`${existing}[${timestamp}] ${message}\n`
-			);
-		} catch (e) {
-			console.error("Failed to write sync log:", e);
-		}
-	}
+	private async logSync(message: string) { /* moved to app/logging.ts */ }
 }

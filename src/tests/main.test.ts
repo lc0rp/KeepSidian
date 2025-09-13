@@ -85,7 +85,13 @@ describe('KeepSidianPlugin', () => {
             await new Promise(resolve => setTimeout(resolve, 0));
 
             expect(importMock).toHaveBeenCalled();
-            expect(importMock).toHaveBeenCalledWith(plugin);
+            expect(importMock).toHaveBeenCalledWith(
+                plugin,
+                expect.objectContaining({
+                    setTotalNotes: expect.any(Function),
+                    reportProgress: expect.any(Function),
+                })
+            );
             expect(NoteImportOptionsModal).not.toHaveBeenCalled();
             expect(Notice).toHaveBeenCalledWith('Syncing Google Keep Notes...', 0);
             expect(plugin.progressNotice).not.toBeNull();

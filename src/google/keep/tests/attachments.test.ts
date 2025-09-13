@@ -36,7 +36,7 @@ describe('processAttachments', () => {
         const blobUrls = ['https://example.com/image1.jpg'];
         const saveLocation = '/test/location';
 
-        await processAttachments(mockPlugin, blobUrls, saveLocation);
+    await processAttachments(mockPlugin.app, blobUrls, saveLocation);
 
         // Verify requestUrl was called correctly
         expect(requestUrl).toHaveBeenCalledWith({
@@ -67,7 +67,7 @@ describe('processAttachments', () => {
         ];
         const saveLocation = '/test/location';
 
-        await processAttachments(mockPlugin, blobUrls, saveLocation);
+        await processAttachments(mockPlugin.app, blobUrls, saveLocation);
 
         // Verify requestUrl was called correctly for both files
         expect(requestUrl).toHaveBeenCalledTimes(2);
@@ -98,7 +98,7 @@ describe('processAttachments', () => {
     });
 
     it('should handle empty blob URLs array', async () => {
-        await processAttachments(mockPlugin, [], '/test/location');
+        await processAttachments(mockPlugin.app, [], '/test/location');
 
         // Verify no calls were made
         expect(requestUrl).not.toHaveBeenCalled();
@@ -114,7 +114,7 @@ describe('processAttachments', () => {
         const blobUrls = ['https://example.com/image1.jpg'];
         const saveLocation = '/test/location';
 
-        await expect(processAttachments(mockPlugin, blobUrls, saveLocation))
+        await expect(processAttachments(mockPlugin.app, blobUrls, saveLocation))
             .rejects
             .toThrow('Failed to download blob from https://example.com/image1.jpg.');
 
@@ -136,7 +136,7 @@ describe('processAttachments', () => {
         const blobUrls = ['https://example.com/image1.jpg'];
         const saveLocation = '/test/location';
 
-        await expect(processAttachments(mockPlugin, blobUrls, saveLocation))
+        await expect(processAttachments(mockPlugin.app, blobUrls, saveLocation))
             .rejects
             .toThrow('Failed to download blob from https://example.com/image1.jpg.');
 
@@ -149,7 +149,7 @@ describe('processAttachments', () => {
         const blobUrls = ['invalid-url-no-filename'];
         const saveLocation = '/test/location';
 
-        await processAttachments(mockPlugin, blobUrls, saveLocation);
+        await processAttachments(mockPlugin.app, blobUrls, saveLocation);
 
         // Verify requestUrl was never called since URL validation fails first
         expect(requestUrl).not.toHaveBeenCalled();

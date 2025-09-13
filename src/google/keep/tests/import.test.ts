@@ -274,7 +274,7 @@ describe('Google Keep Import Functions', () => {
 
             await importModule.processAndSaveNote(mockPlugin, preNormalizedNote, mockPlugin.settings.saveLocation);
 
-            expect(processAttachmentsSpy).toHaveBeenCalledWith(mockPlugin, preNormalizedNote.blob_urls, mockPlugin.settings.saveLocation);
+            expect(processAttachmentsSpy).toHaveBeenCalledWith(mockPlugin.app, preNormalizedNote.blob_urls, mockPlugin.settings.saveLocation);
         });
     });
 
