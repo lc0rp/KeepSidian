@@ -1,8 +1,8 @@
-import { initRetrieveToken, exchangeOauthToken } from '../token';
+import { initRetrieveToken, exchangeOauthToken } from '../keepToken';
 import { WebviewTag } from 'electron';
 import * as obsidian from 'obsidian';
 import KeepSidianPlugin from 'main';
-import { KeepSidianSettingsTab } from '../../../components/KeepSidianSettingsTab';
+import { KeepSidianSettingsTab } from 'ui/settings/KeepSidianSettingsTab';
 
 // Mock obsidian
 jest.mock('obsidian', () => ({

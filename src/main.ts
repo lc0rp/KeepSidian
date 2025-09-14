@@ -1,21 +1,24 @@
-import { Notice, Plugin } from "obsidian";
-import {
-	importGoogleKeepNotes,
-	importGoogleKeepNotesWithOptions,
-} from "./google/keep/import";
+import { Notice, Plugin } from "obsidian"
 import {
 	KeepSidianPluginSettings,
 	DEFAULT_SETTINGS,
 } from "./types/keepsidian-plugin-settings";
-import { KeepSidianSettingsTab } from "./components/KeepSidianSettingsTab";
 import { SubscriptionService } from "./services/subscription";
 import {
 	NoteImportOptions,
 	NoteImportOptionsModal,
-} from "./components/NoteImportOptionsModal";
-import { SyncProgressModal } from "./components/SyncProgressModal";
-import { startSyncUI, finishSyncUI, setTotalNotes as uiSetTotalNotes, reportSyncProgress } from './app/sync-ui';
-import { logSync } from './app/logging';
+} from "./ui/modals/NoteImportOptionsModal";
+import { SyncProgressModal } from "./ui/modals/SyncProgressModal";
+import {
+	startSyncUI,
+	finishSyncUI,
+	setTotalNotes as uiSetTotalNotes,
+	reportSyncProgress,
+} from "./app/sync-ui";
+import { logSync } from "./app/logging";
+import { KeepSidianSettingsTab } from "./ui/settings/KeepSidianSettingsTab";
+import { registerRibbonAndCommands } from "./app/commands";
+import { importGoogleKeepNotes, importGoogleKeepNotesWithOptions } from "./features/keep/sync";
 
 export default class KeepSidianPlugin extends Plugin {
 	settings: KeepSidianPluginSettings;
@@ -43,8 +46,7 @@ export default class KeepSidianPlugin extends Plugin {
 			}
 		);
 
-		this.initializeRibbonIcon();
-		this.initializeCommands();
+		registerRibbonAndCommands(this);
 		this.initializeSettings();
 
 		if (this.settings.autoSyncEnabled) {
@@ -52,23 +54,7 @@ export default class KeepSidianPlugin extends Plugin {
 		}
 	}
 
-	private initializeRibbonIcon() {
-		this.addRibbonIcon(
-			"folder-sync",
-			"Import Google Keep notes.",
-			(evt: MouseEvent) => {
-				this.importNotes();
-			}
-		);
-	}
 
-	private initializeCommands() {
-		this.addCommand({
-			id: "import-google-keep-notes",
-			name: "Import Google Keep Notes",
-			callback: async () => await this.importNotes(),
-		});
-	}
 
 	private initializeSettings() {
 		this.addSettingTab(new KeepSidianSettingsTab(this.app, this));
@@ -97,13 +83,23 @@ export default class KeepSidianPlugin extends Plugin {
 						const count = await importGoogleKeepNotesWithOptions(
 							this,
 							options,
-							{ setTotalNotes: (n) => uiSetTotalNotes(this, n), reportProgress: () => reportSyncProgress(this) }
+							{
+								setTotalNotes: (n) => uiSetTotalNotes(this, n),
+								reportProgress: () => reportSyncProgress(this),
+							}
 						);
-						await logSync(this, `Manual sync successful: ${count} notes`);
+						await logSync(
+							this,
+							`Manual sync successful: ${count} notes`
+						);
 						finishSyncUI(this, true);
 					} catch (error) {
 						finishSyncUI(this, false);
-						await logSync(this, "Failed to import Google Keep notes: " + (error as Error).message);
+						await logSync(
+							this,
+							"Failed to import Google Keep notes: " +
+								(error as Error).message
+						);
 						resolve();
 					}
 				}
@@ -122,16 +118,32 @@ export default class KeepSidianPlugin extends Plugin {
 			} else {
 				startSyncUI(this);
 				try {
-					const count = await importGoogleKeepNotes(this, { setTotalNotes: (n) => uiSetTotalNotes(this, n), reportProgress: () => reportSyncProgress(this) });
-					await logSync(this, `${auto ? "Auto" : "Manual"} sync successful: ${count} notes`);
+					const count = await importGoogleKeepNotes(this, {
+						setTotalNotes: (n) => uiSetTotalNotes(this, n),
+						reportProgress: () => reportSyncProgress(this),
+					});
+					await logSync(
+						this,
+						`${
+							auto ? "Auto" : "Manual"
+						} sync successful: ${count} notes`
+					);
 					finishSyncUI(this, true);
 				} catch (error) {
 					finishSyncUI(this, false);
-					await logSync(this, `${auto ? "Auto" : "Manual"} sync failed: ${error.message}`);
+					await logSync(
+						this,
+						`${auto ? "Auto" : "Manual"} sync failed: ${
+							error.message
+						}`
+					);
 				}
 			}
 		} catch (error) {
-			await logSync(this, `${auto ? "Auto" : "Manual"} sync failed: ${error.message}`);
+			await logSync(
+				this,
+				`${auto ? "Auto" : "Manual"} sync failed: ${error.message}`
+			);
 		}
 	}
 
@@ -141,7 +153,7 @@ export default class KeepSidianPlugin extends Plugin {
 		this.autoSyncInterval = window.setInterval(() => {
 			this.importNotes(true);
 		}, intervalMs);
-		if (typeof (this as any).registerInterval === 'function') {
+		if (typeof (this as any).registerInterval === "function") {
 			(this as any).registerInterval(this.autoSyncInterval);
 		}
 	}
@@ -153,5 +165,7 @@ export default class KeepSidianPlugin extends Plugin {
 		}
 	}
 
-	private async logSync(message: string) { /* moved to app/logging.ts */ }
+	private async logSync(message: string) {
+		/* moved to app/logging.ts */
+	}
 }

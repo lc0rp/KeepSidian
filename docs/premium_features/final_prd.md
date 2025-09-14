@@ -20,9 +20,10 @@ This document outlines the detailed requirements and implementation guidelines t
    - [/subscriber/info Endpoint](#subscriberinfo-endpoint)
 5. [Implementation Details](#implementation-details)
    - [main.ts](#maints)
-   - [config.ts](#configts)
-   - [settings.ts](#settingsts)
-   - [google/import.ts](#googleimportts)
+   - [config/index.ts](#configindexts)
+   - [ui/settings](#uisettings)
+   - [features/keep/sync.ts](#featureskeepsyncts)
+   - [integrations/server/keepApi.ts](#integrationsserverkeepapits)
    - [types/api.ts](#typesapits-optional)
 6. [Example Code and Responses](#example-code-and-responses)
 7. [Notes and Considerations](#notes-and-considerations)
@@ -101,8 +102,8 @@ For users with an active subscription, expose extra features in the plugin setti
 
 ### 5. Premium Features Submission
 
-- **Premium Feature Flags Submission**:
-  - For active subscribers, the sync request is sent to a different endpoint: /keep/sync/premium
+-- **Premium Feature Flags Submission**:
+  - For active subscribers, the sync request is sent to a different endpoint: /keep/sync/premium/v2
   - This request is a POST
   - The request body includes a 'feature_flags' json object that contains the premium feature flags derived from the premium feature settings, mapped as described below.
   - includeNotesTerms: 'filter_notes': {'terms':[...]}
@@ -118,28 +119,53 @@ The project files are structured to integrate the new features into existing fil
 .
 ├── LICENSE
 ├── README.md
-├── esbuild.config.mjs
-├── eslint.config.mjs
 ├── jest.config.ts
 ├── main.js
-├── manifest.json           # Update if new commands or settings are added
+├── manifest.json            # Update if new commands or settings are added
 ├── package-lock.json
 ├── package.json
+├── scripts
+│   └── version-bump.mjs     # moved from repo root
 ├── src
-│   ├── config.ts          # Update with new premium feature settings
-│   ├── google
-│   │   ├── import.ts      # Modify to include premium feature options during import
-│   │   └── ...            # Other existing files
-│   ├── main.ts            # Implement subscription checking and cache logic
-│   ├── settings.ts        # Update UI to display premium features and toggles
-│   ├── tests
-│   │   └── ...            # Update or add tests for new features
+│   ├── config
+│   │   └── index.ts         # Exports KEEPSIDIAN_SERVER_URL
+│   ├── main.ts              # Entry; subscription check, auto-sync, modal orchestration
+│   ├── app
+│   │   ├── commands.ts      # Ribbon and command registration
+│   │   ├── sync-ui.ts       # Status bar + progress modal orchestration
+│   │   └── logging.ts       # Append to sync log via services/logger
+│   ├── ui
+│   │   ├── settings
+│   │   │   ├── KeepSidianSettingsTab.ts
+│   │   │   └── SubscriptionSettingsTab.ts
+│   │   └── modals
+│   │       ├── NoteImportOptionsModal.ts
+│   │       └── SyncProgressModal.ts
+│   ├── features
+│   │   └── keep
+│   │       ├── constants.ts
+│   │       ├── domain
+│   │       │   ├── note.ts
+│   │       │   ├── compare.ts
+│   │       │   └── merge.ts
+│   │       ├── io
+│   │       │   └── attachments.ts
+│   │       └── sync.ts      # Orchestrates fetch/pagination/processing
+│   ├── integrations
+│   │   ├── google
+│   │   │   └── keepToken.ts
+│   │   └── server
+│   │       └── keepApi.ts   # fetchNotes*, PremiumFeatureFlags, endpoints
+│   ├── services
+│   │   ├── http.ts          # Wraps requestUrl
+│   │   ├── logger.ts        # Durable sync log write
+│   │   ├── paths.ts         # Path helpers
+│   │   └── subscription.ts  # Subscription cache + checks
 │   └── types
-│       ├── api.ts         # (Optional) Define types for API responses
-│       └── ...            # Other existing type definitions
+│       ├── index.ts
+│       └── keepsidian-plugin-settings.ts
 ├── styles.css
 ├── tsconfig.json
-├── version-bump.mjs
 └── versions.json
 ```
 
@@ -229,26 +255,18 @@ curl -X GET \
 - Ensure that the email used for the subscription check is securely retrieved and stored
 - Handle all possible API responses, including error cases
 
-### config.ts
+### config/index.ts
 
 **Responsibilities**:
 
-- **Settings Storage**:
-  - Add configuration variables to store user preferences for premium features
-  - includeNotesTerms: string[] (keywords to include)
-  - excludeNotesTerms: string[] (keywords to exclude)
-  - updateTitle: boolean
-  - suggestTags: boolean
-  - maxTags: number (default 5)
-  - tagPrefix: string (default 'auto-')
-  - limitToExistingTags: boolean
-- **Default Values**:
-  - Set default values for new settings where applicable
+- Expose runtime configuration for the server
+  - `KEEPSIDIAN_SERVER_URL` (no trailing slash)
+- Provide a single import point for integrations and services
 
 **Notes**:
-- Ensure that changes to settings are persisted and loaded correctly
+- Do not hardcode secrets; keep environment-specific configuration out of the repo
 
-### settings.ts
+### ui/settings
 
 **Responsibilities**:
 
@@ -285,28 +303,39 @@ curl -X GET \
 - Use appropriate UI components consistent with the Obsidian plugin guidelines
 - Validate user inputs where necessary
 
-### google/import.ts
+### features/keep/sync.ts
+
+**Purpose**:
+- Orchestrates note import (standard and premium flows) with pagination
+
+**Key Points**:
+- Exposes `importGoogleKeepNotes(plugin, callbacks?)` and `importGoogleKeepNotesWithOptions(plugin, options, callbacks?)`
+- Converts `NoteImportOptions` to `PremiumFeatureFlags` and passes to server calls
+- Uses `setTotalNotes`, `reportSyncProgress`, and `finishSyncUI` from `src/app/sync-ui.ts` for UI updates
+- Persists notes, applies duplicate strategy/merges, and downloads attachments
+
+**Endpoints used**: via `integrations/server/keepApi.ts` (`/keep/sync/v2`, `/keep/sync/premium/v2`)
+
+### integrations/server/keepApi.ts
 
 **Responsibilities**:
 
-- **Import Command Update**:
-  - Modify the import-google-keep-notes command to check for an active subscription
-  - If the subscription is active, display a dialog with options pre-filled from the settings
-  - Allow users to confirm or update options before importing
-- **Feature Implementations**:
-  - Filtering Logic:
-    - Include or exclude notes based on the keywords provided
-  - Title Update Logic:
-    - Update note titles based on their content
-    - Save original titles within the note body or metadata
-  - Tag Suggestion Logic:
-    - Suggest tags for each note up to the specified limit
-    - Apply the tag prefix if provided
-    - If "Limit to Existing Tags" is enabled, only suggest tags that already exist in the vault
+- Provide server integration functions used by the sync layer
+  - `fetchNotes(email, token, offset, limit)` → GET `/keep/sync/v2`
+  - `fetchNotesWithPremiumFeatures(email, token, featureFlags, offset, limit)` → POST `/keep/sync/premium/v2`
+- Define `PremiumFeatureFlags` used when submitting premium feature options
+  - `filter_notes: { terms: string[] }`
+  - `skip_notes: { terms: string[] }`
+  - `suggest_title: {}`
+  - `suggest_tags: { max_tags: number; restrict_tags: boolean; prefix: string }`
+- Use `src/services/http.ts` to wrap `requestUrl`
+
+**Headers**:
+- `X-User-Email`: user email (required)
+- `Authorization`: `Bearer <token>` (required)
 
 **Notes**:
-- Ensure that the import process remains efficient and responsive
-- Handle cases where no notes match the filter criteria
+- Keep JSON parsing defensive and typed; support both `.json()` and `.text` responses where appropriate
 
 ### types/api.ts (Optional)
 

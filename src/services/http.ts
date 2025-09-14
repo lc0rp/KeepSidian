@@ -46,7 +46,7 @@ export async function httpRequest<T = unknown>(url: string, options: HttpRequest
   const status: number = (response as any).status ?? 0;
   if (status < 200 || status >= 300) {
     // Try to extract error message from body, but don't fail parsing again here
-    let errMsg = `HTTP ${status}`;
+    let errMsg = `Server returned status ${status}`;
     try {
       const errJson = await parseJsonDefensively<any>(response);
       if (errJson && (errJson.error || errJson.message)) {
@@ -71,3 +71,38 @@ export async function httpPostJson<TRes = unknown, TReq = unknown>(
   return httpRequest<TRes>(url, { method: 'POST', headers, body });
 }
 
+// Returns the raw response without status checking. Useful for endpoints that
+// intentionally use 3xx or non-JSON payloads that the caller will handle.
+export async function httpGetRaw(url: string, headers?: Record<string, string>): Promise<any> {
+  return requestUrl({ url, method: 'GET', headers });
+}
+
+// Fetch a binary payload as an ArrayBuffer with status checking.
+export async function httpGetArrayBuffer(url: string, headers?: Record<string, string>): Promise<ArrayBuffer> {
+  const response = await requestUrl({ url, method: 'GET', headers });
+  const statusRaw = (response as any).status;
+  if (typeof statusRaw === 'number') {
+    const status = statusRaw as number;
+    if (status < 200 || status >= 300) {
+      let errMsg = `Server returned status ${status}`;
+      try {
+        const text = (response as any).text ?? '';
+        if (text) {
+          const errJson = JSON.parse(text);
+          if (errJson && (errJson.error || errJson.message)) {
+            errMsg = errJson.error || errJson.message;
+          }
+        }
+      } catch {}
+      throw new Error(errMsg);
+    }
+  }
+  const maybe = (response as any).arrayBuffer;
+  if (typeof maybe === 'function') {
+    return await maybe.call(response);
+  }
+  if (maybe !== undefined) {
+    return maybe as ArrayBuffer;
+  }
+  throw new Error('No binary content in response');
+}

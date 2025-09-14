@@ -1,4 +1,3 @@
-export * from '../../../google/keep/note';
-export * from '../../../google/keep/compare';
-export * from '../../../google/keep/merge';
-
+export * from "./note";
+export * from "./compare";
+export * from "./merge";

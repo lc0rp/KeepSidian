@@ -1,17 +1,18 @@
-import { normalizePath } from 'obsidian';
 import type KeepSidianPlugin from '../main';
+import { appendLog } from '../services/logger';
+import { normalizePathSafe } from '../services/paths';
 
 export async function logSync(plugin: KeepSidianPlugin, message: string) {
   try {
-    const logPath = normalizePath(`${plugin.settings.saveLocation}/${plugin.settings.syncLogPath}`);
-    let existing = '';
-    if (await plugin.app.vault.adapter.exists(logPath)) {
-      existing = await plugin.app.vault.adapter.read(logPath);
-    }
+    const logPath = normalizePathSafe(`${plugin.settings.saveLocation}/${plugin.settings.syncLogPath}`);
     const timestamp = new Date().toISOString();
-    await plugin.app.vault.adapter.write(logPath, `${existing}[${timestamp}] ${message}\n`);
+    await appendLog(plugin.app as any, logPath, `[${timestamp}] ${message}\n`);
   } catch (e) {
-    console.error('Failed to write sync log:', e);
+    try {
+      const isTest = typeof process !== 'undefined' && (process.env?.NODE_ENV === 'test' || !!process.env?.JEST_WORKER_ID);
+      if (!isTest) {
+        console.error('Failed to write sync log:', e);
+      }
+    } catch {}
   }
 }
-

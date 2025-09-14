@@ -1,8 +1,11 @@
-import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
 import { WebviewTag } from "electron";
-import { exchangeOauthToken, initRetrieveToken } from "../google/keep/token";
 import KeepSidianPlugin from "main";
 import { PluginSettingTab, App, Setting, Notice } from "obsidian";
+import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
+import {
+	exchangeOauthToken,
+	initRetrieveToken,
+} from "../../integrations/google/keepToken";
 
 export class KeepSidianSettingsTab extends PluginSettingTab {
 	private retrieveTokenWebView: WebviewTag;
@@ -118,19 +121,23 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		// If the text doesn't contain 'oauth2_4', we don't prevent the default paste behavior
 	}
 
-	private async handleRetrieveToken(): Promise<void> {
-		if (
-			!this.plugin.settings.email ||
-			!this.isValidEmail(this.plugin.settings.email)
-		) {
-			new Notice(
-				"Please enter a valid email address before retrieving the token."
-			);
-			return;
-		}
-		await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView);
-		this.display();
-	}
+  private async handleRetrieveToken(): Promise<void> {
+    if (
+      !this.plugin.settings.email ||
+      !this.isValidEmail(this.plugin.settings.email)
+    ) {
+      new Notice(
+        "Please enter a valid email address before retrieving the token."
+      );
+      return;
+    }
+    // Ensure the webview exists if display() wasn't called yet in this lifecycle
+    if (!this.retrieveTokenWebView) {
+      this.createRetrieveTokenWebView(this.containerEl);
+    }
+    await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView);
+    this.display();
+  }
 
 	private addSaveLocationSetting(containerEl: HTMLElement): void {
 		new Setting(containerEl)
@@ -169,7 +176,9 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Sync log file")
-			.setDesc("Log file name stored in KeepSidian save location directory.")
+			.setDesc(
+				"Log file name stored in KeepSidian save location directory."
+			)
 			.addText((text) =>
 				text
 					.setPlaceholder("_keepsidian.log")
@@ -185,7 +194,10 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 
 		const intervalSetting = new Setting(containerEl)
 			.setName("Sync interval (hours)")
-			.setDesc("Change the default sync interval." + (isSubscribed ? "" : " (requires a subscription)"))
+			.setDesc(
+				"Change the default sync interval." +
+					(isSubscribed ? "" : " (requires a subscription)")
+			)
 			.addText((text) =>
 				text
 					.setPlaceholder("24")

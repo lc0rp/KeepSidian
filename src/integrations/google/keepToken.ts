@@ -1,13 +1,26 @@
 import * as obsidian from 'obsidian';
-import { KeepSidianSettingsTab } from '../../components/KeepSidianSettingsTab';
 import KeepSidianPlugin from 'main';
 import { KEEPSIDIAN_SERVER_URL } from '../../config';
 import { WebviewTag, ConsoleMessageEvent } from 'electron';
 import { Notice } from 'obsidian';
+import { KeepSidianSettingsTab } from 'ui/settings/KeepSidianSettingsTab';
+import { httpPostJson } from '../../services/http';
 
 declare global {
     interface Window {
         require: (module: string) => any;
+    }
+}
+
+function logErrorIfNotTest(...args: any[]) {
+    try {
+        const isTest = typeof process !== 'undefined' && (process.env?.NODE_ENV === 'test' || !!process.env?.JEST_WORKER_ID);
+        if (!isTest) {
+            // eslint-disable-next-line no-console
+            console.error(...args);
+        }
+    } catch {
+        // no-op
     }
 }
 
@@ -120,120 +133,143 @@ async function getOAuthToken(settingsTab: KeepSidianSettingsTab, plugin: KeepSid
                     ol.appendChild(li);
                 });
 
-                messageElement.appendChild(ol);
-
                 const input = document.createElement('input');
                 input.type = 'text';
-                input.placeholder = 'Paste OAuth Token here';
+                input.placeholder = 'Paste oauth_token here';
+                input.id = 'oauth-token-input';
                 input.style.width = '100%';
                 input.style.marginTop = '10px';
-                input.style.border = '1px solid #ccc';
-                input.style.borderRadius = '5px';
-                input.style.padding = '5px';
-                input.style.height = '30px';
-                input.style.backgroundColor = '#f0f0f0';
-                input.style.opacity = '0.75';
-                input.addEventListener('input', function() {
-                    console.log('oauthToken: ' + this.value);
+                input.addEventListener('input', (e) => {
+                    console.log('oauthToken: ' + (e.target as HTMLInputElement).value);
                 });
-
-                messageElement.appendChild(input);
+                overlay.appendChild(ol);
+                overlay.appendChild(input);
             }
         })();
     `;
 
-    return new Promise<string>((resolve, reject) => {
-        let intervalId: NodeJS.Timeout | undefined;
-        let messageHandler: ((event: ConsoleMessageEvent) => void) | undefined;
-        let timeoutId: NodeJS.Timeout | undefined;
+    const getOauthTokenScript = (): string => `
+        (function() {
+            const cookies = document.cookie.split(';');
+            for (const cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'oauth_token') {
+                    console.log('oauthToken: ' + value);
+                    return;
+                }
+            }
+        })();
+    `;
+
+    return new Promise(async (resolve, reject) => {
+        let intervalId: any;
+        let timeoutId: any;
+        let cleanupCalled = false;
 
         const cleanup = () => {
-            if (intervalId) {
+            if (!cleanupCalled) {
                 clearInterval(intervalId);
-                intervalId = undefined;
-            }
-            if (timeoutId) {
                 clearTimeout(timeoutId);
-                timeoutId = undefined;
-            }
-            if (messageHandler && retrieveTokenWebview) {
-                retrieveTokenWebview.removeEventListener('console-message', messageHandler);
-                messageHandler = undefined;
+                cleanupCalled = true;
             }
         };
 
-        // Ensure cleanup happens on promise rejection
         const wrappedReject = (error: Error) => {
             cleanup();
             reject(error);
         };
 
-        (async () => {
-            try {
-                if (!retrieveTokenWebview) {
-                    throw new Error('Failed to create webview element.');
+        try {
+            // Support both Electron WebviewTag and simple mocks used in tests
+            if (typeof (retrieveTokenWebview as any).loadURL === 'function') {
+                await (retrieveTokenWebview as any).loadURL(OAUTH_URL);
+            } else {
+                (retrieveTokenWebview as any).src = OAUTH_URL;
+            }
+            if ((retrieveTokenWebview as any).show) {
+                (retrieveTokenWebview as any).show();
+            }
+            const style = (retrieveTokenWebview as any).style;
+            if (style) {
+                try {
+                    style.width = '0';
+                    style.height = '0';
+                    style.display = 'block';
+                } catch {}
+            }
+
+            let emailEntered = false;
+            let stepTwoDisplayed = false;
+            let devToolsOpened = false;
+
+            const messageHandler = async (event: ConsoleMessageEvent) => {
+                if (event.message === 'buttonClicked' && !devToolsOpened) {
+                    retrieveTokenWebview.openDevTools();
+                    devToolsOpened = true;
+                    await retrieveTokenWebview.executeJavaScript(createDevToolsInstructionsScript());
+                    await retrieveTokenWebview.executeJavaScript(getOauthTokenScript());
+                } else if (event.message === 'Token overlay created.') {
+                    await retrieveTokenWebview.executeJavaScript(createDevToolsInstructionsScript());
+                } else if (event.message.startsWith('oauthToken: ')) {
+                    const oauthToken = event.message.split('oauthToken: ')[1];
+                    try {
+                        await exchangeOauthToken(settingsTab, plugin, oauthToken);
+                        cleanup();
+                        if ((retrieveTokenWebview as any).closeDevTools) {
+                          try { (retrieveTokenWebview as any).closeDevTools(); } catch {}
+                        }
+                        if ((retrieveTokenWebview as any).hide) {
+                          try { (retrieveTokenWebview as any).hide(); } catch {}
+                        } else {
+                          const style = (retrieveTokenWebview as any).style;
+                          if (style) {
+                            try { style.display = 'none'; } catch {}
+                          }
+                        }
+                        resolve(oauthToken);
+                    } catch (error) {
+                        wrappedReject(error as Error);
+                    }
+                }
+            };
+
+            retrieveTokenWebview.addEventListener('console-message', messageHandler);
+
+            const startTime = Date.now();
+            const timeout = 300000;
+
+            intervalId = setInterval(async () => {
+                const currentUrl =
+                  typeof (retrieveTokenWebview as any).getURL === 'function'
+                    ? (retrieveTokenWebview as any).getURL()
+                    : '';
+                if (!currentUrl || typeof currentUrl !== 'string') {
+                  return;
+                }
+                if (!emailEntered && currentUrl.includes("accounts.google.com")) {
+                    await retrieveTokenWebview.executeJavaScript(createOverlayScript("Step 1 of 3: Login Below.", "Please start by logging in with your Google Keep account below."));
+                    await retrieveTokenWebview.executeJavaScript(enterEmailScript(GOOGLE_EMAIL));
+                    emailEntered = true;
                 }
 
-                await retrieveTokenWebview.loadURL(OAUTH_URL);
-                retrieveTokenWebview.show();
+                if (emailEntered && !stepTwoDisplayed && currentUrl.includes("embeddedsigninconsent")) {
+                    await retrieveTokenWebview.executeJavaScript(createOverlayScript("Step 2 of 3: Accept Service Terms.", "Great! Next, please review and agree to the terms below."));
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    await retrieveTokenWebview.executeJavaScript(createButtonClickDetectionScript(["I agree", "Acepto"]));
+                    stepTwoDisplayed = true;
+                }
 
-                let emailEntered = false;
-                let stepTwoDisplayed = false;
-
-                messageHandler = async (event: ConsoleMessageEvent) => {
-                    if (event.message === 'buttonClicked') {
-                        retrieveTokenWebview.executeJavaScript(createDevToolsInstructionsScript());
-    
-                        setTimeout(() => {
-                            retrieveTokenWebview.openDevTools();
-                            retrieveTokenWebview.focus();
-                        }, 3000);
-                    } else if (event.message.startsWith('oauthToken: ')) {
-                        const oauthToken = event.message.split('oauthToken: ')[1];
-                        try {
-                            await exchangeOauthToken(settingsTab, plugin, oauthToken);
-                            cleanup(); // Ensure cleanup happens before resolving
-                            retrieveTokenWebview.closeDevTools();
-                            retrieveTokenWebview.hide();
-                            resolve(oauthToken);
-                        } catch (error) {
-                            wrappedReject(error);
-                        }
-                    }
-                };
-
-                retrieveTokenWebview.addEventListener('console-message', messageHandler);
-
-                const startTime = Date.now();
-                const timeout = 300000; // 5 minutes timeout
-
-                intervalId = setInterval(async () => {
-                    const currentUrl = retrieveTokenWebview.getURL();
-                    if (!emailEntered && currentUrl.includes("accounts.google.com")) {
-                        await retrieveTokenWebview.executeJavaScript(createOverlayScript("Step 1 of 3: Login Below.", "Please start by logging in with your Google Keep account below."));
-                        await retrieveTokenWebview.executeJavaScript(enterEmailScript(GOOGLE_EMAIL));
-                        emailEntered = true;
-                    }
-
-                    if (emailEntered && !stepTwoDisplayed && currentUrl.includes("embeddedsigninconsent")) {
-                        await retrieveTokenWebview.executeJavaScript(createOverlayScript("Step 2 of 3: Accept Service Terms.", "Great! Next, please review and agree to the terms below."));
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        await retrieveTokenWebview.executeJavaScript(createButtonClickDetectionScript(["I agree", "Acepto"]));
-                        stepTwoDisplayed = true;
-                    }
-
-                    if ((Date.now() - startTime) >= timeout) {
-                        wrappedReject(new Error('Timeout: OAuth token retrieval process exceeded 5 minutes.'));
-                    }
-                }, 1000);
-
-                timeoutId = setTimeout(() => {
+                if ((Date.now() - startTime) >= timeout) {
                     wrappedReject(new Error('Timeout: OAuth token retrieval process exceeded 5 minutes.'));
-                }, 300000);
-            } catch (error) {
-                wrappedReject(error as Error);
-            }
-        })();
+                }
+            }, 1000);
+
+            timeoutId = setTimeout(() => {
+                wrappedReject(new Error('Timeout: OAuth token retrieval process exceeded 5 minutes.'));
+            }, 300000);
+        } catch (error) {
+            wrappedReject(error as Error);
+        }
     });
 }
 
@@ -241,44 +277,23 @@ export async function initRetrieveToken(settingsTab: KeepSidianSettingsTab, plug
     try {
         await getOAuthToken(settingsTab, plugin, retrieveTokenWebview);
     } catch (error) {
-        console.error('Failed to retrieve token:', error);
-        new Notice(`Failed to retrieve token: ${error.message}`);
+        logErrorIfNotTest('Failed to retrieve token:', error);
+        new Notice(`Failed to retrieve token: ${(error as Error).message}`);
         throw error;
     }
 }
 
 export async function exchangeOauthToken(settingsTab: KeepSidianSettingsTab, plugin: KeepSidianPlugin, oauthToken: string) {
     try {
-        const response: obsidian.RequestUrlResponse = await obsidian.requestUrl({
-            url: `${KEEPSIDIAN_SERVER_URL}/register`,
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                email: plugin.settings.email,
-                oauth_token: oauthToken,
-            }),
-        });
-
-        // Check status before parsing JSON
-        if (!response.status || response.status < 200 || response.status >= 300) {
-            throw new Error(`Server returned status ${response.status}`);
-        }
-
         try {
-            // Obsidian requestUrl exposes `json` as a parsed object (not a function).
-            // However, be defensive and also support fetch-like responses or fallback to text parsing.
-            let parsed: any;
-            const maybeJson: any = (response as any).json;
-            if (typeof maybeJson === 'function') {
-                parsed = await maybeJson.call(response);
-            } else if (maybeJson !== undefined) {
-                parsed = maybeJson;
-            } else {
-                const text = (response as any).text ?? '';
-                parsed = text ? JSON.parse(text) : undefined;
-            }
+            const parsed = await httpPostJson<TokenResponse, { email: string; oauth_token: string }>(
+                `${KEEPSIDIAN_SERVER_URL}/register`,
+                {
+                    email: plugin.settings.email,
+                    oauth_token: oauthToken,
+                },
+                { 'Content-Type': 'application/json' }
+            );
 
             if (!isTokenResponse(parsed)) {
                 throw new Error('Invalid response format');
@@ -293,10 +308,14 @@ export async function exchangeOauthToken(settingsTab: KeepSidianSettingsTab, plu
             settingsTab.display();
             new Notice('Token exchanged successfully.');
         } catch (e) {
+            // Preserve legacy error message shape expected by tests
+            if (e instanceof Error && e.message.startsWith('Server returned status')) {
+                throw e;
+            }
             throw new Error('Failed to parse server response: ' + e);
         }
     } catch (error) {
-        console.error('Error exchanging OAuth token:', error);
+        logErrorIfNotTest('Error exchanging OAuth token:', error);
         new Notice(`Failed to exchange OAuth token: ${(error as Error).message}`);
         throw error;
     }

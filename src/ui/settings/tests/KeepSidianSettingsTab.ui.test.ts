@@ -2,10 +2,10 @@
  * @jest-environment jsdom
  */
 import { App } from 'obsidian';
-import KeepSidianPlugin from '../../main';
+import KeepSidianPlugin from '../../../main';
 import { KeepSidianSettingsTab } from '../KeepSidianSettingsTab';
-import { DEFAULT_SETTINGS } from '../../types/keepsidian-plugin-settings';
-import { initRetrieveToken } from '../../google/keep/token';
+import { DEFAULT_SETTINGS } from '../../../types/keepsidian-plugin-settings';
+import { initRetrieveToken } from '../../../integrations/google/keepToken';
 
 // Custom, DOM-driven Setting mock to exercise UI interactions
 jest.mock('obsidian', () => {
@@ -116,7 +116,7 @@ jest.mock('obsidian', () => {
   };
 });
 
-jest.mock('../../google/keep/token', () => ({
+jest.mock('../../../integrations/google/keepToken', () => ({
   initRetrieveToken: jest.fn(),
   exchangeOauthToken: jest.fn(),
 }));

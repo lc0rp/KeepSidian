@@ -3,14 +3,14 @@
  */
 import { SubscriptionSettingsTab } from "../SubscriptionSettingsTab";
 import { App } from "obsidian";
-import KeepSidianPlugin from "../../main";
-import { PremiumFeatureSettings } from "../../types/subscription";
+import KeepSidianPlugin from "../../../main";
+import { PremiumFeatureSettings } from "../../../types/subscription";
 import { SubscriptionService } from "services/subscription";
 import { KeepSidianSettingsTab } from "../KeepSidianSettingsTab";
-import { DEFAULT_SETTINGS } from "../../types/keepsidian-plugin-settings";
+import { DEFAULT_SETTINGS } from "../../../types/keepsidian-plugin-settings";
 
 // Mock KEEPSIDIAN_SERVER_URL from config.ts
-jest.mock("../../config", () => ({
+jest.mock("../../../config", () => ({
 	KEEPSIDIAN_SERVER_URL: "https://keepsidian.com",
 }));
 

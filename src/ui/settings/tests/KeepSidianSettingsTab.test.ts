@@ -3,19 +3,18 @@
  */
 import { App, PluginSettingTab, Notice } from 'obsidian';
 import { KeepSidianSettingsTab } from '../KeepSidianSettingsTab';
-import KeepSidianPlugin from '../../main';
+import KeepSidianPlugin from '../../../main';
 import { SubscriptionService } from 'services/subscription';
-import { DEFAULT_SETTINGS } from '../../types/keepsidian-plugin-settings';
-import { initRetrieveToken } from '../../google/keep/token';
-import { exchangeOauthToken } from '../../google/keep/token';
+import { DEFAULT_SETTINGS } from '../../../types/keepsidian-plugin-settings';
+import { exchangeOauthToken, initRetrieveToken } from '../../../integrations/google/keepToken';
 
-jest.mock('../NoteImportOptionsModal', () => ({
+jest.mock('../../modals/NoteImportOptionsModal', () => ({
     NoteImportOptionsModal: jest.fn().mockImplementation(() => ({
         open: jest.fn()
     }))
 }));
 
-jest.mock('../../google/keep/token', () => ({
+jest.mock('../../../integrations/google/keepToken', () => ({
     exchangeOauthToken: jest.fn(),
     initRetrieveToken: jest.fn(),
 }));

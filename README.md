@@ -104,3 +104,10 @@ When a local note and its Google Keep counterpart have both been modified since 
 ## Feedback
 
 Please share your feedback in the [issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
+
+## Developer Notes
+
+- Structure: `src/app` (commands, sync UI, logging), `src/features/keep` (domain, IO, `sync.ts`), `src/integrations/server/keepApi.ts` (server API), `src/integrations/google/keepToken.ts`, `src/ui` (settings, modals), `src/services` (http, subscription, paths, logger), `src/config/index.ts` (server URL).
+- Tests: Co-located under `src/**/tests/*.test.ts` (legacy `src/tests/main.test.ts` remains until migrated).
+- HTTP: Use `src/services/http.ts` wrapper for network calls (wraps Obsidian `requestUrl`).
+- Versioning: version bump script moved to `scripts/version-bump.mjs`.

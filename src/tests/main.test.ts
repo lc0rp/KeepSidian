@@ -1,190 +1,223 @@
-jest.mock('obsidian');
-jest.mock('../components/NoteImportOptionsModal', () => ({
-    NoteImportOptionsModal: jest.fn().mockImplementation(() => ({
-        open: jest.fn()
-    }))
+jest.mock("obsidian");
+jest.mock("../ui/modals/NoteImportOptionsModal", () => ({
+	NoteImportOptionsModal: jest.fn().mockImplementation(() => ({
+		open: jest.fn(),
+	})),
 }));
 
-import { Plugin, Notice } from 'obsidian';
-import KeepSidianPlugin from '../main';
-import * as ImportModule from '../google/keep/import';
-import { DEFAULT_SETTINGS } from '../types/keepsidian-plugin-settings';
-import { KeepSidianSettingsTab } from '../components/KeepSidianSettingsTab';
-import { SubscriptionService } from '../services/subscription';
-import { NoteImportOptionsModal } from '../components/NoteImportOptionsModal';
+import { Plugin, Notice } from "obsidian";
+import KeepSidianPlugin from "../main";
+import * as SyncModule from "../features/keep/sync";
+import { DEFAULT_SETTINGS } from "../types/keepsidian-plugin-settings";
+import { SubscriptionService } from "../services/subscription";
+import { NoteImportOptionsModal } from "../ui/modals/NoteImportOptionsModal";
+import { KeepSidianSettingsTab } from "../ui/settings/KeepSidianSettingsTab";
 
-describe('KeepSidianPlugin', () => {
-    let plugin: KeepSidianPlugin;
-    let mockApp: jest.Mocked<Plugin['app']>;
+describe("KeepSidianPlugin", () => {
+	let plugin: KeepSidianPlugin;
+	let mockApp: jest.Mocked<Plugin["app"]>;
 
-    const TEST_MANIFEST = {
-        id: 'keepsidian',
-        name: 'KeepSidian',
-        author: 'lc0rp',
-        version: '0.0.1',
-        minAppVersion: '0.0.1',
-        description: 'Import Google Keep notes.',
-    };
+	const TEST_MANIFEST = {
+		id: "keepsidian",
+		name: "KeepSidian",
+		author: "lc0rp",
+		version: "0.0.1",
+		minAppVersion: "0.0.1",
+		description: "Import Google Keep notes.",
+	};
 
-    beforeEach(() => {
-        jest.clearAllMocks();
+	beforeEach(() => {
+		jest.clearAllMocks();
 
-        mockApp = {
-            workspace: {},
-            vault: {}
-        } as any;
+		mockApp = {
+			workspace: {},
+			vault: {},
+		} as any;
 
-        plugin = new KeepSidianPlugin(mockApp, TEST_MANIFEST);
+		plugin = new KeepSidianPlugin(mockApp, TEST_MANIFEST);
 
-        plugin.loadData = jest.fn().mockResolvedValue({});
-        plugin.saveData = jest.fn().mockResolvedValue(undefined);
-        plugin.addRibbonIcon = jest.fn();
-        plugin.addCommand = jest.fn();
-        plugin.addSettingTab = jest.fn();
-        plugin.addStatusBarItem = jest.fn(() => ({
-            setText: jest.fn(),
-            addEventListener: jest.fn(),
-            setAttribute: jest.fn()
-        } as any));
+		plugin.loadData = jest.fn().mockResolvedValue({});
+		plugin.saveData = jest.fn().mockResolvedValue(undefined);
+		plugin.addRibbonIcon = jest.fn();
+		plugin.addCommand = jest.fn();
+		plugin.addSettingTab = jest.fn();
+		plugin.addStatusBarItem = jest.fn(
+			() =>
+				({
+					setText: jest.fn(),
+					addEventListener: jest.fn(),
+					setAttribute: jest.fn(),
+				} as any)
+		);
 
-        const mockSubscriptionService = {
-            isSubscriptionActive: jest.fn().mockResolvedValue(false),
-            checkSubscription: jest.fn().mockResolvedValue(null)
-        } as unknown as SubscriptionService;
+		const mockSubscriptionService = {
+			isSubscriptionActive: jest.fn().mockResolvedValue(false),
+			checkSubscription: jest.fn().mockResolvedValue(null),
+		} as unknown as SubscriptionService;
 
-        plugin.subscriptionService = mockSubscriptionService;
-    });
+		plugin.subscriptionService = mockSubscriptionService;
+	});
 
-    describe('onload', () => {
-        it('should initialize plugin with default settings', async () => {
-            await plugin.onload();
+	describe("onload", () => {
+		it("should initialize plugin with default settings", async () => {
+			await plugin.onload();
 
-            expect(plugin.settings).toEqual(DEFAULT_SETTINGS);
-            expect(plugin.addRibbonIcon).toHaveBeenCalledWith(
-                'folder-sync',
-                'Import Google Keep notes.',
-                expect.any(Function)
-            );
-            expect(plugin.addCommand).toHaveBeenCalledWith({
-                id: 'import-google-keep-notes',
-                name: 'Import Google Keep Notes',
-                callback: expect.any(Function)
-            });
-            expect(plugin.addSettingTab).toHaveBeenCalledWith(expect.any(KeepSidianSettingsTab));
-        });
-    });
+			expect(plugin.settings).toEqual(DEFAULT_SETTINGS);
+			expect(plugin.addRibbonIcon).toHaveBeenCalledWith(
+				"folder-sync",
+				"Import Google Keep notes.",
+				expect.any(Function)
+			);
+			expect(plugin.addCommand).toHaveBeenCalledWith({
+				id: "import-google-keep-notes",
+				name: "Import Google Keep Notes",
+				callback: expect.any(Function),
+			});
+			expect(plugin.addSettingTab).toHaveBeenCalledWith(
+				expect.any(KeepSidianSettingsTab)
+			);
+		});
+	});
 
-    describe('importNotes', () => {
-        it('should use basic import for non-premium users', async () => {
-            plugin.subscriptionService.isSubscriptionActive = jest.fn().mockResolvedValue(false);
-            const importMock = jest.spyOn(ImportModule, 'importGoogleKeepNotes').mockResolvedValue(0);
+	describe("importNotes", () => {
+		it("should use basic import for non-premium users", async () => {
+			plugin.subscriptionService.isSubscriptionActive = jest
+				.fn()
+				.mockResolvedValue(false);
+			const importMock = jest
+				.spyOn(SyncModule, "importGoogleKeepNotes")
+				.mockResolvedValue(0);
 
-            await plugin.onload();
+			await plugin.onload();
 
-            await plugin.importNotes();
-            await new Promise(resolve => setTimeout(resolve, 0));
+			await plugin.importNotes();
+			await new Promise((resolve) => setTimeout(resolve, 0));
 
-            expect(importMock).toHaveBeenCalled();
-            expect(importMock).toHaveBeenCalledWith(
-                plugin,
-                expect.objectContaining({
-                    setTotalNotes: expect.any(Function),
-                    reportProgress: expect.any(Function),
-                })
-            );
-            expect(NoteImportOptionsModal).not.toHaveBeenCalled();
-            expect(Notice).toHaveBeenCalledWith('Syncing Google Keep Notes...', 0);
-            expect(plugin.progressNotice).not.toBeNull();
-            const statusEl = (plugin.addStatusBarItem as jest.Mock).mock.results[0].value;
-            expect(statusEl.setAttribute).toHaveBeenCalledWith('aria-label', 'KeepSidian sync progress');
-            expect(statusEl.setAttribute).toHaveBeenCalledWith('title', 'KeepSidian sync progress');
-        });
+			expect(importMock).toHaveBeenCalled();
+			expect(importMock).toHaveBeenCalledWith(
+				plugin,
+				expect.objectContaining({
+					setTotalNotes: expect.any(Function),
+					reportProgress: expect.any(Function),
+				})
+			);
+			expect(NoteImportOptionsModal).not.toHaveBeenCalled();
+			expect(Notice).toHaveBeenCalledWith(
+				"Syncing Google Keep Notes...",
+				0
+			);
+			expect(plugin.progressNotice).not.toBeNull();
+			const statusEl = (plugin.addStatusBarItem as jest.Mock).mock
+				.results[0].value;
+			expect(statusEl.setAttribute).toHaveBeenCalledWith(
+				"aria-label",
+				"KeepSidian sync progress"
+			);
+			expect(statusEl.setAttribute).toHaveBeenCalledWith(
+				"title",
+				"KeepSidian sync progress"
+			);
+		});
 
-        it('should show options modal for premium users', async () => {
-            await plugin.onload(); // Initialize the plugin and subscriptionService
+		it("should show options modal for premium users", async () => {
+			await plugin.onload(); // Initialize the plugin and subscriptionService
 
-            const isSubscriptionActiveSpy = jest
-                .spyOn(plugin.subscriptionService, 'isSubscriptionActive')
-                .mockResolvedValue(true);
+			const isSubscriptionActiveSpy = jest
+				.spyOn(plugin.subscriptionService, "isSubscriptionActive")
+				.mockResolvedValue(true);
 
-            const importMock = jest
-                .spyOn(ImportModule, 'importGoogleKeepNotes')
-                .mockResolvedValue(0);
+			const importMock = jest
+				.spyOn(SyncModule, "importGoogleKeepNotes")
+				.mockResolvedValue(0);
 
-            const showModalSpy = jest
-                .spyOn(plugin, 'showImportOptionsModal')
-                .mockImplementation(async () => { });
+			const showModalSpy = jest
+				.spyOn(plugin, "showImportOptionsModal")
+				.mockImplementation(async () => {});
 
-            await plugin.importNotes();
-            await new Promise(resolve => setTimeout(resolve, 0));
+			await plugin.importNotes();
+			await new Promise((resolve) => setTimeout(resolve, 0));
 
-            expect(isSubscriptionActiveSpy).toHaveBeenCalled();
-            expect(showModalSpy).toHaveBeenCalled();
-            expect(importMock).not.toHaveBeenCalled();
+			expect(isSubscriptionActiveSpy).toHaveBeenCalled();
+			expect(showModalSpy).toHaveBeenCalled();
+			expect(importMock).not.toHaveBeenCalled();
 
-            showModalSpy.mockRestore();
-            isSubscriptionActiveSpy.mockRestore();
-            importMock.mockRestore();
-        });
-    });
+			showModalSpy.mockRestore();
+			isSubscriptionActiveSpy.mockRestore();
+			importMock.mockRestore();
+		});
+	});
 
-    describe('auto sync', () => {
-        beforeEach(() => {
-            jest.useFakeTimers();
-        });
+	describe("auto sync", () => {
+		beforeEach(() => {
+			jest.useFakeTimers();
+		});
 
-        afterEach(() => {
-            jest.useRealTimers();
-        });
+		afterEach(() => {
+			jest.useRealTimers();
+		});
 
-        it('should start auto sync when enabled', async () => {
-            plugin.loadData = jest.fn().mockResolvedValue({ autoSyncEnabled: true, autoSyncIntervalHours: 1 });
-            const importSpy = jest.spyOn(plugin, 'importNotes').mockResolvedValue();
-            await plugin.onload();
-            jest.advanceTimersByTime(60 * 60 * 1000);
-            expect(importSpy).toHaveBeenCalledWith(true);
-        });
+		it("should start auto sync when enabled", async () => {
+			plugin.loadData = jest
+				.fn()
+				.mockResolvedValue({
+					autoSyncEnabled: true,
+					autoSyncIntervalHours: 1,
+				});
+			const importSpy = jest
+				.spyOn(plugin, "importNotes")
+				.mockResolvedValue();
+			await plugin.onload();
+			jest.advanceTimersByTime(60 * 60 * 1000);
+			expect(importSpy).toHaveBeenCalledWith(true);
+		});
 
-        it('should log sync results to file', async () => {
-            plugin.subscriptionService.isSubscriptionActive = jest.fn().mockResolvedValue(false);
-            plugin.settings = { ...DEFAULT_SETTINGS };
-            plugin.app = {
-                vault: {
-                    adapter: {
-                        exists: jest.fn().mockResolvedValue(false),
-                        read: jest.fn().mockResolvedValue(''),
-                        write: jest.fn().mockResolvedValue(undefined)
-                    }
-                }
-            } as any;
-            const importMock = jest.spyOn(ImportModule, 'importGoogleKeepNotes').mockResolvedValue(0);
-            (require('obsidian') as any).normalizePath = (p: string) => p;
-            await plugin.importNotes();
-            expect(plugin.app.vault.adapter.write).toHaveBeenCalled();
-            importMock.mockRestore();
-        });
-    });
+		it("should log sync results to file", async () => {
+			plugin.subscriptionService.isSubscriptionActive = jest
+				.fn()
+				.mockResolvedValue(false);
+			plugin.settings = { ...DEFAULT_SETTINGS };
+			plugin.app = {
+				vault: {
+					adapter: {
+						exists: jest.fn().mockResolvedValue(false),
+						read: jest.fn().mockResolvedValue(""),
+						write: jest.fn().mockResolvedValue(undefined),
+					},
+				},
+			} as any;
+			const importMock = jest
+				.spyOn(SyncModule, "importGoogleKeepNotes")
+				.mockResolvedValue(0);
+			(require("obsidian") as any).normalizePath = (p: string) => p;
+			await plugin.importNotes();
+			expect(plugin.app.vault.adapter.write).toHaveBeenCalled();
+			importMock.mockRestore();
+		});
+	});
 
-    describe('settings', () => {
-        it('should load and merge settings with defaults', async () => {
-            const savedSettings = { email: 'test@example.com' };
-            plugin.loadData = jest.fn().mockResolvedValue(savedSettings);
+	describe("settings", () => {
+		it("should load and merge settings with defaults", async () => {
+			const savedSettings = { email: "test@example.com" };
+			plugin.loadData = jest.fn().mockResolvedValue(savedSettings);
 
-            await plugin.loadSettings();
+			await plugin.loadSettings();
 
-            expect(plugin.settings).toEqual({
-                ...DEFAULT_SETTINGS,
-                ...savedSettings
-            });
-        });
+			expect(plugin.settings).toEqual({
+				...DEFAULT_SETTINGS,
+				...savedSettings,
+			});
+		});
 
-        it('should save settings', async () => {
-            const testSettings = { ...DEFAULT_SETTINGS, email: 'test@example.com' };
-            plugin.settings = testSettings;
+		it("should save settings", async () => {
+			const testSettings = {
+				...DEFAULT_SETTINGS,
+				email: "test@example.com",
+			};
+			plugin.settings = testSettings;
 
-            await plugin.saveSettings();
+			await plugin.saveSettings();
 
-            expect(plugin.saveData).toHaveBeenCalledWith(testSettings);
-        });
-    });
+			expect(plugin.saveData).toHaveBeenCalledWith(testSettings);
+		});
+	});
 });

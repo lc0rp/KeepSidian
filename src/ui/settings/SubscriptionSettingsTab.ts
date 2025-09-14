@@ -1,7 +1,7 @@
 import { Setting } from "obsidian";
 import KeepSidianPlugin from "main";
 import { PremiumFeatureSettings } from "types/subscription";
-import { KEEPSIDIAN_SERVER_URL } from "../config";
+import { KEEPSIDIAN_SERVER_URL } from "../../config";
 
 export class SubscriptionSettingsTab {
 	private containerEl: HTMLElement;
@@ -20,7 +20,7 @@ export class SubscriptionSettingsTab {
 		const isActive =
 			await this.plugin.subscriptionService.isSubscriptionActive();
 
-        if (!isActive) {
+		if (!isActive) {
 			await this.displayInactiveSubscriber();
 		} else {
 			await this.displayActiveSubscriber();
@@ -238,7 +238,7 @@ export class SubscriptionSettingsTab {
 			}
 		});
 
-        new Setting(containerEl)
+		new Setting(containerEl)
 			.setName("Subscribe now for $4.99/month or $49.99/year")
 			.setDesc(
 				"Get access to premium features below, priority support and early access to new features."

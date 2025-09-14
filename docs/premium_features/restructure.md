@@ -13,35 +13,40 @@ Here’s a focused, “best practice” upgrade path for your repo structure. Ov
 
 - src/app: Plugin entry + orchestration
 - src/app/main.ts (current src/main.ts:1) — keep as entry, slimmed down
-- src/app/commands.ts — commands, ribbon wiring
-- src/app/sync-ui.ts — status bar + modal orchestration currently in src/main.ts:1
-- src/app/logging.ts — extracted from src/main.ts:220
-- src/ui: View components, by concern
-- src/ui/settings/KeepSidianSettingsTab.ts (move from src/components/KeepSidianSettingsTab.ts:1)
-- src/ui/settings/SubscriptionSettingsTab.ts (move from src/components/SubscriptionSettingsTab.ts)
-- src/ui/modals/NoteImportOptionsModal.ts (move from src/components/NoteImportOptionsModal.ts)
-- src/ui/modals/SyncProgressModal.ts (move from src/components/SyncProgressModal.ts)
-- src/features/keep: Feature domain (Keep note handling)
-- src/features/keep/domain/note.ts (move from src/google/keep/note.ts:1)
-- src/features/keep/domain/compare.ts (move from src/google/keep/compare.ts:1)
-- src/features/keep/domain/merge.ts (move from src/google/keep/merge.ts)
-- src/features/keep/io/attachments.ts (move from src/google/keep/attachments.ts:1)
-- src/features/keep/sync.ts — orchestration split from src/google/keep/import.ts:1 (keeps pagination, progress reporting, persistence)
-- src/integrations: External systems (server + Google)
-- src/integrations/server/keepApi.ts — API calls split out from src/google/keep/import.ts:1 (fetchNotes*, parseResponse)
-- src/integrations/google/keepToken.ts (move from src/google/keep/token.ts:1)
-- src/integrations/google/drive/*.ts (move from src/google/drive/*)
-- src/services: Cross-cutting helpers
-- src/services/http.ts — wraps Obsidian requestUrl (apply to src/services/subscription.ts:1 and keep API)
+[x] - src/app/commands.ts — commands, ribbon wiring (DONE)
+[x] - src/app/sync-ui.ts — status bar + modal orchestration currently in src/main.ts:1 (DONE)
+[x] - src/app/logging.ts — extracted from src/main.ts:220 (DONE)
+
+[x] - src/ui: View components, by concern (DONE)
+[x] - src/ui/settings/KeepSidianSettingsTab.ts (move from src/components/KeepSidianSettingsTab.ts:1) (DONE)
+[x] - src/ui/settings/SubscriptionSettingsTab.ts (move from src/components/SubscriptionSettingsTab.ts) (DONE)
+[x] - src/ui/modals/NoteImportOptionsModal.ts (move from src/components/NoteImportOptionsModal.ts) (DONE)
+[x] - src/ui/modals/SyncProgressModal.ts (move from src/components/SyncProgressModal.ts) (DONE)
+
+[x] - src/features/keep: Feature domain (Keep note handling) (DONE)
+[x] - src/features/keep/domain/note.ts (move from src/google/keep/note.ts:1) (DONE)
+[x] - src/features/keep/domain/compare.ts (move from src/google/keep/compare.ts:1) (DONE)
+[x] - src/features/keep/domain/merge.ts (move from src/google/keep/merge.ts) (DONE)
+[x] - src/features/keep/io/attachments.ts (move from src/google/keep/attachments.ts:1) (DONE)
+[x] - src/features/keep/sync.ts — orchestration split from src/google/keep/import.ts:1 (keeps pagination, progress reporting, persistence) (DONE)
+
+[x] - src/integrations: External systems (server + Google) (DONE)
+[x] - src/integrations/server/keepApi.ts — API calls split out from src/google/keep/import.ts:1 (fetchNotes*, parseResponse) (DONE)
+[x] - src/integrations/google/keepToken.ts (move from src/google/keep/token.ts:1) (DONE)
+[x] - src/integrations/google/drive/*.ts (move from src/google/drive/*) (DONE)
+
+[x] - src/services: Cross-cutting helpers (DONE)
+[x] - src/services/http.ts — wraps Obsidian requestUrl (apply to src/services/subscription.ts:1 and keep API) (DONE)
 [x] - src/services/subscription.ts:1 — use http.ts and unify error handling (DONE)
-- src/services/logger.ts — durable sync log write (used by app/logging.ts)
-- src/services/paths.ts — path helpers (normalizePath, save locations)
-- src/config: Keep as-is for tool configs; consider adding runtime config
-- src/config/index.ts — re-export KEEPSIDIAN_SERVER_URL (src/config.ts:1)
-- src/types: Keep domain types and d.ts; add barrels
+[x] - src/services/logger.ts — durable sync log write (used by app/logging.ts) (DONE)
+[x] - src/services/paths.ts — path helpers (normalizePath, save locations) (DONE)
+
+[x] - src/config: Keep as-is for tool configs; consider adding runtime config (DONE)
+[x] - src/config/index.ts — re-export KEEPSIDIAN_SERVER_URL (src/config.ts:1) (DONE)
+[x] - src/types: Keep domain types and d.ts; add barrels (DONE)
 [x] - src/types/index.ts — re-export settings, subscription, shared types (DONE)
-- src/schemas: Optional — typed runtime validation
-- src/schemas/keep.ts — Zod/Yup schemas for API responses (replaces ad‑hoc parseResponse)
+- src/schemas: typed runtime validation
+- src/schemas/keep.ts — Zod schemas for API responses (replaces ad‑hoc parseResponse)
 - src/test-utils: Jest helpers/fixtures (optional)
 - src/test-utils/fixtures/* — JSON fixtures for keep responses
 - src/test-utils/mocks/* — helpers beyond __mocks__/
@@ -81,7 +86,7 @@ Narrow interfaces over KeepSidianPlugin:
 
 ## Concrete File Targets
 
-- src/main.ts:1: Extract status bar + modal logic and logging into src/app/sync-ui.ts and src/app/logging.ts. (DONE)
+[x] - src/main.ts:1: Extract status bar + modal logic and logging into src/app/sync-ui.ts and src/app/logging.ts. (DONE)
 [x] - src/services/subscription.ts:1: Replace fetch with an http.ts wrapper built on requestUrl for consistency with Obsidian. (DONE)
 [x] - src/google/keep/import.ts:1: Move fetchNotes* to src/integrations/server/keepApi.ts, keep orchestration in src/features/keep/sync.ts. (DONE)
 [x] - src/google/keep/attachments.ts:1: Replace direct KeepSidianPlugin dependency with a minimal adapter interface argument. (DONE)
