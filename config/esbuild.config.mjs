@@ -43,8 +43,32 @@ function tsconfigPathsPlugin({ tsconfigPath }) {
           if (regex.test(args.path)) {
             const substituted = args.path.replace(regex, replacement);
             const base = baseUrl ? path.resolve(rootDir, baseUrl) : rootDir;
-            const resolved = path.resolve(base, substituted);
-            return { path: resolved };
+            const withoutExt = path.resolve(base, substituted);
+
+            // Try to resolve to an existing file by testing common extensions and index files
+            const tryCandidates = (p) => {
+              const exts = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+              const candidates = [p, ...exts.map((e) => p + e), ...exts.map((e) => path.join(p, "index" + e))];
+              for (const candidate of candidates) {
+                try {
+                  if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+                    return candidate;
+                  }
+                } catch {
+                  // ignore
+                }
+              }
+              return null;
+            };
+
+            const resolved = tryCandidates(withoutExt);
+            if (resolved) {
+              return { path: resolved };
+            }
+
+            // Fall back to returning the path without extension; this mirrors previous behavior
+            // but now only happens when no candidate file exists.
+            return { path: withoutExt };
           }
         }
         return null;
