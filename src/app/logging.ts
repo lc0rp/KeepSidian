@@ -1,4 +1,4 @@
-import type KeepSidianPlugin from '../main';
+import type KeepSidianPlugin from '@app/main';
 import { appendLog } from '../services/logger';
 import { normalizePathSafe } from '../services/paths';
 

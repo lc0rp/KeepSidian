@@ -1,17 +1,17 @@
 jest.mock("obsidian");
-jest.mock("../ui/modals/NoteImportOptionsModal", () => ({
+jest.mock("../../ui/modals/NoteImportOptionsModal", () => ({
 	NoteImportOptionsModal: jest.fn().mockImplementation(() => ({
 		open: jest.fn(),
 	})),
 }));
 
 import { Plugin, Notice } from "obsidian";
-import KeepSidianPlugin from "../main";
-import * as SyncModule from "../features/keep/sync";
-import { DEFAULT_SETTINGS } from "../types/keepsidian-plugin-settings";
-import { SubscriptionService } from "../services/subscription";
-import { NoteImportOptionsModal } from "../ui/modals/NoteImportOptionsModal";
-import { KeepSidianSettingsTab } from "../ui/settings/KeepSidianSettingsTab";
+import KeepSidianPlugin from "../../main";
+import * as SyncModule from "../../features/keep/sync";
+import { DEFAULT_SETTINGS } from "../../types/keepsidian-plugin-settings";
+import { SubscriptionService } from "../../services/subscription";
+import { NoteImportOptionsModal } from "../../ui/modals/NoteImportOptionsModal";
+import { KeepSidianSettingsTab } from "../../ui/settings/KeepSidianSettingsTab";
 
 describe("KeepSidianPlugin", () => {
 	let plugin: KeepSidianPlugin;

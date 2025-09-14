@@ -1,6 +1,9 @@
 import esbuild from "esbuild";
 import process from "process";
 import builtins from "builtin-modules";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const banner =
 `/*
@@ -10,6 +13,49 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = (process.argv[2] === "production");
+
+// Minimal tsconfig-paths resolver plugin (no external deps)
+function tsconfigPathsPlugin({ tsconfigPath }) {
+  const name = "tsconfig-paths";
+  let mappings = [];
+  let baseUrl = "";
+  return {
+    name,
+    setup(build) {
+      try {
+        const raw = fs.readFileSync(tsconfigPath, "utf8");
+        const json = JSON.parse(raw);
+        const paths = (json.compilerOptions && json.compilerOptions.paths) || {};
+        baseUrl = (json.compilerOptions && json.compilerOptions.baseUrl) || "";
+        for (const [alias, targets] of Object.entries(paths)) {
+          // Only first target is used for bundling
+          const pattern = String(alias).replace(/\*/g, "(.+)");
+          const regex = new RegExp(`^${pattern}$`);
+          const target = String((targets && targets[0]) || "");
+          const replacement = target.replace(/\*/g, "$1");
+          mappings.push({ regex, replacement });
+        }
+      } catch (e) {
+        // no-op; build will continue without aliasing
+      }
+      build.onResolve({ filter: /.*/ }, (args) => {
+        for (const { regex, replacement } of mappings) {
+          if (regex.test(args.path)) {
+            const substituted = args.path.replace(regex, replacement);
+            const base = baseUrl ? path.resolve(rootDir, baseUrl) : rootDir;
+            const resolved = path.resolve(base, substituted);
+            return { path: resolved };
+          }
+        }
+        return null;
+      });
+    },
+  };
+}
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, "..");
 
 const context = await esbuild.context({
 	banner: {
@@ -37,7 +83,10 @@ const context = await esbuild.context({
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
-	outfile: "main.js",
+    outfile: "main.js",
+    plugins: [
+        tsconfigPathsPlugin({ tsconfigPath: path.resolve(rootDir, "tsconfig.json") }),
+    ],
 });
 
 if (prod) {

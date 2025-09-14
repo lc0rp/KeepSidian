@@ -1,0 +1,11 @@
+{
+  "directory": [],
+  "exclude": [
+    ".*/tests/.*",
+    "__mocks__/.*"
+  ],
+  "delete": false,
+  "quoteCharacter": "'",
+  "structure": "flat",
+  "barrelName": "index.ts"
+}

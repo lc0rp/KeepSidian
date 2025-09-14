@@ -42,6 +42,21 @@ export default [{
             args: "none",
         }],
 
+        // Disallow importing runtime values from type-only packages.
+        // Allows: `import type {...} from '@types/...';`
+        // Disallows: `import {...} from '@types/...';`
+        // Use the TS-aware variant so we can allow type-only imports through restrictions
+        "no-restricted-imports": "off",
+        "@typescript-eslint/no-restricted-imports": ["error", {
+            allowTypeImports: true,
+            patterns: [
+                {
+                    group: ["@types/*"],
+                    message: "Only import types from '@types/*' using `import type`. Do not import runtime values.",
+                },
+            ],
+        }],
+
         "@typescript-eslint/ban-ts-comment": "off",
         "no-prototype-builtins": "off",
         "@typescript-eslint/no-empty-function": "off",

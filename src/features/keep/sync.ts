@@ -1,5 +1,5 @@
 import { Notice } from "obsidian";
-import type KeepSidianPlugin from "../../main";
+import type KeepSidianPlugin from "@app/main";
 import {
 	normalizeNote,
 	PreNormalizedNote,
@@ -9,25 +9,15 @@ import { handleDuplicateNotes } from "./domain/compare";
 import { mergeNoteBodies } from "./domain/merge";
 // Import via legacy google path so tests can spy on this module
 import { processAttachments } from "../keep/io/attachments";
-import type { NoteImportOptions } from "../../ui/modals/NoteImportOptionsModal";
+import type { NoteImportOptions } from "@ui/modals/NoteImportOptionsModal";
 import {
 	CONFLICT_FILE_SUFFIX,
 	MEDIA_FOLDER_NAME,
 	FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
 } from "./constants";
-import {
-	buildNotePath,
-	ensureFolder,
-	mediaFolderPath,
-} from "../../services/paths";
-import type {
-	GoogleKeepImportResponse,
-	PremiumFeatureFlags,
-} from "../../integrations/server/keepApi";
-import {
-	fetchNotes as apiFetchNotes,
-	fetchNotesWithPremiumFeatures as apiFetchNotesWithPremium,
-} from "../../integrations/server/keepApi";
+import { buildNotePath, ensureFolder, mediaFolderPath } from "@services/paths";
+import type { GoogleKeepImportResponse, PremiumFeatureFlags } from "@integrations/server/keepApi";
+import { fetchNotes as apiFetchNotes, fetchNotesWithPremiumFeatures as apiFetchNotesWithPremium } from "@integrations/server/keepApi";
 
 export interface SyncCallbacks {
 	setTotalNotes?: (total: number) => void;

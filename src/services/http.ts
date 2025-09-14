@@ -1,4 +1,5 @@
 import { requestUrl } from 'obsidian';
+import { NetworkError, ParseError } from '@services/errors';
 
 export interface HttpOptions {
   headers?: Record<string, string>;
@@ -22,7 +23,7 @@ async function parseJsonDefensively<T>(response: any): Promise<T> {
     const text = (response as any).text ?? '';
     return text ? (JSON.parse(text) as T) : (undefined as unknown as T);
   } catch (e) {
-    throw new Error('Failed to parse JSON response');
+    throw new ParseError('Failed to parse JSON response', e);
   }
 }
 
@@ -53,7 +54,7 @@ export async function httpRequest<T = unknown>(url: string, options: HttpRequest
         errMsg = errJson.error || errJson.message;
       }
     } catch {}
-    throw new Error(errMsg);
+    throw new NetworkError(errMsg, status);
   }
 
   return await parseJsonDefensively<T>(response);
@@ -94,7 +95,7 @@ export async function httpGetArrayBuffer(url: string, headers?: Record<string, s
           }
         }
       } catch {}
-      throw new Error(errMsg);
+      throw new NetworkError(errMsg, status);
     }
   }
   const maybe = (response as any).arrayBuffer;

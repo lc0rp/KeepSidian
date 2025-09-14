@@ -1,3 +1,3 @@
-export * from "./note";
-export * from "./compare";
-export * from "./merge";
+export * from './note';
+export * from './compare';
+export * from './merge';

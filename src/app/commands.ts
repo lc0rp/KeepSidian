@@ -1,4 +1,4 @@
-import type KeepSidianPlugin from '../main';
+import type KeepSidianPlugin from '@app/main';
 
 export function registerRibbonIcon(plugin: KeepSidianPlugin) {
   plugin.addRibbonIcon(
@@ -22,4 +22,3 @@ export function registerRibbonAndCommands(plugin: KeepSidianPlugin) {
   registerRibbonIcon(plugin);
   registerCommands(plugin);
 }
-

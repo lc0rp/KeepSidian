@@ -10,6 +10,10 @@ This file provides guidance to LLMS/autonomous agents when working with code in 
 - `npm run test` - Run jest test suite
 - `npm run coverage` - Generate test coverage report
 
+### Barrels
+- Barrels are auto-generated via `barrelsby`.
+- `npm run barrels` updates barrels; it also runs automatically in `prebuild`.
+
 ### Code Quality, Linting & Fixes
 
 - TypeScript + ESLint; Markdown lint via markdownlint.
@@ -19,6 +23,9 @@ This file provides guidance to LLMS/autonomous agents when working with code in 
 - `npm run lint:md` - Check markdown files with markdownlint
 - `npm run lint:md:fix` - Auto-fix markdown formatting issues
 - `npm run lint:fix` - Fix both TypeScript and markdown issues
+
+Restricted imports:
+- `@typescript-eslint/no-restricted-imports` blocks runtime imports from `@types/*`; use `import type` instead.
 
 ### Testing
 
@@ -65,6 +72,7 @@ This is an Obsidian plugin built with TypeScript that integrates Google Keep not
 - `src/services/http.ts`: Wrapper around Obsidian `requestUrl` used by integrations and services.
 - `src/services/subscription.ts`: Subscription cache and status checks; used to gate premium features.
 - `src/services/paths.ts`: Path helpers (normalize/build save locations; media folder path).
+- `src/services/errors.ts`: Error taxonomy for network/parse/IO and helpers.
 - `src/types/*`: Settings, subscription, and helper type definitions (barrels available).
 - `src/config/index.ts`: Server base URL (`KEEPSIDIAN_SERVER_URL`). Must not end with a trailing slash.
 
@@ -101,12 +109,16 @@ This is an Obsidian plugin built with TypeScript that integrates Google Keep not
 
 #### Implementation Tips for Agents
 - Prefer Obsidian APIs via `src/services/http.ts` (wraps `requestUrl`) and `vault.adapter` for IO.
+- Use `@schemas/*` for runtime validation of external payloads.
 - Always normalize composed vault paths; avoid unsafe filename characters (`src/services/paths.ts`).
 - Maintain frontmatter keys used for logic: `GoogleKeepCreatedDate`, `GoogleKeepUpdatedDate`, `KeepSidianLastSyncedDate`.
 - Use `handleDuplicateNotes` before write; only merge when merge utility returns `hasConflict === false`.
 - For progress: use `setTotalNotes(plugin, ...)` and `reportSyncProgress(plugin)` from `src/app/sync-ui.ts`.
 - Catch and surface errors with `Notice` and console logging; avoid throwing unhandled errors from UI callbacks.
 - Keep network contracts: headers and endpoints live in `src/integrations/server/keepApi.ts` and token flow in `src/integrations/google/keepToken.ts`.
+
+### Path Aliases
+- Use: `@app/*`, `@ui/*`, `@features/*`, `@integrations/*`, `@services/*`, `@types/*`, `@schemas/*`.
 
 #### Common Tasks
 

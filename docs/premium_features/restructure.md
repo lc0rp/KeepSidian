@@ -11,8 +11,8 @@ Here’s a focused, “best practice” upgrade path for your repo structure. Ov
 
 ## Proposed Structure
 
-- src/app: Plugin entry + orchestration
-- src/app/main.ts (current src/main.ts:1) — keep as entry, slimmed down
+[x] - src/app: Plugin entry + orchestration (DONE)
+[x] - src/app/main.ts (moved from src/main.ts:1) — kept as entry via stub re-export (DONE)
 [x] - src/app/commands.ts — commands, ribbon wiring (DONE)
 [x] - src/app/sync-ui.ts — status bar + modal orchestration currently in src/main.ts:1 (DONE)
 [x] - src/app/logging.ts — extracted from src/main.ts:220 (DONE)
@@ -45,11 +45,11 @@ Here’s a focused, “best practice” upgrade path for your repo structure. Ov
 [x] - src/config/index.ts — re-export KEEPSIDIAN_SERVER_URL (src/config.ts:1) (DONE)
 [x] - src/types: Keep domain types and d.ts; add barrels (DONE)
 [x] - src/types/index.ts — re-export settings, subscription, shared types (DONE)
-- src/schemas: typed runtime validation
-- src/schemas/keep.ts — Zod schemas for API responses (replaces ad‑hoc parseResponse)
-- src/test-utils: Jest helpers/fixtures (optional)
-- src/test-utils/fixtures/* — JSON fixtures for keep responses
-- src/test-utils/mocks/* — helpers beyond __mocks__/
+[x] - src/schemas: typed runtime validation (DONE)
+[x] - src/schemas/keep.ts — Zod schemas for API responses (replaces ad‑hoc parseResponse) (DONE)
+[x] - src/test-utils: Jest helpers/fixtures (optional) (DONE)
+[x] - src/test-utils/fixtures/*: JSON or TS fixtures for keep responses (DONE)
+[x] - src/test-utils/mocks/*: helpers beyond __mocks__/ (DONE)
 
 Note on Obsidian CSS: keeping styles.css at repo root is normal for plugins; don’t move unless you add a build step to output to root.
 
@@ -77,12 +77,12 @@ Narrow interfaces over KeepSidianPlugin:
 
 ## Bigger Wins (Optional)
 
-- Runtime validation: Replace parseResponse in src/google/keep/import.ts:1 with schemas (src/schemas/keep.ts) for safer API parsing and better testability.
-- Path aliases: You already use baseUrl: "src" in tsconfig.json:1; consider explicit aliases:
-  Example paths: @app/*, @ui/*, @features/*, @integrations/*, @services/*, @types/*.
-- Update jest.config.ts:1 moduleNameMapper to match.
-- Error taxonomy: Add src/services/errors.ts for typed errors (network, parse, IO) and unify notices/messages.
-- Docs alignment: Create docs/architecture.md summarizing the layered structure (complementing AGENTS.md), and docs/contributing.md for code org/naming conventions.
+[x] - Runtime validation: Replace parseResponse in src/google/keep/import.ts:1 with schemas (src/schemas/keep.ts) for safer API parsing and better testability. (DONE)
+[x] - Path aliases: You already use baseUrl: "src" in tsconfig.json:1; consider explicit aliases:
+  Example paths: @app/*, @ui/*, @features/*, @integrations/*, @services/*, @types/*, @schemas/*, @test-utils/* (DONE)
+[x] - Update jest.config.ts:1 moduleNameMapper to match. (DONE)
+[x] - Error taxonomy: Add src/services/errors.ts for typed errors (network, parse, IO) and unify notices/messages. (DONE)
+[x] - Docs alignment: Create docs/architecture.md summarizing the layered structure (complementing AGENTS.md), and docs/contributing.md for code org/naming conventions. (DONE)
 
 ## Concrete File Targets
 
@@ -90,7 +90,7 @@ Narrow interfaces over KeepSidianPlugin:
 [x] - src/services/subscription.ts:1: Replace fetch with an http.ts wrapper built on requestUrl for consistency with Obsidian. (DONE)
 [x] - src/google/keep/import.ts:1: Move fetchNotes* to src/integrations/server/keepApi.ts, keep orchestration in src/features/keep/sync.ts. (DONE)
 [x] - src/google/keep/attachments.ts:1: Replace direct KeepSidianPlugin dependency with a minimal adapter interface argument. (DONE)
-- jest.config.ts:1: Update moduleNameMapper after alias/barrel changes.
+[x] - jest.config.ts:1: Update moduleNameMapper after alias/barrel changes. (DONE)
 
 ## Why this helps
 

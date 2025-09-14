@@ -1,6 +1,16 @@
 {
   "compilerOptions": {
     "baseUrl": "src",
+    "paths": {
+      "@app/*": ["app/*"],
+      "@ui/*": ["ui/*"],
+      "@features/*": ["features/*"],
+      "@integrations/*": ["integrations/*"],
+      "@services/*": ["services/*"],
+      "@types/*": ["types/*"],
+      "@schemas/*": ["schemas/*"],
+      "@test-utils/*": ["test-utils/*"]
+    },
     "inlineSourceMap": true,
     "inlineSources": true,
     "module": "ESNext",

@@ -1,6 +1,6 @@
 import { Notice } from "obsidian";
 import type { SyncProgressModal } from "../ui/modals/SyncProgressModal";
-import type KeepSidianPlugin from "../main";
+import type KeepSidianPlugin from "@app/main";
 
 export function startSyncUI(plugin: KeepSidianPlugin) {
 	plugin.processedNotes = 0;
