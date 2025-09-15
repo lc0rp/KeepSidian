@@ -192,17 +192,19 @@ export async function processAndSaveNote(plugin: KeepSidianPlugin, note: PreNorm
     // Check if the note file already exists
     const duplicateNotesAction = await handleDuplicateNotes(noteFilePath, normalizedNote, plugin.app);
     let mdFrontMatterDict = normalizedNote.frontmatterDict;
+    let mdFrontMatter = normalizedNote.frontmatter;
     let bodyToWrite = normalizedNote.body;
 
     if (duplicateNotesAction === 'skip') {
         return;
     } else if (duplicateNotesAction === 'rename') {
         const existingContent = await plugin.app.vault.adapter.read(noteFilePath);
-        const [, existingBody, existingFrontMatterDict] = extractFrontmatter(existingContent);
+        const [existingFrontMatter, existingBody, existingFrontMatterDict] = extractFrontmatter(existingContent);
         const { merged, hasConflict } = mergeNoteBodies(existingBody, bodyToWrite);
         if (!hasConflict) {
             bodyToWrite = merged;
             mdFrontMatterDict = existingFrontMatterDict;
+            mdFrontMatter = existingFrontMatter;
         } else {
             noteFilePath = noteFilePath.replace(/\.md$/, '');
             noteFilePath = `${noteFilePath}-conflict-${lastSyncedDate}.md`;
@@ -210,7 +212,16 @@ export async function processAndSaveNote(plugin: KeepSidianPlugin, note: PreNorm
     }
 
     mdFrontMatterDict.KeepSidianLastSyncedDate = lastSyncedDate;
-    const mdFrontMatter = Object.entries(mdFrontMatterDict).map(([key, value]) => `${key}: ${value}`).join('\n');
+    if (mdFrontMatter) {
+        if (mdFrontMatter.includes('KeepSidianLastSyncedDate:')) {
+            mdFrontMatter = mdFrontMatter.replace(/KeepSidianLastSyncedDate:\s*[^\n]*/, `KeepSidianLastSyncedDate: ${lastSyncedDate}`);
+        } else {
+            mdFrontMatter = `${mdFrontMatter}\nKeepSidianLastSyncedDate: ${lastSyncedDate}`;
+        }
+    } else {
+        const mdFrontMatterEntries = Object.entries(mdFrontMatterDict).map(([key, value]) => `${key}: ${value}`);
+        mdFrontMatter = mdFrontMatterEntries.join('\n');
+    }
     const mdContentWithSyncDate = `---\n${mdFrontMatter}\n---\n${bodyToWrite}`;
 
     await plugin.app.vault.adapter.write(noteFilePath, mdContentWithSyncDate);
