@@ -22,7 +22,11 @@ When a sync is running you'll see a persistent toast and a status bar indicator 
 
 ## Auto sync
 
-Enable automatic syncing on a daily schedule by default. Subscribers can customize the interval in hours. Each sync writes details to a `_keepsidian.log` file in the target directory.
+Enable automatic syncing on a daily schedule by default. Subscribers can customize the interval in hours. Each sync writes details to a `_keepsidian_sync_log.md` file in the target directory as Markdown list items (timestamped, human-readable).
+
+Notes about save location and logging:
+- If the save location cannot be created (e.g., permissions or invalid name), an error is shown and the sync does not start.
+- If the log file cannot be created or written, an error is shown. The plugin validates both paths before syncing.
 
 ## Features
 
@@ -75,7 +79,8 @@ After installation, go to "Settings > Community Plugins > KeepSidian" in Obsidia
 ### Configure
 
 - Enter your Google Keep email.
-- Enter the folder to sync to.
+- Enter the folder to sync to (relative to your vault). The folder is created automatically if it doesn't exist.
+- Optionally change the sync log file name. The log file is created automatically inside the save location and always saved as a Markdown file (`.md`).
 
 ### Retrieve a Google Keep token
 

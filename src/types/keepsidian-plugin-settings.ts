@@ -15,7 +15,6 @@ export interface KeepSidianPluginSettings {
 	gdriveSaveLocation?: string;
 	autoSyncEnabled: boolean;
 	autoSyncIntervalHours: number;
-	syncLogPath: string;
 }
 
 export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
@@ -29,5 +28,4 @@ export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
 	gdriveSaveLocation: undefined,
 	autoSyncEnabled: false,
 	autoSyncIntervalHours: 24,
-	syncLogPath: "_keepsidian.log",
 };

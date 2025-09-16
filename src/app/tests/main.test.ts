@@ -88,6 +88,19 @@ describe("KeepSidianPlugin", () => {
 				.spyOn(SyncModule, "importGoogleKeepNotes")
 				.mockResolvedValue(0);
 
+			// Provide minimal vault adapter to allow precondition checks
+			plugin.app = {
+				workspace: {},
+				vault: {
+					adapter: {
+						exists: jest.fn().mockResolvedValue(true),
+						read: jest.fn().mockResolvedValue(""),
+						write: jest.fn().mockResolvedValue(undefined),
+					},
+					createFolder: jest.fn().mockResolvedValue(undefined),
+				},
+			} as any;
+
 			await plugin.onload();
 
 			await plugin.importNotes();
@@ -157,12 +170,10 @@ describe("KeepSidianPlugin", () => {
 		});
 
 		it("should start auto sync when enabled", async () => {
-			plugin.loadData = jest
-				.fn()
-				.mockResolvedValue({
-					autoSyncEnabled: true,
-					autoSyncIntervalHours: 1,
-				});
+			plugin.loadData = jest.fn().mockResolvedValue({
+				autoSyncEnabled: true,
+				autoSyncIntervalHours: 1,
+			});
 			const importSpy = jest
 				.spyOn(plugin, "importNotes")
 				.mockResolvedValue();
@@ -179,7 +190,7 @@ describe("KeepSidianPlugin", () => {
 			plugin.app = {
 				vault: {
 					adapter: {
-						exists: jest.fn().mockResolvedValue(false),
+						exists: jest.fn().mockResolvedValue(true),
 						read: jest.fn().mockResolvedValue(""),
 						write: jest.fn().mockResolvedValue(undefined),
 					},
@@ -192,6 +203,231 @@ describe("KeepSidianPlugin", () => {
 			await plugin.importNotes();
 			expect(plugin.app.vault.adapter.write).toHaveBeenCalled();
 			importMock.mockRestore();
+		});
+	});
+
+	describe("path preparation and logging preconditions", () => {
+		it("creates saveLocation and log file before syncing (basic import)", async () => {
+			plugin.subscriptionService.isSubscriptionActive = jest
+				.fn()
+				.mockResolvedValue(false);
+			plugin.settings = { ...DEFAULT_SETTINGS };
+			const saveLocation = plugin.settings.saveLocation;
+			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
+				.toISOString()
+				.slice(0, 10)}.md`;
+
+			const existsMock = jest.fn(async (p: string) => false);
+			const createFolderMock = jest.fn().mockResolvedValue(undefined);
+			const writeMock = jest.fn().mockResolvedValue(undefined);
+
+			plugin.app = {
+				vault: {
+					adapter: {
+						exists: existsMock,
+						read: jest.fn().mockResolvedValue(""),
+						write: writeMock,
+					},
+					createFolder: createFolderMock,
+				},
+			} as any;
+
+			jest.spyOn(SyncModule, "importGoogleKeepNotes").mockResolvedValue(
+				0
+			);
+			await plugin.importNotes();
+
+			expect(createFolderMock).toHaveBeenCalledWith(saveLocation);
+			expect(writeMock).toHaveBeenCalledWith(logPath, expect.any(String));
+		});
+
+		it("shows error and aborts when saveLocation cannot be created", async () => {
+			plugin.subscriptionService.isSubscriptionActive = jest
+				.fn()
+				.mockResolvedValue(false);
+			plugin.settings = { ...DEFAULT_SETTINGS };
+			const saveLocation = plugin.settings.saveLocation;
+
+			const notice = (require("obsidian") as any).Notice as jest.Mock;
+
+			plugin.app = {
+				vault: {
+					adapter: { exists: jest.fn().mockResolvedValue(false) },
+					createFolder: jest
+						.fn()
+						.mockRejectedValue(new Error("perm denied")),
+				},
+			} as any;
+
+			const importSpy = jest
+				.spyOn(SyncModule, "importGoogleKeepNotes")
+				.mockResolvedValue(0);
+			await plugin.importNotes();
+
+			expect(notice).toHaveBeenCalledWith(
+				`KeepSidian: Failed to create save location: ${saveLocation}`
+			);
+			expect(importSpy).not.toHaveBeenCalled();
+		});
+
+		it("shows error and aborts when log file cannot be prepared", async () => {
+			plugin.subscriptionService.isSubscriptionActive = jest
+				.fn()
+				.mockResolvedValue(false);
+			plugin.settings = { ...DEFAULT_SETTINGS };
+			const saveLocation = plugin.settings.saveLocation;
+			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
+				.toISOString()
+				.slice(0, 10)}.md`;
+
+			const notice = (require("obsidian") as any).Notice as jest.Mock;
+
+			plugin.app = {
+				vault: {
+					adapter: {
+						exists: jest.fn(
+							async (p: string) => p === saveLocation
+						),
+						read: jest.fn().mockResolvedValue(""),
+						write: jest
+							.fn()
+							.mockRejectedValue(new Error("write failed")),
+					},
+					createFolder: jest.fn().mockResolvedValue(undefined),
+				},
+			} as any;
+
+			const importSpy = jest
+				.spyOn(SyncModule, "importGoogleKeepNotes")
+				.mockResolvedValue(0);
+			await plugin.importNotes();
+
+			expect(notice).toHaveBeenCalledWith(
+				`KeepSidian: Failed to create log file: ${logPath}`
+			);
+			expect(importSpy).not.toHaveBeenCalled();
+		});
+
+		it("shows an error Notice if log append fails during sync, but does not crash", async () => {
+			plugin.subscriptionService.isSubscriptionActive = jest
+				.fn()
+				.mockResolvedValue(false);
+			plugin.settings = { ...DEFAULT_SETTINGS };
+			const saveLocation = plugin.settings.saveLocation;
+			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
+				.toISOString()
+				.slice(0, 10)}.md`;
+
+			const exists = jest.fn(
+				async (p: string) => p === saveLocation || p === logPath
+			);
+			const read = jest.fn().mockResolvedValue("");
+			const write = jest
+				.fn()
+				.mockImplementation(async (_p: string, _c: string) => {
+					// Fail only on non-empty writes (append during sync)
+					if (_c && _c.length > 0) {
+						throw new Error("append failed");
+					}
+				});
+
+			plugin.app = {
+				vault: {
+					adapter: { exists, read, write },
+					createFolder: jest.fn().mockResolvedValue(undefined),
+				},
+			} as any;
+
+			jest.spyOn(SyncModule, "importGoogleKeepNotes").mockResolvedValue(
+				0
+			);
+
+			const notice = (require("obsidian") as any).Notice as jest.Mock;
+			(require("obsidian") as any).normalizePath = (p: string) => p;
+			await plugin.importNotes();
+
+			expect(notice).toHaveBeenCalledWith(
+				"KeepSidian: Failed to write sync log."
+			);
+		});
+
+		it("logs started and ended entries for manual sync", async () => {
+			plugin.subscriptionService.isSubscriptionActive = jest
+				.fn()
+				.mockResolvedValue(false);
+			plugin.settings = { ...DEFAULT_SETTINGS };
+			const saveLocation = plugin.settings.saveLocation;
+			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
+				.toISOString()
+				.slice(0, 10)}.md`;
+
+			const exists = jest.fn(
+				async (p: string) => p === saveLocation || p === logPath
+			);
+			const read = jest.fn().mockResolvedValue("");
+			const write = jest.fn().mockResolvedValue(undefined);
+
+			plugin.app = {
+				vault: {
+					adapter: { exists, read, write },
+					createFolder: jest.fn().mockResolvedValue(undefined),
+				},
+			} as any;
+
+			jest.spyOn(SyncModule, "importGoogleKeepNotes").mockResolvedValue(
+				0
+			);
+			await plugin.importNotes(false);
+
+			const writes = (write as jest.Mock).mock.calls.map((c) => c[1]);
+			expect(
+				writes.some((c: string) => c.includes("Manual sync started"))
+			).toBe(true);
+			expect(
+				writes.some((c: string) => c.includes("Manual sync ended"))
+			).toBe(true);
+			// Lines are markdown list items
+			const startedLine = writes.find((c: string) =>
+				c.includes("Manual sync started")
+			) as string;
+			expect(startedLine.trim().startsWith("- ")).toBe(true);
+		});
+
+		it("logs started and ended entries for auto sync", async () => {
+			plugin.subscriptionService.isSubscriptionActive = jest
+				.fn()
+				.mockResolvedValue(false);
+			plugin.settings = { ...DEFAULT_SETTINGS };
+			const saveLocation = plugin.settings.saveLocation;
+			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
+				.toISOString()
+				.slice(0, 10)}.md`;
+
+			const exists = jest.fn(
+				async (p: string) => p === saveLocation || p === logPath
+			);
+			const read = jest.fn().mockResolvedValue("");
+			const write = jest.fn().mockResolvedValue(undefined);
+
+			plugin.app = {
+				vault: {
+					adapter: { exists, read, write },
+					createFolder: jest.fn().mockResolvedValue(undefined),
+				},
+			} as any;
+
+			jest.spyOn(SyncModule, "importGoogleKeepNotes").mockResolvedValue(
+				0
+			);
+			await plugin.importNotes(true);
+
+			const writes = (write as jest.Mock).mock.calls.map((c) => c[1]);
+			expect(
+				writes.some((c: string) => c.includes("Auto sync started"))
+			).toBe(true);
+			expect(
+				writes.some((c: string) => c.includes("Auto sync ended"))
+			).toBe(true);
 		});
 	});
 

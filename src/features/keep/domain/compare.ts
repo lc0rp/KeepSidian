@@ -75,7 +75,7 @@ async function handleDuplicateNotes(
 	saveLocation: string,
 	incomingNote: NormalizedNote,
 	app: App
-): Promise<"skip" | "rename" | "overwrite"> {
+): Promise<"skip" | "merge" | "overwrite"> {
 	const noteFilePath = `${saveLocation}/${incomingNote.title}.md`;
 	const fileExists = await app.vault.adapter.exists(noteFilePath);
 
@@ -96,7 +96,7 @@ async function handleDuplicateNotes(
 function checkForDuplicateData(
 	incomingFile: UpdatedFileInfo,
 	existingFile: ExistingFileInfo
-): "skip" | "rename" | "overwrite" {
+): "skip" | "merge" | "overwrite" {
 	const currentDate = new Date();
 
 	// Normalize dates for incoming file
@@ -121,7 +121,7 @@ function checkForDuplicateData(
 		const existingModified = existingUpdatedDate > lastSyncedDate;
 
 		if (incomingModified && existingModified) {
-			return "rename"; // Both sides have been edited since last sync, so we rename
+			return "merge"; // Both sides have been edited since last sync, so we attempt to merge
 		}
 
 		if (incomingModified && !existingModified) {
@@ -129,7 +129,7 @@ function checkForDuplicateData(
 		}
 
 		if (!incomingModified && existingModified) {
-			return "rename"; // Only existing file has been modified since last sync
+			return "merge"; // Only existing file has been modified since last sync
 		}
 
 		// If neither file has been modified since last sync (shouldn't happen if contents differ, but just in case)
@@ -141,13 +141,13 @@ function checkForDuplicateData(
 		if (incomingUpdatedDate > existingUpdatedDate) {
 			return "overwrite";
 		} else if (incomingUpdatedDate < existingUpdatedDate) {
-			return "rename";
+			return "merge";
 		} else {
-			// If dates are equal, we can't determine which is newer, so we rename to be safe
-			return "rename";
+			// If dates are equal, we can't determine which is newer, so we attempt to merge
+			return "merge";
 		}
 	} else {
-		return "rename";
+		return "merge";
 	}
 }
 

@@ -177,7 +177,11 @@ describe("Google Keep Import Functions", () => {
 			expect(mockPlugin.app.vault.adapter.exists).toHaveBeenCalledWith(
 				"Test Folder/media"
 			);
-			expect(mockPlugin.app.vault.createFolder).toHaveBeenCalledTimes(2);
+			// saveLocation and media folder; logging may also ensure parent exists
+			expect(
+				(mockPlugin.app.vault.createFolder as unknown as any).mock.calls
+					.length
+			).toBeGreaterThanOrEqual(2);
 		});
 
 		it("should process each note", async () => {
@@ -235,10 +239,9 @@ describe("Google Keep Import Functions", () => {
 				mockPlugin.settings.saveLocation
 			);
 
-			const expectedFilePath = `${mockPlugin.settings.saveLocation}/${note.title}.md`;
 			expect(noteModule.normalizeNote).toHaveBeenCalledWith(note);
 			expect(compareModule.handleDuplicateNotes).toHaveBeenCalledWith(
-				expectedFilePath,
+				mockPlugin.settings.saveLocation,
 				normalizedNote,
 				mockPlugin.app
 			);
@@ -259,10 +262,16 @@ describe("Google Keep Import Functions", () => {
 				mockPlugin.settings.saveLocation
 			);
 
-			expect(mockPlugin.app.vault.adapter.write).not.toHaveBeenCalled();
+			const expectedNotePath = `${mockPlugin.settings.saveLocation}/${note.title}.md`;
+			// No write to note file when skipped; logging may still write to log file
+			expect(
+				(
+					mockPlugin.app.vault.adapter.write as jest.Mock
+				).mock.calls.some((c) => c[0] === expectedNotePath)
+			).toBe(false);
 		});
 
-		it("should merge note file if duplicate action is rename and merge succeeds", async () => {
+		it("should merge note file if duplicate action is merge and merge succeeds", async () => {
 			const existingContent = `---\nExisting: true\n---\nLine 1`;
 			const incomingNote: noteModule.PreNormalizedNote = {
 				title: "Note 1",
@@ -279,7 +288,7 @@ describe("Google Keep Import Functions", () => {
 				incomingNormalized
 			);
 			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue(
-				"rename"
+				"merge"
 			);
 			jest.spyOn(mockPlugin.app.vault.adapter, "read").mockResolvedValue(
 				existingContent
@@ -322,7 +331,7 @@ describe("Google Keep Import Functions", () => {
 				incomingNormalized
 			);
 			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue(
-				"rename"
+				"merge"
 			);
 			jest.spyOn(mockPlugin.app.vault.adapter, "read").mockResolvedValue(
 				existingContent

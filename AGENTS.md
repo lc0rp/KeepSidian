@@ -89,7 +89,7 @@ This is an Obsidian plugin built with TypeScript that integrates Google Keep not
   - Persist frontmatter including `KeepSidianLastSyncedDate` and body.
   - Download attachments into `<saveLocation>/media` via `io/attachments.ts`.
   - Report progress back to the plugin UI via `reportSyncProgress(plugin)`.
-- Logging: `logSync(plugin, message)` appends `[ISO_TIMESTAMP] <message>` into `<saveLocation>/<syncLogPath>`.
+- Logging: `logSync(plugin, message)` appends `- HH:MM <message>` into `<saveLocation>/_KeepSidianLogs/YYYY-MM-DD.md`.
 
 #### UI/UX Conventions
 

@@ -20,6 +20,13 @@ export function normalizePathSafe(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+/g, '/');
 }
 
+export function dirnameSafe(p: string): string {
+  const path = normalizePathSafe(p);
+  const idx = path.lastIndexOf('/');
+  if (idx <= 0) return '';
+  return path.slice(0, idx);
+}
+
 export function buildNotePath(saveLocation: string, noteTitle: string): string {
   return normalizePathSafe(`${saveLocation}/${noteTitle}.md`);
 }
@@ -37,5 +44,21 @@ export async function ensureFolder(app: AppLike, folderPath: string): Promise<vo
   const path = normalizePathSafe(folderPath);
   if (!(await app.vault.adapter.exists(path))) {
     await app.vault.createFolder(path);
+  }
+}
+
+export async function ensureParentFolderForFile(app: AppLike, filePath: string): Promise<void> {
+  const parent = dirnameSafe(filePath);
+  if (parent) {
+    await ensureFolder(app, parent);
+  }
+}
+
+export async function ensureFile(app: AppLike, filePath: string): Promise<void> {
+  const normalized = normalizePathSafe(filePath);
+  await ensureParentFolderForFile(app, normalized);
+  const exists = await (app as any).vault.adapter.exists(normalized);
+  if (!exists) {
+    await (app as any).vault.adapter.write(normalized, '');
   }
 }

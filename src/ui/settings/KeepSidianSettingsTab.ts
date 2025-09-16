@@ -121,28 +121,30 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		// If the text doesn't contain 'oauth2_4', we don't prevent the default paste behavior
 	}
 
-  private async handleRetrieveToken(): Promise<void> {
-    if (
-      !this.plugin.settings.email ||
-      !this.isValidEmail(this.plugin.settings.email)
-    ) {
-      new Notice(
-        "Please enter a valid email address before retrieving the token."
-      );
-      return;
-    }
-    // Ensure the webview exists if display() wasn't called yet in this lifecycle
-    if (!this.retrieveTokenWebView) {
-      this.createRetrieveTokenWebView(this.containerEl);
-    }
-    await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView);
-    this.display();
-  }
+	private async handleRetrieveToken(): Promise<void> {
+		if (
+			!this.plugin.settings.email ||
+			!this.isValidEmail(this.plugin.settings.email)
+		) {
+			new Notice(
+				"Please enter a valid email address before retrieving the token."
+			);
+			return;
+		}
+		// Ensure the webview exists if display() wasn't called yet in this lifecycle
+		if (!this.retrieveTokenWebView) {
+			this.createRetrieveTokenWebView(this.containerEl);
+		}
+		await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView);
+		this.display();
+	}
 
 	private addSaveLocationSetting(containerEl: HTMLElement): void {
 		new Setting(containerEl)
 			.setName("Save location")
-			.setDesc("Where to save imported notes (relative to vault folder).")
+			.setDesc(
+				"Where to save imported notes (relative to vault). Will be created if it doesn't exist."
+			)
 			.addText((text) =>
 				text
 					.setPlaceholder("KeepSidian")
@@ -174,21 +176,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 					})
 			);
 
-		new Setting(containerEl)
-			.setName("Sync log file")
-			.setDesc(
-				"Log file name stored in KeepSidian save location directory."
-			)
-			.addText((text) =>
-				text
-					.setPlaceholder("_keepsidian.log")
-					.setValue(this.plugin.settings.syncLogPath)
-					.onChange(async (value) => {
-						this.plugin.settings.syncLogPath = value;
-						await this.plugin.saveSettings();
-					})
-			);
-
+		new Setting(containerEl);
 		const isSubscribed =
 			await this.plugin.subscriptionService.isSubscriptionActive();
 

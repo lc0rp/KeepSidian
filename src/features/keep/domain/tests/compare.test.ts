@@ -69,7 +69,7 @@ describe("handleDuplicateNotes", () => {
 			incomingNote,
 			mockApp
 		);
-		expect(["skip", "rename", "overwrite"]).toContain(result);
+		expect(["skip", "merge", "overwrite"]).toContain(result);
 	});
 });
 
@@ -92,7 +92,7 @@ describe("checkForDuplicateData", () => {
 		expect(checkForDuplicateData(incomingFile, existingFile)).toBe("skip");
 	});
 
-	it('should return "rename" when both files have been modified since last sync', () => {
+	it('should return "merge" when both files have been modified since last sync', () => {
 		const incomingFile = {
 			content: "New content",
 			createdDate: new Date("2023-05-25"),
@@ -107,9 +107,7 @@ describe("checkForDuplicateData", () => {
 			lastSyncedDate: new Date("2023-05-25"),
 		};
 
-		expect(checkForDuplicateData(incomingFile, existingFile)).toBe(
-			"rename"
-		);
+		expect(checkForDuplicateData(incomingFile, existingFile)).toBe("merge");
 	});
 
 	it('should return "overwrite" when only incoming file has been modified since last sync', () => {

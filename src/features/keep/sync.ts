@@ -15,13 +15,59 @@ import {
 	MEDIA_FOLDER_NAME,
 	FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
 } from "./constants";
-import { buildNotePath, ensureFolder, mediaFolderPath } from "@services/paths";
-import type { GoogleKeepImportResponse, PremiumFeatureFlags } from "@integrations/server/keepApi";
-import { fetchNotes as apiFetchNotes, fetchNotesWithPremiumFeatures as apiFetchNotesWithPremium } from "@integrations/server/keepApi";
+import {
+	buildNotePath,
+	ensureFolder,
+	mediaFolderPath,
+	normalizePathSafe,
+} from "@services/paths";
+import { logSync } from "@app/logging";
+import type {
+	GoogleKeepImportResponse,
+	PremiumFeatureFlags,
+} from "@integrations/server/keepApi";
+import {
+	fetchNotes as apiFetchNotes,
+	fetchNotesWithPremiumFeatures as apiFetchNotesWithPremium,
+} from "@integrations/server/keepApi";
 
 export interface SyncCallbacks {
 	setTotalNotes?: (total: number) => void;
 	reportProgress?: () => void;
+}
+
+// Build a frontmatter string ensuring KeepSidianLastSyncedDate is present/updated.
+function buildFrontmatterWithSyncDate(
+	frontmatterDict: Record<string, string>,
+	lastSyncedDate: string,
+	existingFrontmatter?: string
+): string {
+	if (existingFrontmatter && existingFrontmatter.trim().length > 0) {
+		if (
+			existingFrontmatter.includes(
+				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:`
+			)
+		) {
+			const re = new RegExp(
+				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:\\s*[^\\n]*`
+			);
+			return existingFrontmatter.replace(
+				re,
+				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`
+			);
+		}
+		return `${existingFrontmatter}\n${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`;
+	}
+
+	frontmatterDict[FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY] =
+		lastSyncedDate;
+	return Object.entries(frontmatterDict)
+		.map(([key, value]) => `${key}: ${value}`)
+		.join("\n");
+}
+
+function wrapMarkdown(frontmatter: string, body: string): string {
+	return `---\n${frontmatter}\n---\n${body}`;
 }
 
 function logErrorIfNotTest(...args: any[]) {
@@ -175,52 +221,105 @@ export async function processAndSaveNote(
 	const normalizedNote = normalizeNote(note);
 	const noteTitle = normalizedNote.title;
 	let noteFilePath = buildNotePath(saveLocation, noteTitle);
+	const noteLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
 
 	const lastSyncedDate = new Date().toISOString();
 
-	const duplicateNotesAction = await handleDuplicateNotes(
-		noteFilePath,
-		normalizedNote,
-		plugin.app
-	);
-	let mdFrontMatterDict = normalizedNote.frontmatterDict;
-	let bodyToWrite = normalizedNote.body;
-
-	if (duplicateNotesAction === "skip") {
-		return;
-	} else if (duplicateNotesAction === "rename") {
-		const existingContent = await plugin.app.vault.adapter.read(
+	try {
+		const existedBefore = await plugin.app.vault.adapter.exists(
 			noteFilePath
 		);
-		const [, existingBody, existingFrontMatterDict] =
-			extractFrontmatter(existingContent);
-		const { merged, hasConflict } = mergeNoteBodies(
-			existingBody,
-			bodyToWrite
+		const duplicateNotesAction = await handleDuplicateNotes(
+			saveLocation,
+			normalizedNote,
+			plugin.app
 		);
-		if (!hasConflict) {
-			bodyToWrite = merged;
-			mdFrontMatterDict = existingFrontMatterDict;
+		const newFrontmatterDict = normalizedNote.frontmatterDict;
+		const newFrontmatter = normalizedNote.frontmatter;
+		const newBody = normalizedNote.body;
+
+		if (duplicateNotesAction === "skip") {
+			await logSync(plugin, `${noteLink} - identical (skipped)`);
+			return;
 		} else {
-			noteFilePath = noteFilePath.replace(/\.md$/, "");
-			noteFilePath = `${noteFilePath}${CONFLICT_FILE_SUFFIX}${lastSyncedDate}.md`;
+			const existingContent = await plugin.app.vault.adapter.read(
+				noteFilePath
+			);
+			const [existingFrontmatter, existingBody, existingFrontmatterDict] =
+				extractFrontmatter(existingContent);
+
+			let mdFrontmatter = buildFrontmatterWithSyncDate(
+				existingFrontmatterDict
+					? existingFrontmatterDict
+					: newFrontmatterDict,
+				lastSyncedDate,
+				existingFrontmatter ? existingFrontmatter : newFrontmatter
+			);
+
+			if (duplicateNotesAction === "merge") {
+				const { mergedBody, hasConflict } = mergeNoteBodies(
+					existingBody,
+					newBody
+				);
+
+				let mergedMdContentWithSyncDate = wrapMarkdown(
+					mdFrontmatter,
+					mergedBody
+				);
+
+				if (!hasConflict) {
+					await plugin.app.vault.adapter.write(
+						noteFilePath,
+						mergedMdContentWithSyncDate
+					);
+					await logSync(plugin, `${noteLink} - merged (no conflict)`);
+				} else {
+					// Write a conflict copy
+					noteFilePath = noteFilePath.replace(/\.md$/, "");
+					noteFilePath = `${noteFilePath}${CONFLICT_FILE_SUFFIX}${lastSyncedDate}.md`;
+
+					await plugin.app.vault.adapter.write(
+						noteFilePath,
+						mergedMdContentWithSyncDate
+					);
+					const conflictLink = `[${noteTitle}](${normalizePathSafe(
+						noteFilePath
+					)})`;
+					await logSync(
+						plugin,
+						`${conflictLink} - conflict copy created`
+					);
+				}
+			} else {
+				let mdContentWithSyncDate = wrapMarkdown(
+					mdFrontmatter,
+					newBody
+				);
+
+				// overwrite path: write to current path
+				await plugin.app.vault.adapter.write(
+					noteFilePath,
+					mdContentWithSyncDate
+				);
+				await logSync(
+					plugin,
+					`${noteLink} - ${existedBefore ? "overwritten" : "created"}`
+				);
+			}
 		}
-	}
 
-	mdFrontMatterDict[FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY] =
-		lastSyncedDate;
-	const mdFrontMatter = Object.entries(mdFrontMatterDict)
-		.map(([key, value]) => `${key}: ${value}`)
-		.join("\n");
-	const mdContentWithSyncDate = `---\n${mdFrontMatter}\n---\n${bodyToWrite}`;
-
-	await plugin.app.vault.adapter.write(noteFilePath, mdContentWithSyncDate);
-
-	if (normalizedNote.blob_urls && normalizedNote.blob_urls.length > 0) {
-		await processAttachments(
-			plugin.app,
-			normalizedNote.blob_urls,
-			saveLocation
+		if (normalizedNote.blob_urls && normalizedNote.blob_urls.length > 0) {
+			await processAttachments(
+				plugin.app,
+				normalizedNote.blob_urls,
+				saveLocation
+			);
+		}
+	} catch (err: any) {
+		await logSync(
+			plugin,
+			`${noteLink} - error: ${err?.message || String(err)}`
 		);
+		throw err;
 	}
 }
