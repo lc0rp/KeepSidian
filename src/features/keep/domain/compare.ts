@@ -5,15 +5,16 @@ import {
 	FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY,
 	FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
 } from "../constants";
+import { buildNotePath } from "@services/index";
 
 interface UpdatedFileInfo {
-	content: string;
+	textWithoutFrontmatter: string;
 	createdDate: Date | null;
 	updatedDate: Date | null;
 }
 
 interface ExistingFileInfo {
-	content: string;
+	textWithoutFrontmatter: string;
 	createdDate: Date | null;
 	updatedDate: Date | null;
 	fsCreatedDate: Date | null;
@@ -23,7 +24,7 @@ interface ExistingFileInfo {
 
 function getUpdatedFileInfo(incomingNote: NormalizedNote): UpdatedFileInfo {
 	return {
-		content: incomingNote.body,
+		textWithoutFrontmatter: incomingNote.textWithoutFrontmatter,
 		createdDate: incomingNote.created,
 		updatedDate: incomingNote.updated,
 	};
@@ -62,7 +63,7 @@ async function getExistingFileInfo(
 
 	return {
 		// Read from noteFilePath
-		content: existingBody,
+		textWithoutFrontmatter: existingBody,
 		createdDate: existingCreatedDate,
 		updatedDate: existingUpdatedDate,
 		fsCreatedDate: fsCreatedDate,
@@ -75,8 +76,8 @@ async function handleDuplicateNotes(
 	saveLocation: string,
 	incomingNote: NormalizedNote,
 	app: App
-): Promise<"skip" | "merge" | "overwrite"> {
-	const noteFilePath = `${saveLocation}/${incomingNote.title}.md`;
+): Promise<"skip" | "merge" | "overwrite" | "create"> {
+	const noteFilePath = buildNotePath(saveLocation, incomingNote.title);
 	const fileExists = await app.vault.adapter.exists(noteFilePath);
 
 	if (fileExists) {
@@ -89,7 +90,7 @@ async function handleDuplicateNotes(
 
 		return checkForDuplicateData(updatedFileInfo, existingFileInfo);
 	} else {
-		return "overwrite";
+		return "create";
 	}
 }
 
@@ -111,7 +112,10 @@ function checkForDuplicateData(
 		existingFile.lastSyncedDate || existingFile.fsCreatedDate;
 
 	// Step 1: Check if the contents are exactly the same
-	if (incomingFile.content === existingFile.content) {
+	if (
+		incomingFile.textWithoutFrontmatter ===
+		existingFile.textWithoutFrontmatter
+	) {
 		return "skip";
 	}
 

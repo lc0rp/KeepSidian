@@ -1,9 +1,9 @@
-export function mergeNoteBodies(
-	existingBody: string,
-	incomingBody: string
-): { mergedBody: string; hasConflict: boolean } {
-	const existingLines = existingBody.split("\n");
-	const incomingLines = incomingBody.split("\n");
+export function mergeNoteText(
+	existingTextWithoutFrontmatter: string,
+	incomingTextWithoutFrontmatter: string
+): { mergedText: string; hasConflict: boolean } {
+	const existingLines = existingTextWithoutFrontmatter.split("\n");
+	const incomingLines = incomingTextWithoutFrontmatter.split("\n");
 
 	const m = existingLines.length;
 	const n = incomingLines.length;
@@ -80,5 +80,5 @@ export function mergeNoteBodies(
 		mergedLines.push(...bSegment);
 	}
 
-	return { mergedBody: mergedLines.join("\n"), hasConflict: conflict };
+	return { mergedText: mergedLines.join("\n"), hasConflict: conflict };
 }

@@ -36,7 +36,7 @@ describe("handleDuplicateNotes", () => {
 		};
 	});
 
-	it('should return "overwrite" when file does not exist', async () => {
+	it('should return "create" when file does not exist', async () => {
 		mockApp.vault.adapter.exists.mockResolvedValue(false);
 
 		const result = await handleDuplicateNotes(
@@ -44,7 +44,7 @@ describe("handleDuplicateNotes", () => {
 			{} as NormalizedNote,
 			mockApp
 		);
-		expect(result).toBe("overwrite");
+		expect(result).toBe("create");
 	});
 
 	it("should call checkForDuplicateData when file exists", async () => {
@@ -59,7 +59,7 @@ describe("handleDuplicateNotes", () => {
 
 		const incomingNote: NormalizedNote = {
 			title: "Test Note",
-			body: "New content",
+			textWithoutFrontmatter: "New content",
 			created: new Date("2023-05-25"),
 			updated: new Date("2023-05-26"),
 		} as NormalizedNote;
@@ -76,12 +76,12 @@ describe("handleDuplicateNotes", () => {
 describe("checkForDuplicateData", () => {
 	it('should return "skip" when contents are the same', () => {
 		const incomingFile = {
-			content: "Same content",
+			textWithoutFrontmatter: "Same content",
 			createdDate: new Date("2023-05-25"),
 			updatedDate: new Date("2023-05-26"),
 		};
 		const existingFile = {
-			content: "Same content",
+			textWithoutFrontmatter: "Same content",
 			createdDate: new Date("2023-05-24"),
 			updatedDate: new Date("2023-05-25"),
 			fsCreatedDate: new Date("2023-05-24"),
@@ -94,12 +94,12 @@ describe("checkForDuplicateData", () => {
 
 	it('should return "merge" when both files have been modified since last sync', () => {
 		const incomingFile = {
-			content: "New content",
+			textWithoutFrontmatter: "New content",
 			createdDate: new Date("2023-05-25"),
 			updatedDate: new Date("2023-05-27"),
 		};
 		const existingFile = {
-			content: "Modified existing content",
+			textWithoutFrontmatter: "Modified existing content",
 			createdDate: new Date("2023-05-24"),
 			updatedDate: new Date("2023-05-26"),
 			fsCreatedDate: new Date("2023-05-24"),
@@ -112,12 +112,12 @@ describe("checkForDuplicateData", () => {
 
 	it('should return "overwrite" when only incoming file has been modified since last sync', () => {
 		const incomingFile = {
-			content: "New content",
+			textWithoutFrontmatter: "New content",
 			createdDate: new Date("2023-05-25"),
 			updatedDate: new Date("2023-05-27"),
 		};
 		const existingFile = {
-			content: "Existing content",
+			textWithoutFrontmatter: "Existing content",
 			createdDate: new Date("2023-05-24"),
 			updatedDate: new Date("2023-05-25"),
 			fsCreatedDate: new Date("2023-05-24"),

@@ -198,14 +198,13 @@ describe("Google Keep Import Functions", () => {
 	describe("processAndSaveNote", () => {
 		const note: noteModule.PreNormalizedNote = {
 			title: "Note 1",
-			body: "Content 1",
+			text: "Content 1",
 			frontmatterDict: {},
 		};
 		const normalizedNote: noteModule.NormalizedNote = {
 			title: "Note 1",
-			body: "Content 1",
+			text: "Content 1",
 			frontmatterDict: {},
-			text: "",
 			created: null,
 			updated: null,
 			frontmatter: "",
@@ -217,13 +216,14 @@ describe("Google Keep Import Functions", () => {
 			blob_names: [],
 			media: [],
 			header: "",
+			textWithoutFrontmatter: "Content 1",
 		};
 
 		it("should skip notes without a title", async () => {
 			const normalizedWithoutTitle: noteModule.NormalizedNote = {
 				...normalizedNote,
 				title: "",
-				body: "",
+				text: "",
 			};
 			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(
 				normalizedWithoutTitle
@@ -252,7 +252,7 @@ describe("Google Keep Import Functions", () => {
 				normalizedNote
 			);
 			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue(
-				"overwrite"
+				"create"
 			);
 			jest.spyOn(mockPlugin.app.vault.adapter, "write").mockResolvedValue(
 				undefined
@@ -314,12 +314,13 @@ describe("Google Keep Import Functions", () => {
 			const existingContent = `---\nExisting: true\n---\nLine 1`;
 			const incomingNote: noteModule.PreNormalizedNote = {
 				title: "Note 1",
-				body: "Line 1\nLine 2",
+				text: "Line 1\nLine 2",
 				frontmatterDict: { Incoming: "true" },
 			};
 			const incomingNormalized: noteModule.NormalizedNote = {
 				...normalizedNote,
-				body: "Line 1\nLine 2",
+				text: "Line 1\nLine 2",
+				textWithoutFrontmatter: "Line 1\nLine 2",
 				frontmatterDict: { Incoming: "true" },
 			};
 
@@ -360,12 +361,12 @@ describe("Google Keep Import Functions", () => {
 			const existingContent = `---\nExisting: true\n---\nLine 1\nLine A`;
 			const incomingNote: noteModule.PreNormalizedNote = {
 				title: "Note 1",
-				body: "Line 1\nLine B",
+				text: "Line 1\nLine B",
 				frontmatterDict: { Incoming: "true" },
 			};
 			const incomingNormalized: noteModule.NormalizedNote = {
 				...normalizedNote,
-				body: "Line 1\nLine B",
+				text: "Line 1\nLine B",
 				frontmatterDict: { Incoming: "true" },
 			};
 
@@ -404,7 +405,7 @@ describe("Google Keep Import Functions", () => {
 		it("should process attachments if present", async () => {
 			const preNormalizedNote: noteModule.PreNormalizedNote = {
 				title: "Note 1",
-				body: "Content 1",
+				text: "Content 1",
 				frontmatterDict: {},
 				blob_urls: [
 					"http://example.com/blob1",
@@ -458,7 +459,7 @@ describe("Google Keep Import Functions", () => {
 		it("should download attachments even when note is skipped", async () => {
 			const preNormalizedNote: noteModule.PreNormalizedNote = {
 				title: "Note 1",
-				body: "Content 1",
+				text: "Content 1",
 				frontmatterDict: {},
 				blob_urls: ["http://example.com/blob1"],
 			};

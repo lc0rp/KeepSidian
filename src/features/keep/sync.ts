@@ -6,7 +6,7 @@ import {
 	extractFrontmatter,
 } from "./domain/note";
 import { handleDuplicateNotes } from "./domain/compare";
-import { mergeNoteBodies } from "./domain/merge";
+import { mergeNoteText } from "./domain/merge";
 // Import via legacy google path so tests can spy on this module
 import { processAttachments } from "../keep/io/attachments";
 import type { NoteImportOptions } from "@ui/modals/NoteImportOptionsModal";
@@ -38,7 +38,7 @@ export interface SyncCallbacks {
 }
 
 // Build a frontmatter string ensuring KeepSidianLastSyncedDate is present/updated.
-function buildFrontmatterWithSyncDate(
+function buildFrontmatterWithSyncDateOld(
 	frontmatterDict: Record<string, string>,
 	lastSyncedDate: string,
 	existingFrontmatter?: string
@@ -67,8 +67,50 @@ function buildFrontmatterWithSyncDate(
 		.join("\n");
 }
 
-function wrapMarkdown(frontmatter: string, body: string): string {
-	return `---\n${frontmatter}\n---\n${body}`;
+function buildFrontmatterWithSyncDate(
+	newFrontmatter: string,
+	lastSyncedDate: string,
+	existingFrontmatter?: string
+): string {
+	if (existingFrontmatter && existingFrontmatter.trim().length > 0) {
+		if (
+			existingFrontmatter.includes(
+				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:`
+			)
+		) {
+			const re = new RegExp(
+				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:\\s*[^\\n]*`
+			);
+			return existingFrontmatter.replace(
+				re,
+				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`
+			);
+		}
+		return `${existingFrontmatter}\n${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`;
+	}
+
+	if (newFrontmatter && newFrontmatter.trim().length > 0) {
+		if (
+			newFrontmatter.includes(
+				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:`
+			)
+		) {
+			const re = new RegExp(
+				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:\\s*[^\\n]*`
+			);
+			return newFrontmatter.replace(
+				re,
+				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`
+			);
+		}
+		return `${newFrontmatter}\n${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`;
+	}
+
+	return `${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`;
+}
+
+function wrapMarkdown(frontmatter: string, text: string): string {
+	return `---\n${frontmatter}\n---\n${text}`;
 }
 
 function logErrorIfNotTest(...args: any[]) {
@@ -241,56 +283,46 @@ export async function processAndSaveNote(
 		);
 		const newFrontmatterDict = normalizedNote.frontmatterDict;
 		const newFrontmatter = normalizedNote.frontmatter;
-		const newBody = normalizedNote.body;
+		const newTextWithoutFrontmatter =
+			normalizedNote.textWithoutFrontmatter;
 
 		if (duplicateNotesAction === "skip") {
 			await logSync(plugin, `${noteLink} - identical (skipped)`);
-		} else if (duplicateNotesAction === "merge" && !existedBefore) {
+		} else if (duplicateNotesAction === "create") {
 			const mdFrontmatter = buildFrontmatterWithSyncDate(
-				newFrontmatterDict,
+				newFrontmatter,
+				lastSyncedDate
+			);
+			const newMdContent = wrapMarkdown(
+				mdFrontmatter,
+				newTextWithoutFrontmatter
+			);
+			await ensureParentFolderForFile(plugin.app as any, noteFilePath);
+			await plugin.app.vault.adapter.write(noteFilePath, newMdContent);
+			await logSync(plugin, `${noteLink} - new file created`);
+		} else {
+			const existingMarkdownFileContent =
+				await plugin.app.vault.adapter.read(noteFilePath);
+			let [
+				existingFrontmatter,
+				existingTextWithoutFrontmatter,
+				existingFrontmatterDict,
+			] = extractFrontmatter(existingMarkdownFileContent);
+
+			let mdFrontmatter = buildFrontmatterWithSyncDate(
+				existingFrontmatter,
 				lastSyncedDate,
 				newFrontmatter
 			);
-			const mdContentWithSyncDate = wrapMarkdown(mdFrontmatter, newBody);
-			await ensureParentFolderForFile(plugin.app as any, noteFilePath);
-			await plugin.app.vault.adapter.write(
-				noteFilePath,
-				mdContentWithSyncDate
-			);
-			await logSync(plugin, `${noteLink} - new file created`);
-		} else {
-			let existingFrontmatter = "";
-			let existingBody = "";
-			let existingFrontmatterDict: Record<string, string> | undefined;
-			if (existedBefore) {
-				const existingContent = await plugin.app.vault.adapter.read(
-					noteFilePath
-				);
-				[existingFrontmatter, existingBody, existingFrontmatterDict] =
-					extractFrontmatter(existingContent);
-			}
-
-			let mdFrontmatter = buildFrontmatterWithSyncDate(
-				existingFrontmatterDict
-					? existingFrontmatterDict
-					: newFrontmatterDict,
-				lastSyncedDate,
-				existedBefore && existingFrontmatter
-					? existingFrontmatter
-					: newFrontmatter
-			);
 
 			if (duplicateNotesAction === "merge") {
-				const { mergedBody, hasConflict } = mergeNoteBodies(
-					existingBody,
-					newBody
+				const { mergedText: mergedText, hasConflict } = mergeNoteText(
+					existingTextWithoutFrontmatter,
+					newTextWithoutFrontmatter
 				);
 
-				let mergedMdContentWithSyncDate = wrapMarkdown(
-					mdFrontmatter,
-					mergedBody
-				);
-
+				let mergedMdContent = wrapMarkdown(mdFrontmatter, mergedText);
+				
 				if (!hasConflict) {
 					await ensureParentFolderForFile(
 						plugin.app as any,
@@ -298,7 +330,7 @@ export async function processAndSaveNote(
 					);
 					await plugin.app.vault.adapter.write(
 						noteFilePath,
-						mergedMdContentWithSyncDate
+						mergedMdContent
 					);
 					await logSync(plugin, `${noteLink} - merged (no conflict)`);
 				} else {
@@ -312,7 +344,7 @@ export async function processAndSaveNote(
 					);
 					await plugin.app.vault.adapter.write(
 						noteFilePath,
-						mergedMdContentWithSyncDate
+						mergedMdContent
 					);
 					const conflictLink = `[${noteTitle}](${normalizePathSafe(
 						noteFilePath
@@ -325,7 +357,7 @@ export async function processAndSaveNote(
 			} else {
 				let mdContentWithSyncDate = wrapMarkdown(
 					mdFrontmatter,
-					newBody
+					newTextWithoutFrontmatter
 				);
 
 				// overwrite path: write to current path

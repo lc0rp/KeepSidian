@@ -1,6 +1,5 @@
 import { extractFrontmatter, NormalizedNote, normalizeNote } from "../note";
 
-
 describe("extractFrontmatter", () => {
 	it("should extract frontmatter correctly", () => {
 		const text = "---\nkey1: value1\nkey2: value2\n---\nThis is the body";
@@ -55,7 +54,7 @@ describe("normalizeNote", () => {
 			new Date("2023-05-21T11:00:00Z")
 		);
 		expect(normalizedNote.frontmatter).toBe("key: value");
-		expect(normalizedNote.body).toBe("Note body");
+		expect(normalizedNote.textWithoutFrontmatter).toBe("Note body");
 		expect(normalizedNote.frontmatterDict).toEqual({ Key: "value" });
 		expect(normalizedNote.archived).toBe(false);
 		expect(normalizedNote.trashed).toBe(false);
@@ -79,7 +78,9 @@ describe("normalizeNote", () => {
 		expect(normalizedNote.title).toBe("Simple Note");
 		expect(normalizedNote.text).toBe("Just a simple note body");
 		expect(normalizedNote.frontmatter).toBe("");
-		expect(normalizedNote.body).toBe("Just a simple note body");
+		expect(normalizedNote.textWithoutFrontmatter).toBe(
+			"Just a simple note body"
+		);
 		expect(normalizedNote.frontmatterDict).toEqual({});
 	});
 });
