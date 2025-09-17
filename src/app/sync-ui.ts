@@ -139,11 +139,10 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 					: "Failed to sync Google Keep Notes."
 			);
 		}
-		if (success) {
-			const hider = (plugin.progressNotice as any).hide;
-			if (typeof hider === "function") {
-				setTimeout(() => hider.call(plugin.progressNotice), 4000);
-			}
+		const hider = (plugin.progressNotice as any).hide;
+		if (typeof hider === "function") {
+			const delay = success ? 4000 : 10000;
+			setTimeout(() => hider.call(plugin.progressNotice), delay);
 		}
 	}
 	const total = plugin.totalNotes ?? undefined;

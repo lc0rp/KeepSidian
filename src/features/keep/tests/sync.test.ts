@@ -17,6 +17,8 @@ import { NoteImportOptions } from "ui/modals/NoteImportOptionsModal";
 import * as noteModule from "../domain/note";
 import * as compareModule from "../domain/compare";
 import * as syncModule from "../sync";
+import * as loggingModule from "@app/logging";
+import * as pathsModule from "@services/paths";
 import * as attachmentsModule from "../../../features/keep/io/attachments";
 import { parseResponse } from "../../../integrations/server/keepApi";
 
@@ -217,6 +219,34 @@ describe("Google Keep Import Functions", () => {
 			header: "",
 		};
 
+		it("should skip notes without a title", async () => {
+			const normalizedWithoutTitle: noteModule.NormalizedNote = {
+				...normalizedNote,
+				title: "",
+				body: "",
+			};
+			jest
+				.spyOn(noteModule, "normalizeNote")
+				.mockReturnValue(normalizedWithoutTitle);
+			const logSpy = jest
+				.spyOn(loggingModule, "logSync")
+				.mockResolvedValue(undefined);
+
+			await syncModule.processAndSaveNote(
+				mockPlugin,
+				note,
+				mockPlugin.settings.saveLocation
+			);
+
+			expect(compareModule.handleDuplicateNotes).not.toHaveBeenCalled();
+			expect(mockPlugin.app.vault.adapter.write).not.toHaveBeenCalled();
+			expect(logSpy).toHaveBeenCalledWith(
+				mockPlugin,
+				"Skipped note without a title"
+			);
+			logSpy.mockRestore();
+		});
+
 		it("should process and save note without duplicates or attachments", async () => {
 			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(
 				normalizedNote
@@ -233,6 +263,9 @@ describe("Google Keep Import Functions", () => {
 			jest.spyOn(obsidian, "normalizePath").mockReturnValue(
 				`${mockPlugin.settings.saveLocation}/${note.title}.md`
 			);
+			const ensureParentSpy = jest
+				.spyOn(pathsModule, "ensureParentFolderForFile")
+				.mockResolvedValue(undefined);
 			await syncModule.processAndSaveNote(
 				mockPlugin,
 				note,
@@ -245,7 +278,13 @@ describe("Google Keep Import Functions", () => {
 				normalizedNote,
 				mockPlugin.app
 			);
+			expect(mockPlugin.app.vault.adapter.read).not.toHaveBeenCalled();
+			expect(ensureParentSpy).toHaveBeenCalledWith(
+				mockPlugin.app,
+				`${mockPlugin.settings.saveLocation}/${note.title}.md`
+			);
 			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalled();
+			ensureParentSpy.mockRestore();
 		});
 
 		it("should skip note if duplicate action is skip", async () => {
@@ -284,6 +323,9 @@ describe("Google Keep Import Functions", () => {
 				frontmatterDict: { Incoming: "true" },
 			};
 
+			(mockPlugin.app.vault.adapter.exists as jest.Mock).mockResolvedValueOnce(
+				true
+			);
 			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(
 				incomingNormalized
 			);
@@ -327,6 +369,9 @@ describe("Google Keep Import Functions", () => {
 				frontmatterDict: { Incoming: "true" },
 			};
 
+			(mockPlugin.app.vault.adapter.exists as jest.Mock).mockResolvedValueOnce(
+				true
+			);
 			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(
 				incomingNormalized
 			);

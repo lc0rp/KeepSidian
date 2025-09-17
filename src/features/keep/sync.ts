@@ -18,6 +18,7 @@ import {
 import {
 	buildNotePath,
 	ensureFolder,
+	ensureParentFolderForFile,
 	mediaFolderPath,
 	normalizePathSafe,
 } from "@services/paths";
@@ -220,6 +221,10 @@ export async function processAndSaveNote(
 ) {
 	const normalizedNote = normalizeNote(note);
 	const noteTitle = normalizedNote.title;
+	if (!noteTitle) {
+		await logSync(plugin, "Skipped note without a title");
+		return;
+	}
 	let noteFilePath = buildNotePath(saveLocation, noteTitle);
 	const noteLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
 
@@ -241,19 +246,40 @@ export async function processAndSaveNote(
 		if (duplicateNotesAction === "skip") {
 			await logSync(plugin, `${noteLink} - identical (skipped)`);
 			return;
-		} else {
-			const existingContent = await plugin.app.vault.adapter.read(
-				noteFilePath
+		} else if (duplicateNotesAction === "merge" && !existedBefore) {
+			const mdFrontmatter = buildFrontmatterWithSyncDate(
+				newFrontmatterDict,
+				lastSyncedDate,
+				newFrontmatter
 			);
-			const [existingFrontmatter, existingBody, existingFrontmatterDict] =
-				extractFrontmatter(existingContent);
+			const mdContentWithSyncDate = wrapMarkdown(mdFrontmatter, newBody);
+			await ensureParentFolderForFile(plugin.app as any, noteFilePath);
+			await plugin.app.vault.adapter.write(
+				noteFilePath,
+				mdContentWithSyncDate
+			);
+			await logSync(plugin, `${noteLink} - new file created`);
+			return;
+		} else {
+			let existingFrontmatter = "";
+			let existingBody = "";
+			let existingFrontmatterDict: Record<string, string> | undefined;
+			if (existedBefore) {
+				const existingContent = await plugin.app.vault.adapter.read(
+					noteFilePath
+				);
+				[existingFrontmatter, existingBody, existingFrontmatterDict] =
+					extractFrontmatter(existingContent);
+			}
 
 			let mdFrontmatter = buildFrontmatterWithSyncDate(
 				existingFrontmatterDict
 					? existingFrontmatterDict
 					: newFrontmatterDict,
 				lastSyncedDate,
-				existingFrontmatter ? existingFrontmatter : newFrontmatter
+				existedBefore && existingFrontmatter
+					? existingFrontmatter
+					: newFrontmatter
 			);
 
 			if (duplicateNotesAction === "merge") {
@@ -268,6 +294,10 @@ export async function processAndSaveNote(
 				);
 
 				if (!hasConflict) {
+					await ensureParentFolderForFile(
+						plugin.app as any,
+						noteFilePath
+					);
 					await plugin.app.vault.adapter.write(
 						noteFilePath,
 						mergedMdContentWithSyncDate
@@ -278,6 +308,7 @@ export async function processAndSaveNote(
 					noteFilePath = noteFilePath.replace(/\.md$/, "");
 					noteFilePath = `${noteFilePath}${CONFLICT_FILE_SUFFIX}${lastSyncedDate}.md`;
 
+					await ensureParentFolderForFile(plugin.app as any, noteFilePath);
 					await plugin.app.vault.adapter.write(
 						noteFilePath,
 						mergedMdContentWithSyncDate
@@ -297,6 +328,7 @@ export async function processAndSaveNote(
 				);
 
 				// overwrite path: write to current path
+				await ensureParentFolderForFile(plugin.app as any, noteFilePath);
 				await plugin.app.vault.adapter.write(
 					noteFilePath,
 					mdContentWithSyncDate
