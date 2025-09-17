@@ -16,17 +16,20 @@ When you start a sync, you will provide your Google Keep email and a token gener
 
 ## Sync command
 
-This plugin offers an on-demand "Run Keep -> Obsidian" command to download ~the 50 most recent~ all notes on demand. Follow the installation instructions below to try it and share your feedback.
+This plugin offers an on-demand "Run Keep -> Obsidian" command to download all notes on demand. Follow the installation instructions below to try it and share your feedback.
 
 When a sync is running you'll see a persistent toast and a status bar indicator showing progress. Hovering over the status bar shows a tooltip identifying it as KeepSidian sync progress, and clicking the status bar opens a dialog with a progress bar and stats about the current sync.
 
-## Auto sync
+## Activity log (v1.1.0+)
 
-Enable automatic syncing on a daily schedule by default. Subscribers can customize the interval in hours. Each sync writes details to a `_keepsidian_sync_log.md` file in the target directory as Markdown list items (timestamped, human-readable).
+Each sync activitiy is recorded in a time stamped activity log file under `_KeepSidianLogs/` in the target directory as Markdown list items. This file is rotated daily.
+
+## Auto sync (v1.0.7+)
+
+In plugin settings, you can enable automatic syncing on a 24 hour schedule by default. Subscribers can customize the interval in hours.
 
 Notes about save location and logging:
-- If the save location cannot be created (e.g., permissions or invalid name), an error is shown and the sync does not start.
-- If the log file cannot be created or written, an error is shown. The plugin validates both paths before syncing.
+- If the save location and log files cannot be created (e.g., permissions or invalid name), an error is shown and the sync does not start.
 
 ## Features
 
@@ -34,29 +37,33 @@ Notes about save location and logging:
 >
 > 1. [KeepSidian wishlist](https://umh39lhux3j.typeform.com/to/NKbRukRg) - Google keep features.
 >
-> 2. [Google Calendar features](hhttps://umh39lhux3j.typeform.com/to/WuDedfWN) (coming soon): I'd love to hear what you want for this feature.
+> 2. [Google Calendar features](https://umh39lhux3j.typeform.com/to/WuDedfWN) (coming soon): I'd love to hear what you want for this feature.
 
 ### Subscriber features
 
-I intend to make most features available to all users, however, some features may incur additional processing, third party costs or developer time. Those shall be released to subscribers. In v1.0.14 the subscriber features are:
+I intend to make most features available to all users, however, some features may incur additional processing, third party costs or developer time. Those shall be released to subscribers.
 
+v1.0.14 subscriber features:
 - Advanced filters
-- AI assisted auto-tagging
-- AI-enabled title generation
+- Auto-tagging
+- Contextual title generation
+
+v1.1.0 subscriber features:
+- Granular auto-sync interval below the default 24 hours.
 
 ### Future roadmap
 
 If more people find this project useful, I may expand the functionality to include the following features. I'll endevour to atures that can increase cost significantly will be made available to
 
-- Daily sync
+- Daily sync (Shipped in v1.1.0)
 - Realtime sync
 - Archiving
 - Downloading Archived Notes
 - Unlimited notes (Shipped in v1.0.14)
 - 2-way sync
 - Advanced filters (Shipped in v1.0.14 to Subscribers)
-- AI assisted auto-tagging (Shipped in v1.0.14 to Subscribers)
-- AI-enabled title generation (Shipped in v1.0.14 to Subscribers)
+- Auto-tagging (Shipped in v1.0.14 to Subscribers)
+- Contextual title generation (Shipped in v1.0.14 to Subscribers)
 
 > **Me again! Please rank the upcoming features here!**
 >
@@ -78,9 +85,10 @@ After installation, go to "Settings > Community Plugins > KeepSidian" in Obsidia
 
 ### Configure
 
+In the plugin settings, you will need to provide:
 - Enter your Google Keep email.
 - Enter the folder to sync to (relative to your vault). The folder is created automatically if it doesn't exist.
-- Optionally change the sync log file name. The log file is created automatically inside the save location and always saved as a Markdown file (`.md`).
+- Enable/disable automatic syncing.
 
 ### Retrieve a Google Keep token
 
@@ -109,10 +117,3 @@ When a local note and its Google Keep counterpart have both been modified since 
 ## Feedback
 
 Please share your feedback in the [issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
-
-## Developer Notes
-
-- Structure: `src/app` (commands, sync UI, logging), `src/features/keep` (domain, IO, `sync.ts`), `src/integrations/server/keepApi.ts` (server API), `src/integrations/google/keepToken.ts`, `src/ui` (settings, modals), `src/services` (http, subscription, paths, logger), `src/config/index.ts` (server URL).
-- Tests: Co-located under `src/**/tests/*.test.ts` (legacy `src/tests/main.test.ts` remains until migrated).
-- HTTP: Use `src/services/http.ts` wrapper for network calls (wraps Obsidian `requestUrl`).
-- Versioning: version bump script moved to `scripts/version-bump.mjs`.
