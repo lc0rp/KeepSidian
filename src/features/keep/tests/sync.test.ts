@@ -401,11 +401,11 @@ describe("Google Keep Import Functions", () => {
 			);
 		});
 
-		it("should process attachments if present", async () => {
-			const preNormalizedNote: noteModule.PreNormalizedNote = {
-				title: "Note 1",
-				body: "Content 1",
-				frontmatterDict: {},
+                it("should process attachments if present", async () => {
+                        const preNormalizedNote: noteModule.PreNormalizedNote = {
+                                title: "Note 1",
+                                body: "Content 1",
+                                frontmatterDict: {},
 				blob_urls: [
 					"http://example.com/blob1",
 					"http://example.com/blob2",
@@ -422,26 +422,89 @@ describe("Google Keep Import Functions", () => {
 			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(
 				normalizedNoteWithAttachments
 			);
-			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue(
-				"overwrite"
-			);
-			const processAttachmentsSpy = jest
-				.spyOn(attachmentsModule, "processAttachments")
-				.mockResolvedValue(undefined);
+                        jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue(
+                                "overwrite"
+                        );
+                        const processAttachmentsSpy = jest
+                                .spyOn(attachmentsModule, "processAttachments")
+                                .mockResolvedValue({
+                                        downloaded: 2,
+                                        skippedIdentical: 0,
+                                });
+                        const logSpy = jest
+                                .spyOn(loggingModule, "logSync")
+                                .mockResolvedValue(undefined);
 
-			await syncModule.processAndSaveNote(
-				mockPlugin,
-				preNormalizedNote,
-				mockPlugin.settings.saveLocation
-			);
+                        await syncModule.processAndSaveNote(
+                                mockPlugin,
+                                preNormalizedNote,
+                                mockPlugin.settings.saveLocation
+                        );
 
-			expect(processAttachmentsSpy).toHaveBeenCalledWith(
-				mockPlugin.app,
-				preNormalizedNote.blob_urls,
-				mockPlugin.settings.saveLocation
-			);
-		});
-	});
+                        expect(processAttachmentsSpy).toHaveBeenCalledWith(
+                                mockPlugin.app,
+                                preNormalizedNote.blob_urls,
+                                mockPlugin.settings.saveLocation
+                        );
+                        expect(logSpy).toHaveBeenCalledWith(
+                                mockPlugin,
+                                expect.stringContaining("downloaded 2 attachments")
+                        );
+                        processAttachmentsSpy.mockRestore();
+                        logSpy.mockRestore();
+                });
+
+                it("should download attachments even when note is skipped", async () => {
+                        const preNormalizedNote: noteModule.PreNormalizedNote = {
+                                title: "Note 1",
+                                body: "Content 1",
+                                frontmatterDict: {},
+                                blob_urls: ["http://example.com/blob1"],
+                        };
+                        const normalizedNoteWithAttachments = {
+                                ...normalizedNote,
+                                blob_urls: ["http://example.com/blob1"],
+                        };
+
+                        jest.spyOn(noteModule, "normalizeNote").mockReturnValue(
+                                normalizedNoteWithAttachments
+                        );
+                        jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue(
+                                "skip"
+                        );
+                        const processAttachmentsSpy = jest
+                                .spyOn(attachmentsModule, "processAttachments")
+                                .mockResolvedValue({
+                                        downloaded: 0,
+                                        skippedIdentical: 1,
+                                });
+                        const logSpy = jest
+                                .spyOn(loggingModule, "logSync")
+                                .mockResolvedValue(undefined);
+
+                        await syncModule.processAndSaveNote(
+                                mockPlugin,
+                                preNormalizedNote,
+                                mockPlugin.settings.saveLocation
+                        );
+
+                        expect(processAttachmentsSpy).toHaveBeenCalledWith(
+                                mockPlugin.app,
+                                preNormalizedNote.blob_urls,
+                                mockPlugin.settings.saveLocation
+                        );
+                        expect(logSpy).toHaveBeenCalledWith(
+                                mockPlugin,
+                                expect.stringContaining("identical (skipped)")
+                        );
+                        expect(logSpy).toHaveBeenCalledWith(
+                                mockPlugin,
+                                expect.stringContaining("attachments up to date")
+                        );
+                        processAttachmentsSpy.mockRestore();
+                        logSpy.mockRestore();
+                });
+        });
 
 	describe("parseResponse", () => {
 		it("should parse JSON response using json() method", async () => {

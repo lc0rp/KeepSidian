@@ -243,28 +243,26 @@ export async function processAndSaveNote(
 		const newFrontmatter = normalizedNote.frontmatter;
 		const newBody = normalizedNote.body;
 
-		if (duplicateNotesAction === "skip") {
-			await logSync(plugin, `${noteLink} - identical (skipped)`);
-			return;
-		} else if (duplicateNotesAction === "merge" && !existedBefore) {
-			const mdFrontmatter = buildFrontmatterWithSyncDate(
-				newFrontmatterDict,
-				lastSyncedDate,
-				newFrontmatter
-			);
-			const mdContentWithSyncDate = wrapMarkdown(mdFrontmatter, newBody);
-			await ensureParentFolderForFile(plugin.app as any, noteFilePath);
-			await plugin.app.vault.adapter.write(
-				noteFilePath,
-				mdContentWithSyncDate
-			);
-			await logSync(plugin, `${noteLink} - new file created`);
-			return;
-		} else {
-			let existingFrontmatter = "";
-			let existingBody = "";
-			let existingFrontmatterDict: Record<string, string> | undefined;
-			if (existedBefore) {
+                if (duplicateNotesAction === "skip") {
+                        await logSync(plugin, `${noteLink} - identical (skipped)`);
+                } else if (duplicateNotesAction === "merge" && !existedBefore) {
+                        const mdFrontmatter = buildFrontmatterWithSyncDate(
+                                newFrontmatterDict,
+                                lastSyncedDate,
+                                newFrontmatter
+                        );
+                        const mdContentWithSyncDate = wrapMarkdown(mdFrontmatter, newBody);
+                        await ensureParentFolderForFile(plugin.app as any, noteFilePath);
+                        await plugin.app.vault.adapter.write(
+                                noteFilePath,
+                                mdContentWithSyncDate
+                        );
+                        await logSync(plugin, `${noteLink} - new file created`);
+                } else {
+                        let existingFrontmatter = "";
+                        let existingBody = "";
+                        let existingFrontmatterDict: Record<string, string> | undefined;
+                        if (existedBefore) {
 				const existingContent = await plugin.app.vault.adapter.read(
 					noteFilePath
 				);
@@ -338,17 +336,34 @@ export async function processAndSaveNote(
 					`${noteLink} - ${existedBefore ? "overwritten" : "created"}`
 				);
 			}
-		}
+                }
 
-		if (normalizedNote.blob_urls && normalizedNote.blob_urls.length > 0) {
-			await processAttachments(
-				plugin.app,
-				normalizedNote.blob_urls,
-				saveLocation
-			);
-		}
-	} catch (err: any) {
-		await logSync(
+                if (normalizedNote.blob_urls && normalizedNote.blob_urls.length > 0) {
+                        const { downloaded, skippedIdentical } = await processAttachments(
+                                plugin.app,
+                                normalizedNote.blob_urls,
+                                saveLocation
+                        );
+                        if (downloaded > 0) {
+                                const attachmentWord = downloaded === 1 ? "attachment" : "attachments";
+                                const skippedSuffix =
+                                        skippedIdentical > 0
+                                                ? ` (${skippedIdentical} identical skipped)`
+                                                : "";
+                                await logSync(
+                                        plugin,
+                                        `${noteLink} - downloaded ${downloaded} ${attachmentWord}${skippedSuffix}`
+                                );
+                        } else if (skippedIdentical > 0) {
+                                const skippedWord = skippedIdentical === 1 ? "attachment" : "attachments";
+                                await logSync(
+                                        plugin,
+                                        `${noteLink} - attachments up to date (${skippedIdentical} ${skippedWord} identical)`
+                                );
+                        }
+                }
+        } catch (err: any) {
+                await logSync(
 			plugin,
 			`${noteLink} - error: ${err?.message || String(err)}`
 		);

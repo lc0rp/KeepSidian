@@ -7,7 +7,9 @@ const mockPlugin = {
     app: {
         vault: {
             adapter: {
-                writeBinary: jest.fn()
+                writeBinary: jest.fn(),
+                exists: jest.fn(),
+                readBinary: jest.fn()
             }
         }
     }
@@ -24,6 +26,7 @@ describe('processAttachments', () => {
         jest.clearAllMocks();
         // Add spy on console.error
         jest.spyOn(console, 'error').mockImplementation(() => {});
+        (mockPlugin.app.vault.adapter.exists as jest.Mock).mockResolvedValue(false);
     });
 
     it('should successfully process single attachment', async () => {
@@ -36,7 +39,7 @@ describe('processAttachments', () => {
         const blobUrls = ['https://example.com/image1.jpg'];
         const saveLocation = '/test/location';
 
-    await processAttachments(mockPlugin.app, blobUrls, saveLocation);
+    const result = await processAttachments(mockPlugin.app, blobUrls, saveLocation);
 
         // Verify requestUrl was called correctly
         expect(requestUrl).toHaveBeenCalledWith({
@@ -50,6 +53,7 @@ describe('processAttachments', () => {
                 '/test/location/media/image1.jpg',
                 mockArrayBuffer
             );
+        expect(result).toEqual({ downloaded: 1, skippedIdentical: 0 });
     });
 
     it('should successfully process multiple attachments', async () => {
@@ -67,7 +71,7 @@ describe('processAttachments', () => {
         ];
         const saveLocation = '/test/location';
 
-        await processAttachments(mockPlugin.app, blobUrls, saveLocation);
+        const result = await processAttachments(mockPlugin.app, blobUrls, saveLocation);
 
         // Verify requestUrl was called correctly for both files
         expect(requestUrl).toHaveBeenCalledTimes(2);
@@ -95,14 +99,16 @@ describe('processAttachments', () => {
                 '/test/location/media/image2.png',
                 mockArrayBuffer2
             );
+        expect(result).toEqual({ downloaded: 2, skippedIdentical: 0 });
     });
 
     it('should handle empty blob URLs array', async () => {
-        await processAttachments(mockPlugin.app, [], '/test/location');
+        const result = await processAttachments(mockPlugin.app, [], '/test/location');
 
         // Verify no calls were made
         expect(requestUrl).not.toHaveBeenCalled();
         expect(mockPlugin.app.vault.adapter.writeBinary).not.toHaveBeenCalled();
+        expect(result).toEqual({ downloaded: 0, skippedIdentical: 0 });
     });
 
     it('should handle network request failure', async () => {
@@ -149,13 +155,59 @@ describe('processAttachments', () => {
         const blobUrls = ['invalid-url-no-filename'];
         const saveLocation = '/test/location';
 
-        await processAttachments(mockPlugin.app, blobUrls, saveLocation);
+        const result = await processAttachments(mockPlugin.app, blobUrls, saveLocation);
 
         // Verify requestUrl was never called since URL validation fails first
         expect(requestUrl).not.toHaveBeenCalled();
         expect(mockPlugin.app.vault.adapter.writeBinary).not.toHaveBeenCalled();
-        
+
         // Verify that console.error was called with the invalid URL message
         expect(console.error).toHaveBeenCalledWith('Invalid URL format: invalid-url-no-filename');
+        expect(result).toEqual({ downloaded: 0, skippedIdentical: 0 });
+    });
+
+    it('should skip writing when an identical attachment already exists', async () => {
+        const mockArrayBuffer = new ArrayBuffer(8);
+        (requestUrl as jest.Mock).mockResolvedValueOnce({
+            arrayBuffer: mockArrayBuffer
+        });
+        (mockPlugin.app.vault.adapter.exists as jest.Mock).mockResolvedValueOnce(true);
+        (mockPlugin.app.vault.adapter.readBinary as jest.Mock).mockResolvedValueOnce(
+            mockArrayBuffer
+        );
+
+        const blobUrls = ['https://example.com/image1.jpg'];
+        const saveLocation = '/test/location';
+
+        const result = await processAttachments(mockPlugin.app, blobUrls, saveLocation);
+
+        expect(mockPlugin.app.vault.adapter.writeBinary).not.toHaveBeenCalled();
+        expect(result).toEqual({ downloaded: 0, skippedIdentical: 1 });
+    });
+
+    it('should overwrite when existing attachment differs', async () => {
+        const mockArrayBuffer = new ArrayBuffer(8);
+        const existingBuffer = new ArrayBuffer(8);
+        const existingView = new Uint8Array(existingBuffer);
+        existingView[0] = 1;
+
+        (requestUrl as jest.Mock).mockResolvedValueOnce({
+            arrayBuffer: mockArrayBuffer
+        });
+        (mockPlugin.app.vault.adapter.exists as jest.Mock).mockResolvedValueOnce(true);
+        (mockPlugin.app.vault.adapter.readBinary as jest.Mock).mockResolvedValueOnce(
+            existingBuffer
+        );
+
+        const blobUrls = ['https://example.com/image1.jpg'];
+        const saveLocation = '/test/location';
+
+        const result = await processAttachments(mockPlugin.app, blobUrls, saveLocation);
+
+        expect(mockPlugin.app.vault.adapter.writeBinary).toHaveBeenCalledWith(
+            '/test/location/media/image1.jpg',
+            mockArrayBuffer
+        );
+        expect(result).toEqual({ downloaded: 1, skippedIdentical: 0 });
     });
 });
