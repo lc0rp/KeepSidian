@@ -27,13 +27,13 @@ export interface MockPlugin {
 }
 
 export function createMockPlugin(overrides?: Partial<MockPlugin>): MockPlugin {
-  const adapter: MockVaultAdapter = {
-    exists: jest.fn(async () => false),
-    read: jest.fn(async () => ""),
-    write: jest.fn(async () => undefined),
-    writeBinary: jest.fn(async () => undefined),
-    stat: jest.fn(async () => ({ ctime: Date.now(), mtime: Date.now() })),
-  };
+	  const adapter: MockVaultAdapter = {
+	    exists: jest.fn(async (_path: string) => false),
+	    read: jest.fn(async (_path: string) => ""),
+	    write: jest.fn(async (_path: string, _data: string) => undefined),
+	    writeBinary: jest.fn(async (_path: string, _data: ArrayBuffer) => undefined),
+	    stat: jest.fn(async (_path: string) => ({ ctime: Date.now(), mtime: Date.now() })),
+	  };
 
   const plugin: MockPlugin = {
     app: {
@@ -67,4 +67,3 @@ export function createMockPlugin(overrides?: Partial<MockPlugin>): MockPlugin {
     },
   };
 }
-

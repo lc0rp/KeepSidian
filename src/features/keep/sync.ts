@@ -303,7 +303,7 @@ export async function processAndSaveNote(
 		} else {
 			const existingMarkdownFileContent =
 				await plugin.app.vault.adapter.read(noteFilePath);
-			let [
+			const [
 				existingFrontmatter,
 				existingTextWithoutFrontmatter,
 				existingFrontmatterDict,
@@ -321,7 +321,7 @@ export async function processAndSaveNote(
 					newTextWithoutFrontmatter
 				);
 
-				let mergedMdContent = wrapMarkdown(mdFrontmatter, mergedText);
+				const mergedMdContent = wrapMarkdown(mdFrontmatter, mergedText);
 				
 				if (!hasConflict) {
 					await ensureParentFolderForFile(
@@ -355,7 +355,7 @@ export async function processAndSaveNote(
 					);
 				}
 			} else {
-				let mdContentWithSyncDate = wrapMarkdown(
+				const mdContentWithSyncDate = wrapMarkdown(
 					mdFrontmatter,
 					newTextWithoutFrontmatter
 				);

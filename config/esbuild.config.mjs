@@ -19,6 +19,7 @@ function tsconfigPathsPlugin({ tsconfigPath }) {
   const name = "tsconfig-paths";
   let mappings = [];
   let baseUrl = "";
+  const tsconfigDir = path.dirname(tsconfigPath);
   return {
     name,
     setup(build) {
@@ -42,7 +43,9 @@ function tsconfigPathsPlugin({ tsconfigPath }) {
         for (const { regex, replacement } of mappings) {
           if (regex.test(args.path)) {
             const substituted = args.path.replace(regex, replacement);
-            const base = baseUrl ? path.resolve(rootDir, baseUrl) : rootDir;
+            const base = baseUrl
+              ? path.resolve(tsconfigDir, baseUrl)
+              : tsconfigDir;
             const withoutExt = path.resolve(base, substituted);
 
             // Try to resolve to an existing file by testing common extensions and index files
@@ -109,7 +112,7 @@ const context = await esbuild.context({
 	treeShaking: true,
     outfile: "main.js",
     plugins: [
-        tsconfigPathsPlugin({ tsconfigPath: path.resolve(rootDir, "tsconfig.json") }),
+        tsconfigPathsPlugin({ tsconfigPath: path.resolve(rootDir, "config/tsconfig.json") }),
     ],
 });
 
