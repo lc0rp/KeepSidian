@@ -8,6 +8,7 @@
 		"build": "npm run lint:ts && tsc --project config/tsconfig.json --noEmit --skipLibCheck && node config/esbuild.config.mjs production",
 		"prebuild": "npm run barrels",
 		"barrels": "barrelsby --config config/barrelsby.json",
+		"release": "node scripts/release.mjs",
 		"version": "node scripts/version-bump.mjs && git add manifest.json versions.json",
 		"lint": "npm run lint:ts && npm run lint:md",
 		"lint:ts": "ESLINT_USE_FLAT_CONFIG=true npx eslint -c config/eslint.config.mjs src",
