@@ -4,9 +4,14 @@
 
 ## Overview
 
-We are enhancing the KeepSidian Obsidian plugin by introducing "Premium Features" that offer additional functionalities to subscribed users. The plugin will now check the user's subscription status and, if active, display extra options such as two-way sync, title suggestions, tag creation, and more.
+We are enhancing the KeepSidian Obsidian plugin by introducing "Premium
+Features" that offer additional functionalities to subscribed users. The plugin
+will now check the user's subscription status and, if active, display extra
+options such as two-way sync, title suggestions, tag creation, and more.
 
-This document outlines the detailed requirements and implementation guidelines to align developers working on this project. It includes the file structure, endpoint documentation, and example code and responses for clarity.
+This document outlines the detailed requirements and implementation guidelines
+to align developers working on this project. It includes the file structure,
+endpoint documentation, and example code and responses for clarity.
 
 ## Table of Contents
 
@@ -31,16 +36,21 @@ This document outlines the detailed requirements and implementation guidelines t
 
 ## Objectives
 
-- Integrate Premium Features: Enhance the plugin to offer additional functionalities to users with an active subscription
-- Subscription Management: Implement mechanisms to check and cache the user's subscription status
-- User Interface Enhancements: Update the plugin settings UI to reflect premium features and subscription information
-- Minimal File Creation: Structure the project to integrate new features into existing files, minimizing the addition of new files
+- Integrate Premium Features: Enhance the plugin to offer additional
+  functionalities to users with an active subscription
+- Subscription Management: Implement mechanisms to check and cache the user's
+  subscription status
+- User Interface Enhancements: Update the plugin settings UI to reflect premium
+  features and subscription information
+- Minimal File Creation: Structure the project to integrate new features into
+  existing files, minimizing the addition of new files
 
 ## Functional Requirements
 
 ### 1. Subscription Status Check
 
-- **Automatic Check**: On startup or when the cache expires, the plugin should call the /subscriber/info endpoint to verify the user's subscription status
+- **Automatic Check**: On startup or when the cache expires, the plugin should
+  call the /subscriber/info endpoint to verify the user's subscription status
 - **Caching**:
   - Cache the subscription information locally for 24 hours
   - Invalidate the cache upon expiration or when the user's email address changes
@@ -81,7 +91,8 @@ For users with an active subscription, expose extra features in the plugin setti
 
 - **Update Title**:
   - Checkbox: "Update title"
-  - Description: The title will be updated based on the note content. The original title will be saved in the note
+  - Description: The title will be updated based on the note content. The
+    original title will be saved in the note
 
 #### 3.4 Tag Suggestions
 
@@ -91,24 +102,29 @@ For users with an active subscription, expose extra features in the plugin setti
   - Description: Tags will be added to each note
 - **Tag Prefix**:
   - Text Field (defaults to 'auto-'): "Tag prefix"
-  - Description: Add a prefix to help identify tags added by the plugin. Leave blank for no prefix
+  - Description: Add a prefix to help identify tags added by the plugin. Leave
+    blank for no prefix
 - **Limit to Existing Tags**:
   - Checkbox: "Limit tag suggestions to only existing tags"
 
 ### 4. Import Command Enhancement
 
 - **Dialog with Options**:
-  - When the import-google-keep-notes command is invoked by an active subscriber, display a dialog containing the same options as in the settings
+  - When the import-google-keep-notes command is invoked by an active
+    subscriber, display a dialog containing the same options as in the settings
   - Pre-fill options with defaults from the settings
   - Allow users to confirm or update entries before importing
 
 ### 5. Premium Features Submission
 
--- **Premium Feature Flags Submission**:
+- **Premium Feature Flags Submission**:
 
-- For active subscribers, the sync request is sent to a different endpoint: /keep/sync/premium/v2
+- For active subscribers, the sync request is sent to a different endpoint:
+  /keep/sync/premium/v2
 - This request is a POST
-- The request body includes a 'feature_flags' json object that contains the premium feature flags derived from the premium feature settings, mapped as described below.
+- The request body includes a `feature_flags` JSON object that contains the
+  premium feature flags derived from the premium feature settings, mapped as
+  described below.
 - includeNotesTerms: 'filter_notes': {'terms':[...]}
 - excludeNotesTerms: 'skip_notes': {'terms': [...]}
 - updateTitle: 'suggest_title': {}
@@ -116,9 +132,10 @@ For users with an active subscription, expose extra features in the plugin setti
 
 ## File Structure
 
-The project files are structured to integrate the new features into existing files, minimizing the addition of new files:
+The project files are structured to integrate the new features into existing
+files, minimizing the addition of new files:
 
-```
+```text
 .
 ├── LICENSE
 ├── README.md
@@ -295,13 +312,15 @@ curl -X GET \
   - Input Field: Comma-separated list of keywords
 - **Title Updates**:
   - Checkbox: "Update title"
-  - Description: "The title will be updated based on the note content. The original title will be saved in the note."
+  - Description: "The title will be updated based on the note content. The
+    original title will be saved in the note."
 - **Tag Suggestions**:
   - Checkbox: "Suggest tags, up to"
   - Number Field (default 5): Maximum number of tags to suggest
   - Description: "Tags will be added to each note."
   - Text Field: "Tag prefix" (default 'auto-')
-  - Description: "Add a prefix to help identify tags added by the plugin. Leave blank for no prefix."
+  - Description: "Add a prefix to help identify tags added by the plugin.
+    Leave blank for no prefix."
   - Checkbox: "Limit tag suggestions to only existing tags"
 
 **Notes**:
@@ -317,7 +336,8 @@ curl -X GET \
 
 **Key Points**:
 
-- Exposes `importGoogleKeepNotes(plugin, callbacks?)` and `importGoogleKeepNotesWithOptions(plugin, options, callbacks?)`
+- Exposes `importGoogleKeepNotes(plugin, callbacks?)` and
+  `importGoogleKeepNotesWithOptions(plugin, options, callbacks?)`
 - Converts `NoteImportOptions` to `PremiumFeatureFlags` and passes to server calls
 - Uses `setTotalNotes`, `reportSyncProgress`, and `finishSyncUI` from `src/app/sync-ui.ts` for UI updates
 - Persists notes, applies duplicate strategy/merges, and downloads attachments
@@ -470,4 +490,8 @@ async function checkSubscriptionStatus(email: string): Promise<SubscriptionInfo>
 - Update the README.md with information about the premium features
 - Provide instructions on how users can subscribe and manage their premium features
 
-By following this PRD, developers will have a clear understanding of the requirements and implementation details for integrating premium features into the KeepSidian Obsidian plugin. The structured approach aims to enhance the plugin while maintaining codebase simplicity and ensuring a seamless user experience.
+By following this PRD, developers will have a clear understanding of the
+requirements and implementation details for integrating premium features into
+the KeepSidian Obsidian plugin. The structured approach aims to enhance the
+plugin while maintaining codebase simplicity and ensuring a seamless user
+experience.

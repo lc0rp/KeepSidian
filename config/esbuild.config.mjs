@@ -1,5 +1,4 @@
 import esbuild from "esbuild";
-import process from "process";
 import builtins from "builtin-modules";
 import fs from "fs";
 import path from "path";
@@ -104,9 +103,9 @@ function tsconfigPathsPlugin({ tsconfigPath }) {
   };
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, "..");
+const ___filename = fileURLToPath(import.meta.url);
+const ___dirname = path.dirname(___filename);
+const rootDir = path.resolve(___dirname, "..");
 
 const envFiles = [
   path.resolve(rootDir, ".env"),

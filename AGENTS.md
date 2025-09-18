@@ -49,48 +49,73 @@ Restricted imports:
 
 ### Plugin Structure
 
-This is an Obsidian plugin built with TypeScript that integrates Google Keep notes into Obsidian. It uses a Flask server for communication with Google Keep and provides a user interface within Obsidian for syncing notes. The plugin is structured into several key components, each responsible for specific functionality.
+This is an Obsidian plugin built with TypeScript that integrates Google Keep
+notes into Obsidian. It uses a Flask server for communication with Google Keep
+and provides a user interface within Obsidian for syncing notes. The plugin is
+structured into several key components, each responsible for specific
+functionality.
 
 ### Key Architectural Components
 
 #### High-level Flow
 
-- User triggers sync via ribbon/command registered in `src/app/commands.ts` (entry remains `src/main.ts`).
-- Plugin calls server endpoints (configured in `src/config/index.ts`) through the HTTP wrapper in `src/services/http.ts`.
-- Notes are paginated, normalized, de-duplicated/merged, written to the vault, and attachments downloaded (orchestrated in `src/features/keep/sync.ts`).
-- UI updates status bar and modal with total count and progress via `src/app/sync-ui.ts`; results are logged using `src/app/logging.ts`.
+- User triggers sync via ribbon/command registered in `src/app/commands.ts`
+  (entry remains `src/main.ts`).
+- Plugin calls server endpoints (configured in `src/config/index.ts`) through
+  the HTTP wrapper in `src/services/http.ts`.
+- Notes are paginated, normalized, de-duplicated/merged, written to the vault,
+  and attachments downloaded (orchestrated in `src/features/keep/sync.ts`).
+- UI updates status bar and modal with total count and progress via
+  `src/app/sync-ui.ts`; results are logged using `src/app/logging.ts`.
 
 #### Core Files
 
-- `src/main.ts`: Obsidian plugin entry. Registers ribbon/commands, loads/saves settings, handles auto-sync, and delegates UI/logging.
+- `src/main.ts`: Obsidian plugin entry. Registers ribbon/commands,
+  loads/saves settings, handles auto-sync, and delegates UI/logging.
 - `src/app/commands.ts`: Ribbon and command registration.
 - `src/app/sync-ui.ts`: Status bar and progress modal orchestration.
 - `src/app/logging.ts`: App-level logging that writes to the sync log via `src/services/logger.ts`.
 - `src/features/keep/sync.ts`: Sync orchestration (fetch, pagination, processing, persistence, progress callbacks).
 - `src/features/keep/domain/note.ts`: Note normalization utilities (frontmatter, title/body, dates).
-- `src/features/keep/domain/compare.ts`: Duplicate detection and resolution using content/updated dates/last sync timestamp.
-- `src/features/keep/domain/merge.ts`: Body merge utility for conflict-free merges.
-- `src/features/keep/io/attachments.ts`: Downloads blobs into a `media` subfolder using Obsidian APIs.
-- `src/integrations/server/keepApi.ts`: Server API calls for fetching notes (standard and premium).
-- `src/integrations/google/keepToken.ts`: OAuth token retrieval (embedded webview + server-side exchange).
-- `src/ui/*`: Settings tabs, import options modal, progress modal, and related UI.
-- `src/services/http.ts`: Wrapper around Obsidian `requestUrl` used by integrations and services.
-- `src/services/subscription.ts`: Subscription cache and status checks; used to gate premium features.
-- `src/services/paths.ts`: Path helpers (normalize/build save locations; media folder path).
+- `src/features/keep/domain/compare.ts`: Duplicate detection and resolution
+  using content/updated dates/last sync timestamp.
+- `src/features/keep/domain/merge.ts`: Body merge utility for conflict-free
+  merges.
+- `src/features/keep/io/attachments.ts`: Downloads blobs into a `media`
+  subfolder using Obsidian APIs.
+- `src/integrations/server/keepApi.ts`: Server API calls for fetching notes
+  (standard and premium).
+- `src/integrations/google/keepToken.ts`: OAuth token retrieval (embedded
+  webview + server-side exchange).
+- `src/ui/*`: Settings tabs, import options modal, progress modal, and related
+  UI.
+- `src/services/http.ts`: Wrapper around Obsidian `requestUrl` used by
+  integrations and services.
+- `src/services/subscription.ts`: Subscription cache and status checks; used to
+  gate premium features.
+- `src/services/paths.ts`: Path helpers (normalize/build save locations; media
+  folder path).
 - `src/services/errors.ts`: Error taxonomy for network/parse/IO and helpers.
-- `src/types/*`: Settings, subscription, and helper type definitions (barrels available).
-- `src/config/index.ts`: Server base URL (`KEEPSIDIAN_SERVER_URL`). Must not end with a trailing slash.
+- `src/types/*`: Settings, subscription, and helper type definitions (barrels
+  available).
+- `src/config/index.ts`: Server base URL (`KEEPSIDIAN_SERVER_URL`). Must not end
+  with a trailing slash.
 
 #### Data Flow
 
 - Trigger: `KeepSidianPlugin.importNotes(auto?: boolean)` in `src/main.ts`.
-- Fetch: `fetchNotes` / `fetchNotesWithPremiumFeatures` from `src/integrations/server/keepApi.ts` with headers `X-User-Email` and `Authorization: Bearer <token>`.
-- Pagination: `offset`/`limit` loop in `importGoogleKeepNotesBase` within `src/features/keep/sync.ts` until an empty page.
-- Total count: If the API includes `total_notes`, call `setTotalNotes(plugin, total)` from `src/app/sync-ui.ts`.
+- Fetch: `fetchNotes` / `fetchNotesWithPremiumFeatures` from
+  `src/integrations/server/keepApi.ts` with headers `X-User-Email` and
+  `Authorization: Bearer <token>`.
+- Pagination: `offset`/`limit` loop in `importGoogleKeepNotesBase` within
+  `src/features/keep/sync.ts` until an empty page.
+- Total count: If the API includes `total_notes`, call `setTotalNotes(plugin,
+  total)` from `src/app/sync-ui.ts`.
 - Processing: `processAndSaveNotes` → per note `processAndSaveNote`:
   - Normalize note (title, body, frontmatter) via `domain/note.ts`.
   - Decide action with `handleDuplicateNotes`: `skip` | `rename` | `overwrite`.
-  - Merge content when conflict-free; otherwise suffix filename with `-conflict-<ISO date>`.
+  - Merge content when conflict-free; otherwise suffix filename with
+    `-conflict-<ISO date>`.
   - Persist frontmatter including `KeepSidianLastSyncedDate` and body.
   - Download attachments into `<saveLocation>/media` via `io/attachments.ts`.
   - Report progress back to the plugin UI via `reportSyncProgress(plugin)`.
@@ -104,25 +129,39 @@ This is an Obsidian plugin built with TypeScript that integrates Google Keep not
 
 #### Configuration
 
-- Server URL: `src/config/index.ts` → `KEEPSIDIAN_SERVER_URL` (no trailing slash). Do not commit secrets.
-- Settings: See `src/types/keepsidian-plugin-settings.ts`; persisted via `this.saveData` in `src/main.ts`.
-- Save location: Plugin ensures folder and `media` subfolder exist before writes (helpers in `src/services/paths.ts`).
+- Server URL: `src/config/index.ts` → `KEEPSIDIAN_SERVER_URL` (no trailing
+  slash). Do not commit secrets.
+- Settings: See `src/types/keepsidian-plugin-settings.ts`; persisted via
+  `this.saveData` in `src/main.ts`.
+- Save location: Plugin ensures folder and `media` subfolder exist before
+  writes (helpers in `src/services/paths.ts`).
 
 #### Subscription & Premium
 
-- Status is cached for 24h in `SubscriptionService`. Active status enables premium import options.
-- Premium flags are derived from `NoteImportOptions` and mapped to `PremiumFeatureFlags` (see `src/integrations/server/keepApi.ts`), sent to `/keep/sync/premium/v2`.
+- Status is cached for 24h in `SubscriptionService`. Active status enables
+  premium import options.
+- Premium flags are derived from `NoteImportOptions` and mapped to
+  `PremiumFeatureFlags` (see `src/integrations/server/keepApi.ts`), sent to
+  `/keep/sync/premium/v2`.
 
 #### Implementation Tips for Agents
 
-- Prefer Obsidian APIs via `src/services/http.ts` (wraps `requestUrl`) and `vault.adapter` for IO.
+- Prefer Obsidian APIs via `src/services/http.ts` (wraps `requestUrl`) and
+  `vault.adapter` for IO.
 - Use `@schemas/*` for runtime validation of external payloads.
-- Always normalize composed vault paths; avoid unsafe filename characters (`src/services/paths.ts`).
-- Maintain frontmatter keys used for logic: `GoogleKeepCreatedDate`, `GoogleKeepUpdatedDate`, `KeepSidianLastSyncedDate`.
-- Use `handleDuplicateNotes` before write; only merge when merge utility returns `hasConflict === false`.
-- For progress: use `setTotalNotes(plugin, ...)` and `reportSyncProgress(plugin)` from `src/app/sync-ui.ts`.
-- Catch and surface errors with `Notice` and console logging; avoid throwing unhandled errors from UI callbacks.
-- Keep network contracts: headers and endpoints live in `src/integrations/server/keepApi.ts` and token flow in `src/integrations/google/keepToken.ts`.
+- Always normalize composed vault paths; avoid unsafe filename characters
+  (`src/services/paths.ts`).
+- Maintain frontmatter keys used for logic: `GoogleKeepCreatedDate`,
+  `GoogleKeepUpdatedDate`, `KeepSidianLastSyncedDate`.
+- Use `handleDuplicateNotes` before write; only merge when merge utility
+  returns `hasConflict === false`.
+- For progress: use `setTotalNotes(plugin, ...)` and `reportSyncProgress(plugin)`
+  from `src/app/sync-ui.ts`.
+- Catch and surface errors with `Notice` and console logging; avoid throwing
+  unhandled errors from UI callbacks.
+- Keep network contracts: headers and endpoints live in
+  `src/integrations/server/keepApi.ts` and token flow in
+  `src/integrations/google/keepToken.ts`.
 
 ### Path Aliases
 
@@ -130,16 +169,23 @@ This is an Obsidian plugin built with TypeScript that integrates Google Keep not
 
 #### Common Tasks
 
-- Add a new API call: Implement in `src/integrations/server/keepApi.ts` using `src/services/http.ts`; validate JSON defensively.
-- Extend settings/UI: Add fields in `src/types/keepsidian-plugin-settings.ts`, render/edit in `src/ui/settings/*`, persist via `saveSettings()`.
-- Change save location structure: Update `processAndSaveNotes` and related helpers in `src/services/paths.ts`; ensure folders exist before writes.
-- Adjust duplicate strategy: Modify `src/features/keep/domain/compare.ts` and update tests under `src/features/keep/domain/tests/*`.
+- Add a new API call: Implement in `src/integrations/server/keepApi.ts` using
+  `src/services/http.ts`; validate JSON defensively.
+- Extend settings/UI: Add fields in `src/types/keepsidian-plugin-settings.ts`,
+  render/edit in `src/ui/settings/*`, persist via `saveSettings()`.
+- Change save location structure: Update `processAndSaveNotes` and related
+  helpers in `src/services/paths.ts`; ensure folders exist before writes.
+- Adjust duplicate strategy: Modify `src/features/keep/domain/compare.ts` and
+  update tests under `src/features/keep/domain/tests/*`.
 
 #### Troubleshooting
 
-- No notes imported: Check token (`src/integrations/google/keepToken.ts`), server URL in `src/config/index.ts`, and Notices/console errors.
-- Attachments missing: Verify `blob_urls` values, media folder creation, and `writeBinary` success.
-- UI not updating: Ensure `setTotalNotes` is called when API includes `total_notes`, and `reportSyncProgress` is invoked per note.
+- No notes imported: Check token (`src/integrations/google/keepToken.ts`),
+  server URL in `src/config/index.ts`, and Notices/console errors.
+- Attachments missing: Verify `blob_urls` values, media folder creation, and
+  `writeBinary` success.
+- UI not updating: Ensure `setTotalNotes` is called when API includes
+  `total_notes`, and `reportSyncProgress` is invoked per note.
 
 ## Also
 

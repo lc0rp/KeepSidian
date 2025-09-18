@@ -1,6 +1,7 @@
 # Architecture Overview
 
-This project is an Obsidian plugin that syncs Google Keep notes into an Obsidian vault. The codebase is organized by layers with clear responsibilities and minimal coupling.
+This project is an Obsidian plugin that syncs Google Keep notes into an Obsidian vault.
+The codebase is organized by layers with clear responsibilities and minimal coupling.
 
 ## Layers
 

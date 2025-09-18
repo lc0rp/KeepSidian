@@ -1,6 +1,7 @@
 # Contributing Guidelines
 
-Thanks for contributing! This project is an Obsidian plugin with a layered architecture and a few helper tools to keep the codebase consistent and testable.
+Thanks for contributing! This project is an Obsidian plugin with a layered architecture and
+a few helper tools to keep the codebase consistent and testable.
 
 ## Code Organization
 
