@@ -17,7 +17,7 @@ export async function prepareSyncLog(
 	);
 
 	try {
-		await ensureFile(plugin.app as any, logPath);
+		await ensureFile(plugin.app, logPath);
 		return logPath;
 	} catch (e) {
 		// Keep message text aligned with tests/UX expectations
@@ -31,16 +31,16 @@ export async function logSync(plugin: KeepSidianPlugin, message: string) {
 	const logPath = await prepareSyncLog(plugin);
 	if (!logPath) return; // Notice already shown by prepareSyncLog
 
-  // Prepend HH:MM (24h) to message
-  const now = new Date();
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  const currentTime = `${hours}:${minutes}`;
-  try {
-    const raw = `${currentTime} ${message}`;
-    const line = raw.trimStart().startsWith("-") ? `${raw}` : `- ${raw}`;
-    await appendLog(plugin.app as any, logPath, `${line}\n`);
-  } catch (e) {
+	// Prepend HH:MM (24h) to message
+	const now = new Date();
+	const hours = String(now.getHours()).padStart(2, "0");
+	const minutes = String(now.getMinutes()).padStart(2, "0");
+	const currentTime = `${hours}:${minutes}`;
+	try {
+		const raw = `${currentTime} ${message}`;
+		const line = raw.trimStart().startsWith("-") ? `${raw}` : `- ${raw}`;
+		await appendLog(plugin.app, logPath, `${line}\n`);
+	} catch (e) {
 		try {
 			const isTest =
 				typeof process !== "undefined" &&
@@ -51,6 +51,8 @@ export async function logSync(plugin: KeepSidianPlugin, message: string) {
 			}
 			// Always surface a user-facing error
 			new Notice("KeepSidian: Failed to write sync log.");
-		} catch {}
+		} catch {
+			/* empty */
+		}
 	}
 }

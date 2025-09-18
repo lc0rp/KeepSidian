@@ -29,6 +29,7 @@ Each sync activitiy is recorded in a time stamped activity log file under `_Keep
 In plugin settings, you can enable automatic syncing on a 24 hour schedule by default. Subscribers can customize the interval in hours.
 
 Notes about save location and logging:
+
 - If the save location and log files cannot be created (e.g., permissions or invalid name), an error is shown and the sync does not start.
 
 ## Features
@@ -44,11 +45,13 @@ Notes about save location and logging:
 I intend to make most features available to all users, however, some features may incur additional processing, third party costs or developer time. Those shall be released to subscribers.
 
 v1.0.14 subscriber features:
+
 - Advanced filters
 - Auto-tagging
 - Contextual title generation
 
 v1.1.0 subscriber features:
+
 - Granular auto-sync interval below the default 24 hours.
 
 ### Future roadmap
@@ -86,6 +89,7 @@ After installation, go to "Settings > Community Plugins > KeepSidian" in Obsidia
 ### Configure
 
 In the plugin settings, you will need to provide:
+
 - Enter your Google Keep email.
 - Enter the folder to sync to (relative to your vault). The folder is created automatically if it doesn't exist.
 - Enable/disable automatic syncing.

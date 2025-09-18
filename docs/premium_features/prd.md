@@ -1,4 +1,5 @@
 # Product Requirements Document (PRD)
+
 ## KeepSidian Obsidian Plugin - Premium Features Integration
 
 ## Overview
@@ -60,6 +61,7 @@ This document outlines the detailed requirements and implementation guidelines t
 For users with an active subscription, expose extra features in the plugin settings with toggles:
 
 #### 3.1 Auto Sync
+
 - **Auto Sync**:
   - Checkbox: "Auto sync"
     - Description: Automatically sync your notes at regular intervals
@@ -103,13 +105,14 @@ For users with an active subscription, expose extra features in the plugin setti
 ### 5. Premium Features Submission
 
 -- **Premium Feature Flags Submission**:
-  - For active subscribers, the sync request is sent to a different endpoint: /keep/sync/premium/v2
-  - This request is a POST
-  - The request body includes a 'feature_flags' json object that contains the premium feature flags derived from the premium feature settings, mapped as described below.
-  - includeNotesTerms: 'filter_notes': {'terms':[...]}
-  - excludeNotesTerms: 'skip_notes': {'terms': [...]}
-  - updateTitle: 'suggest_title': {}
-  - suggestTags: 'suggest_tags': {'max_tags', 'restrict_tags', 'prefix'}
+
+- For active subscribers, the sync request is sent to a different endpoint: /keep/sync/premium/v2
+- This request is a POST
+- The request body includes a 'feature_flags' json object that contains the premium feature flags derived from the premium feature settings, mapped as described below.
+- includeNotesTerms: 'filter_notes': {'terms':[...]}
+- excludeNotesTerms: 'skip_notes': {'terms': [...]}
+- updateTitle: 'suggest_title': {}
+- suggestTags: 'suggest_tags': {'max_tags', 'restrict_tags', 'prefix'}
 
 ## File Structure
 
@@ -252,6 +255,7 @@ curl -X GET \
   - Provide a button in the settings to manually refresh the subscription status
 
 **Notes**:
+
 - Ensure that the email used for the subscription check is securely retrieved and stored
 - Handle all possible API responses, including error cases
 
@@ -264,6 +268,7 @@ curl -X GET \
 - Provide a single import point for integrations and services
 
 **Notes**:
+
 - Do not hardcode secrets; keep environment-specific configuration out of the repo
 
 ### ui/settings
@@ -300,15 +305,18 @@ curl -X GET \
   - Checkbox: "Limit tag suggestions to only existing tags"
 
 **Notes**:
+
 - Use appropriate UI components consistent with the Obsidian plugin guidelines
 - Validate user inputs where necessary
 
 ### features/keep/sync.ts
 
 **Purpose**:
+
 - Orchestrates note import (standard and premium flows) with pagination
 
 **Key Points**:
+
 - Exposes `importGoogleKeepNotes(plugin, callbacks?)` and `importGoogleKeepNotesWithOptions(plugin, options, callbacks?)`
 - Converts `NoteImportOptions` to `PremiumFeatureFlags` and passes to server calls
 - Uses `setTotalNotes`, `reportSyncProgress`, and `finishSyncUI` from `src/app/sync-ui.ts` for UI updates
@@ -331,15 +339,18 @@ curl -X GET \
 - Use `src/services/http.ts` to wrap `requestUrl`
 
 **Headers**:
+
 - `X-User-Email`: user email (required)
 - `Authorization`: `Bearer <token>` (required)
 
 **Notes**:
+
 - Keep JSON parsing defensive and typed; support both `.json()` and `.text` responses where appropriate
 
 ### types/api.ts (Optional)
 
 **Purpose**:
+
 - Define TypeScript interfaces and types for the API responses and data structures related to the subscription info
 
 **Example Type Definitions**:
@@ -370,6 +381,7 @@ interface MeteringInfo {
 ```
 
 **Notes**:
+
 - Using type definitions helps in catching errors during development and ensures data consistency
 
 ## Example Code and Responses
@@ -421,6 +433,7 @@ async function checkSubscriptionStatus(email: string): Promise<SubscriptionInfo>
 ```
 
 **UI Component Example (Settings Toggle for Title Update)**:
+
 - Label: "Update title"
 - Type: Checkbox
 - Description: "The title will be updated based on the note content. The original title will be saved in the note."
@@ -428,26 +441,32 @@ async function checkSubscriptionStatus(email: string): Promise<SubscriptionInfo>
 ## Notes and Considerations
 
 ### Error Handling
+
 - Ensure robust error handling for network failures and unexpected API responses
 - Provide user feedback in the UI when errors occur
 
 ### Security
+
 - Protect user data, especially the email address used for subscription checks
 - Do not log sensitive information
 
 ### Performance
+
 - Optimize caching to reduce unnecessary API calls
 - Ensure that premium features do not degrade the plugin's performance for non-subscribed users
 
 ### User Experience
+
 - Maintain consistency with Obsidian's UI/UX guidelines
 - Provide clear messages and instructions within the plugin settings
 
 ### Testing
+
 - Update or add unit tests and integration tests for new functionalities
 - Test scenarios for both active and inactive subscribers
 
 ### Documentation
+
 - Update the README.md with information about the premium features
 - Provide instructions on how users can subscribe and manage their premium features
 

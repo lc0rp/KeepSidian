@@ -5,12 +5,14 @@ This file provides guidance to LLMS/autonomous agents when working with code in 
 ## Development Commands
 
 ### Build and Development
+
 - `npm run dev` - Start development mode with file watching and automatic rebuilding
 - `npm run build` - Production build with TypeScript compilation check and linting
 - `npm run test` - Run jest test suite
 - `npm run coverage` - Generate test coverage report
 
 ### Barrels
+
 - Barrels are auto-generated via `barrelsby`.
 - `npm run barrels` updates barrels; it also runs automatically in `prebuild`.
 
@@ -25,6 +27,7 @@ This file provides guidance to LLMS/autonomous agents when working with code in 
 - `npm run lint:fix` - Fix both TypeScript and markdown issues
 
 Restricted imports:
+
 - `@typescript-eslint/no-restricted-imports` blocks runtime imports from `@types/*`; use `import type` instead.
 
 ### Testing
@@ -37,6 +40,7 @@ Restricted imports:
   - `npm run coverage` generates coverage via c8/V8.
 
 ### Versioning & Release
+
 - `npm run version` updates `manifest.json` and `versions.json`
 - `npm run preversion` runs full lint.
 - Keep `manifest.json` in sync with built `main.js`.
@@ -50,6 +54,7 @@ This is an Obsidian plugin built with TypeScript that integrates Google Keep not
 ### Key Architectural Components
 
 #### High-level Flow
+
 - User triggers sync via ribbon/command registered in `src/app/commands.ts` (entry remains `src/main.ts`).
 - Plugin calls server endpoints (configured in `src/config/index.ts`) through the HTTP wrapper in `src/services/http.ts`.
 - Notes are paginated, normalized, de-duplicated/merged, written to the vault, and attachments downloaded (orchestrated in `src/features/keep/sync.ts`).
@@ -104,10 +109,12 @@ This is an Obsidian plugin built with TypeScript that integrates Google Keep not
 - Save location: Plugin ensures folder and `media` subfolder exist before writes (helpers in `src/services/paths.ts`).
 
 #### Subscription & Premium
+
 - Status is cached for 24h in `SubscriptionService`. Active status enables premium import options.
 - Premium flags are derived from `NoteImportOptions` and mapped to `PremiumFeatureFlags` (see `src/integrations/server/keepApi.ts`), sent to `/keep/sync/premium/v2`.
 
 #### Implementation Tips for Agents
+
 - Prefer Obsidian APIs via `src/services/http.ts` (wraps `requestUrl`) and `vault.adapter` for IO.
 - Use `@schemas/*` for runtime validation of external payloads.
 - Always normalize composed vault paths; avoid unsafe filename characters (`src/services/paths.ts`).
@@ -118,6 +125,7 @@ This is an Obsidian plugin built with TypeScript that integrates Google Keep not
 - Keep network contracts: headers and endpoints live in `src/integrations/server/keepApi.ts` and token flow in `src/integrations/google/keepToken.ts`.
 
 ### Path Aliases
+
 - Use: `@app/*`, `@ui/*`, `@features/*`, `@integrations/*`, `@services/*`, `@types/*`, `@schemas/*`.
 
 #### Common Tasks
@@ -128,6 +136,7 @@ This is an Obsidian plugin built with TypeScript that integrates Google Keep not
 - Adjust duplicate strategy: Modify `src/features/keep/domain/compare.ts` and update tests under `src/features/keep/domain/tests/*`.
 
 #### Troubleshooting
+
 - No notes imported: Check token (`src/integrations/google/keepToken.ts`), server URL in `src/config/index.ts`, and Notices/console errors.
 - Attachments missing: Verify `blob_urls` values, media folder creation, and `writeBinary` success.
 - UI not updating: Ensure `setTotalNotes` is called when API includes `total_notes`, and `reportSyncProgress` is invoked per note.

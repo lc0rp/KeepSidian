@@ -1,5 +1,5 @@
 import { Notice } from "obsidian";
-import type { SyncProgressModal } from "../ui/modals/SyncProgressModal";
+import { SyncProgressModal } from "../ui/modals/SyncProgressModal";
 import type KeepSidianPlugin from "@app/main";
 
 export function startSyncUI(plugin: KeepSidianPlugin) {
@@ -7,17 +7,15 @@ export function startSyncUI(plugin: KeepSidianPlugin) {
 	plugin.totalNotes = null;
 	if (!plugin.statusBarItemEl) {
 		plugin.statusBarItemEl = plugin.addStatusBarItem();
-    plugin.statusBarItemEl.addEventListener("click", () => {
-      if (!plugin.progressModal) {
-        plugin.progressModal =
-          new (require("../ui/modals/SyncProgressModal").SyncProgressModal)(
-            plugin.app,
-            () => {
-              plugin.progressModal =
-                null as unknown as SyncProgressModal;
-            }
-          );
-      }
+		plugin.statusBarItemEl.addEventListener("click", () => {
+			if (!plugin.progressModal) {
+				plugin.progressModal = new SyncProgressModal(
+					plugin.app,
+					() => {
+						plugin.progressModal = null;
+					}
+				);
+			}
 			if (plugin.progressModal) {
 				plugin.progressModal.setProgress(
 					plugin.processedNotes,

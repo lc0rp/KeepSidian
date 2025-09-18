@@ -2,7 +2,7 @@
 	"name": "keepsidian",
 	"version": "1.0.15",
 	"description": "Sync Google Keep notes to Obsidian",
-	"main": "src/main.js",
+	"main": "main.js",
 	"scripts": {
 		"dev": "node config/esbuild.config.mjs",
 		"build": "npm run lint:ts && tsc --project config/tsconfig.json --noEmit --skipLibCheck && node config/esbuild.config.mjs production",

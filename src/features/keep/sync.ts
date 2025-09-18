@@ -12,7 +12,6 @@ import { processAttachments } from "../keep/io/attachments";
 import type { NoteImportOptions } from "@ui/modals/NoteImportOptionsModal";
 import {
 	CONFLICT_FILE_SUFFIX,
-	MEDIA_FOLDER_NAME,
 	FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
 } from "./constants";
 import {
@@ -35,36 +34,6 @@ import {
 export interface SyncCallbacks {
 	setTotalNotes?: (total: number) => void;
 	reportProgress?: () => void;
-}
-
-// Build a frontmatter string ensuring KeepSidianLastSyncedDate is present/updated.
-function buildFrontmatterWithSyncDateOld(
-	frontmatterDict: Record<string, string>,
-	lastSyncedDate: string,
-	existingFrontmatter?: string
-): string {
-	if (existingFrontmatter && existingFrontmatter.trim().length > 0) {
-		if (
-			existingFrontmatter.includes(
-				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:`
-			)
-		) {
-			const re = new RegExp(
-				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:\\s*[^\\n]*`
-			);
-			return existingFrontmatter.replace(
-				re,
-				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`
-			);
-		}
-		return `${existingFrontmatter}\n${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`;
-	}
-
-	frontmatterDict[FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY] =
-		lastSyncedDate;
-	return Object.entries(frontmatterDict)
-		.map(([key, value]) => `${key}: ${value}`)
-		.join("\n");
 }
 
 function buildFrontmatterWithSyncDate(
@@ -151,7 +120,9 @@ async function importGoogleKeepNotesBase(
 				) {
 					try {
 						callbacks.setTotalNotes(response.total_notes);
-					} catch {}
+					} catch {
+						/* empty */
+					}
 				}
 				if (!response.notes || response.notes.length === 0) {
 					break;
@@ -247,8 +218,8 @@ export async function processAndSaveNotes(
 	callbacks?: SyncCallbacks
 ) {
 	const saveLocation = plugin.settings.saveLocation;
-	await ensureFolder(plugin.app as any, saveLocation);
-	await ensureFolder(plugin.app as any, mediaFolderPath(saveLocation));
+	await ensureFolder(plugin.app, saveLocation);
+	await ensureFolder(plugin.app, mediaFolderPath(saveLocation));
 
 	for (const note of notes) {
 		await processAndSaveNote(plugin, note, saveLocation);
@@ -281,10 +252,8 @@ export async function processAndSaveNote(
 			normalizedNote,
 			plugin.app
 		);
-		const newFrontmatterDict = normalizedNote.frontmatterDict;
 		const newFrontmatter = normalizedNote.frontmatter;
-		const newTextWithoutFrontmatter =
-			normalizedNote.textWithoutFrontmatter;
+		const newTextWithoutFrontmatter = normalizedNote.textWithoutFrontmatter;
 
 		if (duplicateNotesAction === "skip") {
 			await logSync(plugin, `${noteLink} - identical (skipped)`);
@@ -297,19 +266,16 @@ export async function processAndSaveNote(
 				mdFrontmatter,
 				newTextWithoutFrontmatter
 			);
-			await ensureParentFolderForFile(plugin.app as any, noteFilePath);
+			await ensureParentFolderForFile(plugin.app, noteFilePath);
 			await plugin.app.vault.adapter.write(noteFilePath, newMdContent);
 			await logSync(plugin, `${noteLink} - new file created`);
 		} else {
 			const existingMarkdownFileContent =
 				await plugin.app.vault.adapter.read(noteFilePath);
-			const [
-				existingFrontmatter,
-				existingTextWithoutFrontmatter,
-				existingFrontmatterDict,
-			] = extractFrontmatter(existingMarkdownFileContent);
+			const [existingFrontmatter, existingTextWithoutFrontmatter] =
+				extractFrontmatter(existingMarkdownFileContent);
 
-			let mdFrontmatter = buildFrontmatterWithSyncDate(
+			const mdFrontmatter = buildFrontmatterWithSyncDate(
 				existingFrontmatter,
 				lastSyncedDate,
 				newFrontmatter
@@ -322,12 +288,9 @@ export async function processAndSaveNote(
 				);
 
 				const mergedMdContent = wrapMarkdown(mdFrontmatter, mergedText);
-				
+
 				if (!hasConflict) {
-					await ensureParentFolderForFile(
-						plugin.app as any,
-						noteFilePath
-					);
+					await ensureParentFolderForFile(plugin.app, noteFilePath);
 					await plugin.app.vault.adapter.write(
 						noteFilePath,
 						mergedMdContent
@@ -338,10 +301,7 @@ export async function processAndSaveNote(
 					noteFilePath = noteFilePath.replace(/\.md$/, "");
 					noteFilePath = `${noteFilePath}${CONFLICT_FILE_SUFFIX}${lastSyncedDate}.md`;
 
-					await ensureParentFolderForFile(
-						plugin.app as any,
-						noteFilePath
-					);
+					await ensureParentFolderForFile(plugin.app, noteFilePath);
 					await plugin.app.vault.adapter.write(
 						noteFilePath,
 						mergedMdContent
@@ -361,10 +321,7 @@ export async function processAndSaveNote(
 				);
 
 				// overwrite path: write to current path
-				await ensureParentFolderForFile(
-					plugin.app as any,
-					noteFilePath
-				);
+				await ensureParentFolderForFile(plugin.app, noteFilePath);
 				await plugin.app.vault.adapter.write(
 					noteFilePath,
 					mdContentWithSyncDate

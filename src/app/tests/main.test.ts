@@ -6,6 +6,7 @@ jest.mock("../../ui/modals/NoteImportOptionsModal", () => ({
 }));
 
 import { Plugin, Notice } from "obsidian";
+import * as Obsidian from "obsidian";
 import KeepSidianPlugin from "../../main";
 import * as SyncModule from "../../features/keep/sync";
 import { DEFAULT_SETTINGS } from "../../types/keepsidian-plugin-settings";
@@ -199,10 +200,24 @@ describe("KeepSidianPlugin", () => {
 			const importMock = jest
 				.spyOn(SyncModule, "importGoogleKeepNotes")
 				.mockResolvedValue(0);
-			(require("obsidian") as any).normalizePath = (p: string) => p;
+			const previousNormalizePath = (
+				Obsidian as { normalizePath?: (path: string) => string }
+			).normalizePath;
+			(
+				Obsidian as { normalizePath: (path: string) => string }
+			).normalizePath = (p: string) => p;
 			await plugin.importNotes();
 			expect(plugin.app.vault.adapter.write).toHaveBeenCalled();
 			importMock.mockRestore();
+			if (previousNormalizePath) {
+				(
+					Obsidian as { normalizePath: (path: string) => string }
+				).normalizePath = previousNormalizePath;
+			} else {
+				delete (
+					Obsidian as { normalizePath?: (path: string) => string }
+				).normalizePath;
+			}
 		});
 	});
 
@@ -248,7 +263,7 @@ describe("KeepSidianPlugin", () => {
 			plugin.settings = { ...DEFAULT_SETTINGS };
 			const saveLocation = plugin.settings.saveLocation;
 
-			const notice = (require("obsidian") as any).Notice as jest.Mock;
+			const notice = Notice as unknown as jest.Mock;
 
 			plugin.app = {
 				vault: {
@@ -280,7 +295,7 @@ describe("KeepSidianPlugin", () => {
 				.toISOString()
 				.slice(0, 10)}.md`;
 
-			const notice = (require("obsidian") as any).Notice as jest.Mock;
+			const notice = Notice as unknown as jest.Mock;
 
 			plugin.app = {
 				vault: {
@@ -342,9 +357,23 @@ describe("KeepSidianPlugin", () => {
 				0
 			);
 
-			const notice = (require("obsidian") as any).Notice as jest.Mock;
-			(require("obsidian") as any).normalizePath = (p: string) => p;
+			const notice = Notice as unknown as jest.Mock;
+			const previousNormalizePath = (
+				Obsidian as { normalizePath?: (path: string) => string }
+			).normalizePath;
+			(
+				Obsidian as { normalizePath: (path: string) => string }
+			).normalizePath = (p: string) => p;
 			await plugin.importNotes();
+			if (previousNormalizePath) {
+				(
+					Obsidian as { normalizePath: (path: string) => string }
+				).normalizePath = previousNormalizePath;
+			} else {
+				delete (
+					Obsidian as { normalizePath?: (path: string) => string }
+				).normalizePath;
+			}
 
 			expect(notice).toHaveBeenCalledWith(
 				"KeepSidian: Failed to write sync log."

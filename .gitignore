@@ -29,3 +29,5 @@ data.json
 .DS_Store
 
 prompts/
+.env.development
+.env.production

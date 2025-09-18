@@ -14,6 +14,30 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = (process.argv[2] === "production");
 
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const contents = fs.readFileSync(filePath, "utf8");
+  for (const line of contents.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const [key, ...rest] = trimmed.split("=");
+    if (!key) {
+      continue;
+    }
+
+    const value = rest.join("=");
+    if (!(key in process.env)) {
+      process.env[key] = value;
+    }
+  }
+}
+
 // Minimal tsconfig-paths resolver plugin (no external deps)
 function tsconfigPathsPlugin({ tsconfigPath }) {
   const name = "tsconfig-paths";
@@ -84,6 +108,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 
+const envFiles = [
+  path.resolve(rootDir, ".env"),
+  path.resolve(rootDir, prod ? ".env.production" : ".env.development"),
+];
+
+for (const candidate of envFiles) {
+  loadEnvFile(candidate);
+}
+
+const defaultServerUrl = prod
+  ? "https://keepsidianserver-i55qr5tvea-uc.a.run.app"
+  : "http://localhost:8080";
+
+const resolvedServerUrl = String(
+  process.env.KEEPSIDIAN_SERVER_URL ?? defaultServerUrl,
+).replace(/\/$/, "");
+
 const context = await esbuild.context({
 	banner: {
 		js: banner,
@@ -110,10 +151,13 @@ const context = await esbuild.context({
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
-    outfile: "main.js",
-    plugins: [
-        tsconfigPathsPlugin({ tsconfigPath: path.resolve(rootDir, "config/tsconfig.json") }),
-    ],
+	outfile: "main.js",
+	plugins: [
+		tsconfigPathsPlugin({ tsconfigPath: path.resolve(rootDir, "config/tsconfig.json") }),
+	],
+	define: {
+		"process.env.KEEPSIDIAN_SERVER_URL": JSON.stringify(resolvedServerUrl),
+	},
 });
 
 if (prod) {

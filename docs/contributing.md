@@ -43,4 +43,3 @@ Thanks for contributing! This project is an Obsidian plugin with a layered archi
 - Dev: `npm run dev` (esbuild watch).
 - Build: `npm run build` (lint + typecheck + bundle).
 - Ensure `manifest.json` matches `main.js` via `npm run version` when releasing.
-

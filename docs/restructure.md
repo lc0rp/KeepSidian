@@ -61,6 +61,7 @@ Note on Obsidian CSS: keeping styles.css at repo root is normal for plugins; don
 [x] - Barrels: Add index.ts in src/ui, src/features/keep/domain, src/services, src/types for simpler imports. (DONE)
 [x] - Constants: Extract frontmatter keys and sync constants from src/google/keep/note.ts:1, src/google/keep/compare.ts:1 to src/features/keep/constants.ts. (DONE)
 [x] - Tests co-location: Standardize on src/__/tests/*.test.ts everywhere. (DONE)
+
 - Move src/tests/main.test.ts:1 alongside src/app/main.ts
 [x] - Scripts folder: Move version-bump.mjs to scripts/version-bump.mjs and update package.json scripts. (DONE)
 

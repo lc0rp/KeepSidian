@@ -44,4 +44,3 @@ This project is an Obsidian plugin that syncs Google Keep notes into an Obsidian
 - Use runtime schemas to validate external payloads.
 - Prefer aliases (`@app`, `@ui`, `@features`, `@integrations`, `@services`, `@types`, `@schemas`).
 - Barrels: use `barrelsby` to keep `index.ts` files current (prebuild step).
-

@@ -20,7 +20,7 @@ import {
 	importGoogleKeepNotes,
 	importGoogleKeepNotesWithOptions,
 } from "@features/keep/sync";
-import { ensureFolder, ensureFile, normalizePathSafe } from "@services/paths";
+import { ensureFolder } from "@services/paths";
 
 export default class KeepSidianPlugin extends Plugin {
 	settings: KeepSidianPluginSettings;
@@ -76,7 +76,7 @@ export default class KeepSidianPlugin extends Plugin {
 	private async ensureStoragePathsOrThrow(): Promise<void> {
 		const saveLocation = this.settings.saveLocation;
 		try {
-			await ensureFolder(this.app as any, saveLocation);
+			await ensureFolder(this.app, saveLocation);
 		} catch (e: any) {
 			new Notice(
 				`KeepSidian: Failed to create save location: ${saveLocation}`
@@ -108,7 +108,7 @@ export default class KeepSidianPlugin extends Plugin {
 					await logSync(this, `Manual sync started`);
 					startSyncUI(this);
 					try {
-						const count = await importGoogleKeepNotesWithOptions(
+						await importGoogleKeepNotesWithOptions(
 							this,
 							options,
 							{
@@ -164,7 +164,7 @@ export default class KeepSidianPlugin extends Plugin {
 				await logSync(this, `${auto ? "Auto" : "Manual"} sync started`);
 				startSyncUI(this);
 				try {
-					const count = await importGoogleKeepNotes(this, {
+					await importGoogleKeepNotes(this, {
 						setTotalNotes: (n) => uiSetTotalNotes(this, n),
 						reportProgress: () => reportSyncProgress(this),
 					});

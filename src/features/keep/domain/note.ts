@@ -60,11 +60,11 @@ function normalizeNote(note: PreNormalizedNote): NormalizedNote {
 		textWithoutFrontmatter: note.text || "",
 	};
 
-	[
-		normalizedNote.frontmatter,
-		normalizedNote.textWithoutFrontmatter,
-		normalizedNote.frontmatterDict,
-	] = extractFrontmatter(normalizedNote.text);
+	const [frontmatter, textWithoutFrontmatter, frontmatterDict] =
+		extractFrontmatter(normalizedNote.text);
+	normalizedNote.frontmatter = frontmatter;
+	normalizedNote.textWithoutFrontmatter = textWithoutFrontmatter;
+	normalizedNote.frontmatterDict = frontmatterDict;
 
 	return normalizedNote;
 }
