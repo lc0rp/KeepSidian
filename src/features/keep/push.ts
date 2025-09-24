@@ -251,6 +251,10 @@ function guessMimeType(fileName: string): string {
         return mapping[extension] || "application/octet-stream";
 }
 
+function roundDateToSeconds(date: Date): Date {
+        return new Date(Math.floor(date.getTime() / 1000) * 1000);
+}
+
 async function collectAttachments(
         adapter: VaultAdapter,
         noteContent: string,
@@ -266,6 +270,7 @@ async function collectAttachments(
         const payloads: PushAttachmentPayload[] = [];
         const updatedAttachments: string[] = [];
         const missingAttachments: string[] = [];
+        const roundedLastSynced = lastSynced ? roundDateToSeconds(lastSynced) : null;
 
         for (const attachmentPath of attachmentPaths) {
                 try {
@@ -282,12 +287,12 @@ async function collectAttachments(
                                         ? await adapter.stat(attachmentPath)
                                         : null;
                         const updated = stat?.mtime
-                                ? new Date(stat.mtime)
+                                ? roundDateToSeconds(new Date(stat.mtime))
                                 : null;
                         const shouldInclude =
-                                !lastSynced ||
-                                !updated ||
-                                (lastSynced && updated > lastSynced);
+                                roundedLastSynced === null ||
+                                updated === null ||
+                                updated.getTime() > roundedLastSynced.getTime();
                         if (!shouldInclude) {
                                 continue;
                         }
@@ -357,11 +362,16 @@ async function collectNotesToPush(
                                         ? await adapter.stat(filePath)
                                         : null;
                         const modifiedDate = stat?.mtime
-                                ? new Date(stat.mtime)
+                                ? roundDateToSeconds(new Date(stat.mtime))
                                 : null;
+                        const roundedLastSyncedDate =
+                                lastSyncedDate !== null ? roundDateToSeconds(lastSyncedDate) : null;
                         const modifiedSinceLastSync =
-                                !lastSyncedDate ||
-                                (modifiedDate && lastSyncedDate && modifiedDate > lastSyncedDate);
+                                !roundedLastSyncedDate ||
+                                (modifiedDate !== null &&
+                                        roundedLastSyncedDate !== null &&
+                                        modifiedDate.getTime() >
+                                                roundedLastSyncedDate.getTime());
 
                         const { payloads, updatedAttachments, missingAttachments } =
                                 await collectAttachments(
@@ -463,11 +473,11 @@ export async function pushGoogleKeepNotes(
                 const response = await apiPushNotes(email, token, payload);
                 const resultMap = mapResultsByPath(response?.results);
 
-                const pushTimestamp = new Date().toISOString();
                 let successCount = 0;
 
                 for (const note of notesToPush) {
                         try {
+                                const pushTimestamp = roundDateToSeconds(new Date()).toISOString();
                                 const normalizedPath = normalizePathSafe(note.relativePath);
                                 const result =
                                         resultMap.get(normalizedPath) ??
@@ -538,4 +548,3 @@ export async function pushGoogleKeepNotes(
                 throw error;
         }
 }
-

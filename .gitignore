@@ -34,3 +34,4 @@ data.json
 # Local settings shared with other repos
 # Use ln -s /path/to/shared/file file to include here
 AGENTS.md
+docs/tmp/*
