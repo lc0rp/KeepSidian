@@ -153,3 +153,27 @@ If your plugin does not need CSS, delete this file.
     /* Unicode lock icon */
     margin-left: 4px;
 }
+
+.keepsidian-support-links {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0;
+    font-size: 0.95em;
+    color: var(--text-muted);
+}
+
+.keepsidian-support-links a {
+    color: var(--text-accent);
+    text-decoration: none;
+}
+
+.keepsidian-support-links a:hover {
+    text-decoration: underline;
+}
+
+.keepsidian-support-links span {
+    color: var(--text-muted);
+    font-weight: 500;
+}

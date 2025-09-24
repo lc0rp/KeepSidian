@@ -10,18 +10,43 @@ export interface GoogleKeepImportResponse {
 }
 
 export interface PremiumFeatureFlags {
-	filter_notes?: {
-		terms: string[];
-	};
-	skip_notes?: {
-		terms: string[];
-	};
-	suggest_title?: Record<string, never>;
-	suggest_tags?: {
-		max_tags: number;
-		restrict_tags: boolean;
-		prefix: string;
-	};
+        filter_notes?: {
+                terms: string[];
+        };
+        skip_notes?: {
+                terms: string[];
+        };
+        suggest_title?: Record<string, never>;
+        suggest_tags?: {
+                max_tags: number;
+                restrict_tags: boolean;
+                prefix: string;
+        };
+}
+
+export interface PushAttachmentPayload {
+        name: string;
+        mime_type: string;
+        data: string;
+}
+
+export interface PushNotePayload {
+        path: string;
+        title?: string;
+        content: string;
+        attachments?: PushAttachmentPayload[];
+}
+
+export interface PushNoteResult {
+        path?: string;
+        success?: boolean;
+        message?: string;
+        error?: string;
+        keep_url?: string;
+}
+
+export interface PushNotesResponse {
+        results?: PushNoteResult[];
 }
 
 export async function fetchNotes(
@@ -63,6 +88,24 @@ export async function fetchNotesWithPremiumFeatures(
     );
     // Runtime validation with Zod
     return GoogleKeepImportResponseSchema.parse(raw) as GoogleKeepImportResponse;
+}
+
+export async function pushNotes(
+        email: string,
+        token: string,
+        notes: PushNotePayload[]
+): Promise<PushNotesResponse> {
+        const url = `${KEEPSIDIAN_SERVER_URL}/keep/push`;
+        const headers = {
+                "Content-Type": "application/json",
+                "X-User-Email": email,
+                Authorization: `Bearer ${token}`,
+        };
+        return await httpPostJson<PushNotesResponse, { notes: PushNotePayload[] }>(
+                url,
+                { notes },
+                headers
+        );
 }
 
 // Kept for backward compatibility and tests that use it directly

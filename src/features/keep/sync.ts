@@ -10,10 +10,8 @@ import { mergeNoteText } from "./domain/merge";
 // Import via legacy google path so tests can spy on this module
 import { processAttachments } from "../keep/io/attachments";
 import type { NoteImportOptions } from "@ui/modals/NoteImportOptionsModal";
-import {
-	CONFLICT_FILE_SUFFIX,
-	FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
-} from "./constants";
+import { CONFLICT_FILE_SUFFIX } from "./constants";
+import { buildFrontmatterWithSyncDate, wrapMarkdown } from "./frontmatter";
 import {
 	buildNotePath,
 	ensureFolder,
@@ -34,52 +32,6 @@ import {
 export interface SyncCallbacks {
 	setTotalNotes?: (total: number) => void;
 	reportProgress?: () => void;
-}
-
-function buildFrontmatterWithSyncDate(
-	newFrontmatter: string,
-	lastSyncedDate: string,
-	existingFrontmatter?: string
-): string {
-	if (existingFrontmatter && existingFrontmatter.trim().length > 0) {
-		if (
-			existingFrontmatter.includes(
-				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:`
-			)
-		) {
-			const re = new RegExp(
-				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:\\s*[^\\n]*`
-			);
-			return existingFrontmatter.replace(
-				re,
-				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`
-			);
-		}
-		return `${existingFrontmatter}\n${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`;
-	}
-
-	if (newFrontmatter && newFrontmatter.trim().length > 0) {
-		if (
-			newFrontmatter.includes(
-				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:`
-			)
-		) {
-			const re = new RegExp(
-				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}:\\s*[^\\n]*`
-			);
-			return newFrontmatter.replace(
-				re,
-				`${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`
-			);
-		}
-		return `${newFrontmatter}\n${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`;
-	}
-
-	return `${FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY}: ${lastSyncedDate}`;
-}
-
-function wrapMarkdown(frontmatter: string, text: string): string {
-	return `---\n${frontmatter}\n---\n${text}`;
 }
 
 function logErrorIfNotTest(...args: any[]) {

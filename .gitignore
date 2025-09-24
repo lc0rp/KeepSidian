@@ -28,6 +28,9 @@ data.json
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
 
-prompts/
 .env.development
 .env.production
+
+# Local settings shared with other repos
+# Use ln -s /path/to/shared/file file to include here
+AGENTS.md

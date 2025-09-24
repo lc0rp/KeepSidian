@@ -24,11 +24,20 @@ generated during installation. These credentials are stored on your computer,
 sent when you sync, and then discarded - We do not log or store your
 credentials or notes in any way.
 
-## Sync command
+## Sync commands
 
-This plugin offers an on-demand "Run Keep -> Obsidian" command to download all
-notes on demand. Follow the installation instructions below to try it and share
-your feedback.
+KeepSidian now ships with three commands that share the same progress UI and log
+output:
+
+- **Import Google Keep Notes** downloads notes from Google Keep into the
+  configured vault folder.
+- **Push Notes to Google Keep** scans the sync folder for Markdown files whose
+  `KeepSidianLastSyncedDate` is older than the file's modified timestamp,
+  bundles any attachments in the `media/` folder that have been updated since
+  the last push, and sends the payload to Google Keep.
+- **Perform Two-Way Sync** executes an import first and then runs the push
+  command so that newly downloaded notes are merged back to Google Keep without
+  re-running the workflows manually.
 
 When a sync is running you'll see a persistent toast and a status bar indicator
 showing progress. Hovering over the status bar shows a tooltip identifying it as

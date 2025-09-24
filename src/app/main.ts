@@ -17,9 +17,10 @@ import { logSync, prepareSyncLog } from "@app/logging";
 import { KeepSidianSettingsTab } from "@ui/settings/KeepSidianSettingsTab";
 import { registerRibbonAndCommands } from "@app/commands";
 import {
-	importGoogleKeepNotes,
-	importGoogleKeepNotesWithOptions,
+        importGoogleKeepNotes,
+        importGoogleKeepNotesWithOptions,
 } from "@features/keep/sync";
+import { pushGoogleKeepNotes } from "@features/keep/push";
 import { ensureFolder } from "@services/paths";
 
 export default class KeepSidianPlugin extends Plugin {
@@ -136,11 +137,11 @@ export default class KeepSidianPlugin extends Plugin {
 		});
 	}
 
-	async importNotes(auto = false) {
-		if (this.isSyncing) {
-			return;
-		}
-		this.isSyncing = true;
+        async importNotes(auto = false) {
+                if (this.isSyncing) {
+                        return;
+                }
+                this.isSyncing = true;
 		try {
 			const isSubscriptionActive =
 				await this.subscriptionService.isSubscriptionActive();
@@ -194,10 +195,144 @@ export default class KeepSidianPlugin extends Plugin {
 					error.message
 				}. Processed ${this.processedNotes} note(s).`
 			);
-		} finally {
-			this.isSyncing = false;
-		}
-	}
+                } finally {
+                        this.isSyncing = false;
+                }
+        }
+
+        async pushNotes() {
+                if (this.isSyncing) {
+                        return;
+                }
+                this.isSyncing = true;
+                try {
+                        try {
+                                await this.ensureStoragePathsOrThrow();
+                        } catch {
+                                return;
+                        }
+
+                        const logPrepared = await prepareSyncLog(this);
+                        if (!logPrepared) {
+                                return;
+                        }
+
+                        await logSync(this, `Push sync started`);
+                        startSyncUI(this);
+                        try {
+                                const pushed = await pushGoogleKeepNotes(this, {
+                                        setTotalNotes: (n) => uiSetTotalNotes(this, n),
+                                        reportProgress: () => reportSyncProgress(this),
+                                });
+                                await logSync(
+                                        this,
+                                        `Push sync ended - success. Pushed ${pushed} note(s).`
+                                );
+                                finishSyncUI(this, true);
+                        } catch (error: any) {
+                                finishSyncUI(this, false);
+                                await logSync(
+                                        this,
+                                        `Push sync ended - failed: ${error.message}. Processed ${this.processedNotes} note(s).`
+                                );
+                        }
+                } catch (error: any) {
+                        await logSync(
+                                this,
+                                `Push sync ended - failed: ${error.message}. Processed ${this.processedNotes} note(s).`
+                        );
+                } finally {
+                        this.isSyncing = false;
+                }
+        }
+
+        private resetProgressIndicatorsForNextStage() {
+                this.processedNotes = 0;
+                this.totalNotes = null;
+                if (this.statusTextEl) {
+                        this.statusTextEl.textContent = "Sync: 0/?";
+                }
+                if (this.progressContainerEl) {
+                        this.progressContainerEl.style.display = "";
+                        this.progressContainerEl.classList.remove("complete", "failed");
+                        if (!this.progressContainerEl.classList.contains("indeterminate")) {
+                                this.progressContainerEl.classList.add("indeterminate");
+                        }
+                }
+                if (this.progressBarEl) {
+                        this.progressBarEl.style.width = "";
+                        this.progressBarEl.classList.remove("paused");
+                }
+                this.progressModal?.setProgress(0, undefined);
+        }
+
+        async performTwoWaySync() {
+                if (this.isSyncing) {
+                        return;
+                }
+                this.isSyncing = true;
+                try {
+                        try {
+                                await this.ensureStoragePathsOrThrow();
+                        } catch {
+                                return;
+                        }
+
+                        const logPrepared = await prepareSyncLog(this);
+                        if (!logPrepared) {
+                                return;
+                        }
+
+                        await logSync(this, `Two-way sync started`);
+                        startSyncUI(this);
+                        const callbacks = {
+                                setTotalNotes: (n: number) => uiSetTotalNotes(this, n),
+                                reportProgress: () => reportSyncProgress(this),
+                        };
+
+                        let importProcessed = 0;
+                        try {
+                                await importGoogleKeepNotes(this, callbacks);
+                                importProcessed = this.processedNotes;
+                                await logSync(
+                                        this,
+                                        `Two-way sync - import completed. Processed ${importProcessed} note(s).`
+                                );
+                        } catch (error: any) {
+                                finishSyncUI(this, false);
+                                await logSync(
+                                        this,
+                                        `Two-way sync ended - import failed: ${error.message}. Processed ${this.processedNotes} note(s).`
+                                );
+                                return;
+                        }
+
+                        this.resetProgressIndicatorsForNextStage();
+                        await logSync(this, `Two-way sync - starting push stage`);
+
+                        try {
+                                const pushed = await pushGoogleKeepNotes(this, callbacks);
+                                await logSync(
+                                        this,
+                                        `Two-way sync ended - success. Imported ${importProcessed} note(s), pushed ${pushed} note(s).`
+                                );
+                                finishSyncUI(this, true);
+                        } catch (error: any) {
+                                finishSyncUI(this, false);
+                                await logSync(
+                                        this,
+                                        `Two-way sync ended - push failed: ${error.message}. Processed ${this.processedNotes} note(s).`
+                                );
+                        }
+                } catch (error: any) {
+                        await logSync(
+                                this,
+                                `Two-way sync ended - failed: ${error.message}. Processed ${this.processedNotes} note(s).`
+                        );
+                } finally {
+                        this.isSyncing = false;
+                }
+        }
 
 	startAutoSync() {
 		this.stopAutoSync();

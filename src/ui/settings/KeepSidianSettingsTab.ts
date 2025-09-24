@@ -21,17 +21,44 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		return emailRegex.test(email);
 	}
 
-	async display(): Promise<void> {
-		const { containerEl } = this;
-		containerEl.empty();
+        async display(): Promise<void> {
+                const { containerEl } = this;
+                containerEl.empty();
 
-		this.addEmailSetting(containerEl);
-		this.addSaveLocationSetting(containerEl);
-		this.addSyncTokenSetting(containerEl);
-		this.createRetrieveTokenWebView(containerEl);
-		await this.addAutoSyncSettings(containerEl);
-		this.addSubscriptionSettings(containerEl);
-	}
+                this.addSupportLinks(containerEl);
+                this.addEmailSetting(containerEl);
+                this.addSaveLocationSetting(containerEl);
+                this.addSyncTokenSetting(containerEl);
+                this.createRetrieveTokenWebView(containerEl);
+                await this.addAutoSyncSettings(containerEl);
+                this.addSubscriptionSettings(containerEl);
+                this.addSupportLinks(containerEl);
+        }
+
+        private addSupportLinks(containerEl: HTMLElement): void {
+                const supportContainer = containerEl.createEl("div", {
+                        cls: "keepsidian-support-links",
+                });
+
+                const githubLink = supportContainer.createEl("a", {
+                        text: "GitHub Issues",
+                });
+                githubLink.setAttribute(
+                        "href",
+                        "https://github.com/lc0rp/KeepSidian/issues"
+                );
+                githubLink.setAttribute("target", "_blank");
+                githubLink.setAttribute("rel", "noopener noreferrer");
+
+                supportContainer.createEl("span", { text: "|" });
+
+                const discordLink = supportContainer.createEl("a", {
+                        text: "Discord DM (@lc0rp)",
+                });
+                discordLink.setAttribute("href", "https://discord.com/users/lc0rp");
+                discordLink.setAttribute("target", "_blank");
+                discordLink.setAttribute("rel", "noopener noreferrer");
+        }
 
 	private addSubscriptionSettings(containerEl: HTMLElement): void {
 		const subscriptionTab = new SubscriptionSettingsTab(
