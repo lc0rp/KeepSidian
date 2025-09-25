@@ -12,6 +12,7 @@ const config: Config.InitialOptions = {
         '^@features/(.*)$': '<rootDir>/src/features/$1',
         '^@integrations/(.*)$': '<rootDir>/src/integrations/$1',
         '^@services/(.*)$': '<rootDir>/src/services/$1',
+        '^@types$': '<rootDir>/src/types/index.ts',
         '^@types/(.*)$': '<rootDir>/src/types/$1',
         '^@schemas/(.*)$': '<rootDir>/src/schemas/$1',
         '^@test-utils/(.*)$': '<rootDir>/src/test-utils/$1',

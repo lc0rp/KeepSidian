@@ -137,3 +137,51 @@ export class Modal {
 
 // Add requestUrl mock
 export const requestUrl = jest.fn();
+
+class MenuItemMock {
+  title = '';
+  disabled = false;
+  onClickCallback?: () => void;
+
+  setTitle(title: string) {
+    this.title = title;
+    return this;
+  }
+
+  setDisabled(disabled: boolean) {
+    this.disabled = disabled;
+    return this;
+  }
+
+  onClick(callback: () => void) {
+    this.onClickCallback = callback;
+    return this;
+  }
+
+  setIcon() {
+    return this;
+  }
+}
+
+export class Menu {
+  items: Array<{ title: string; disabled: boolean; onClick?: () => void }> = [];
+
+  addItem(callback: (item: MenuItemMock) => void) {
+    const item = new MenuItemMock();
+    callback(item);
+    this.items.push({
+      title: item.title,
+      disabled: item.disabled,
+      onClick: item.onClickCallback,
+    });
+    return this;
+  }
+
+  addSeparator() {
+    return this;
+  }
+
+  showAtMouseEvent() {}
+
+  showAtPosition() {}
+}

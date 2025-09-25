@@ -7,6 +7,7 @@
       "@features/*": ["features/*"],
       "@integrations/*": ["integrations/*"],
       "@services/*": ["services/*"],
+      "@types": ["types/index.ts"],
       "@types/*": ["types/*"],
       "@schemas/*": ["schemas/*"],
       "@test-utils/*": ["test-utils/*"]

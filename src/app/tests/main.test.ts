@@ -69,13 +69,30 @@ describe("KeepSidianPlugin", () => {
 				"Import Google Keep notes.",
 				expect.any(Function)
 			);
-			expect(plugin.addCommand).toHaveBeenCalledWith({
-				id: "import-google-keep-notes",
-				name: "Import Google Keep Notes",
-				callback: expect.any(Function),
-			});
+			expect(plugin.addCommand).toHaveBeenCalledTimes(4);
+			expect(
+				(plugin.addCommand as jest.Mock).mock.calls.map(
+					(call) => call[0].id
+				)
+			).toEqual([
+				"two-way-sync-google-keep",
+				"import-google-keep-notes",
+				"push-google-keep-notes",
+				"open-keepsidian-sync-log",
+			]);
 			expect(plugin.addSettingTab).toHaveBeenCalledWith(
 				expect.any(KeepSidianSettingsTab)
+			);
+			expect(plugin.statusTextEl?.textContent).toBe("Last sync: never");
+			const statusEl = (plugin.addStatusBarItem as jest.Mock).mock
+				.results[0].value;
+			expect(statusEl.setAttribute).toHaveBeenCalledWith(
+				"aria-label",
+				"KeepSidian sync actions"
+			);
+			expect(statusEl.setAttribute).toHaveBeenCalledWith(
+				"title",
+				"KeepSidian has not synced yet."
 			);
 		});
 	});
@@ -123,14 +140,16 @@ describe("KeepSidianPlugin", () => {
 			expect(plugin.progressNotice).not.toBeNull();
 			const statusEl = (plugin.addStatusBarItem as jest.Mock).mock
 				.results[0].value;
-			expect(statusEl.setAttribute).toHaveBeenCalledWith(
-				"aria-label",
-				"KeepSidian sync progress"
-			);
-			expect(statusEl.setAttribute).toHaveBeenCalledWith(
-				"title",
-				"KeepSidian sync progress"
-			);
+			const tooltipCalls = (statusEl.setAttribute as jest.Mock).mock.calls
+				.filter(([attr]) => attr === "title")
+				.map(([, value]) => value);
+			expect(tooltipCalls).toContain("KeepSidian syncing...");
+			expect(
+				tooltipCalls.some((value: string) =>
+					value.startsWith("KeepSidian last synced")
+				)
+			).toBe(true);
+			expect(plugin.statusTextEl?.textContent).toContain("Last synced");
 		});
 
 		it("should show options modal for premium users", async () => {
@@ -158,6 +177,80 @@ describe("KeepSidianPlugin", () => {
 			showModalSpy.mockRestore();
 			isSubscriptionActiveSpy.mockRestore();
 			importMock.mockRestore();
+		});
+	});
+
+	describe("openLatestSyncLog", () => {
+		beforeEach(async () => {
+			await plugin.onload();
+			plugin.app = {
+				workspace: {
+					openLinkText: jest.fn(),
+				},
+				vault: {
+					adapter: {
+						list: jest
+							.fn()
+							.mockResolvedValue({ files: [], folders: [] }),
+					},
+				},
+			} as any;
+		});
+
+		it("opens stored log path when available", async () => {
+			const logPath = "Google Keep/_KeepSidianLogs/2024-01-01.md";
+			plugin.lastSyncLogPath = logPath;
+			plugin.settings.lastSyncLogPath = logPath;
+
+			await plugin.openLatestSyncLog();
+
+			expect(
+				plugin.app.workspace.openLinkText as jest.Mock
+			).toHaveBeenCalledWith(logPath, "", true);
+		});
+
+		it("selects the latest log when none is stored", async () => {
+			plugin.lastSyncLogPath = null;
+			plugin.settings.lastSyncLogPath = null;
+			const adapter = plugin.app.vault.adapter as unknown as {
+				list: jest.Mock;
+			};
+			adapter.list.mockResolvedValue({
+				files: [
+					"Google Keep/_KeepSidianLogs/2024-01-01.md",
+					"Google Keep/_KeepSidianLogs/2024-01-03.md",
+					"Google Keep/_KeepSidianLogs/2024-01-02.md",
+				],
+				folders: [],
+			});
+
+			await plugin.openLatestSyncLog();
+
+			expect(
+				plugin.app.workspace.openLinkText as jest.Mock
+			).toHaveBeenCalledWith(
+				"Google Keep/_KeepSidianLogs/2024-01-03.md",
+				"",
+				true
+			);
+			expect(plugin.lastSyncLogPath).toBe(
+				"Google Keep/_KeepSidianLogs/2024-01-03.md"
+			);
+		});
+
+		it("shows a notice when no logs are available", async () => {
+			plugin.lastSyncLogPath = null;
+			plugin.settings.lastSyncLogPath = null;
+			(Notice as unknown as jest.Mock).mockClear();
+
+			await plugin.openLatestSyncLog();
+
+			expect(Notice).toHaveBeenCalledWith(
+				"KeepSidian: No sync logs found."
+			);
+			expect(
+				plugin.app.workspace.openLinkText as jest.Mock
+			).not.toHaveBeenCalled();
 		});
 	});
 
