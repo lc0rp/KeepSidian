@@ -1,6 +1,13 @@
 import { WebviewTag } from "electron";
 import KeepSidianPlugin from "main";
-import { PluginSettingTab, App, Setting, Notice } from "obsidian";
+import {
+        PluginSettingTab,
+        App,
+        Setting,
+        Notice,
+        setIcon,
+} from "obsidian";
+import type { IconName } from "obsidian";
 import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
 import {
 	exchangeOauthToken,
@@ -25,47 +32,92 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
                 const { containerEl } = this;
                 containerEl.empty();
 
-                this.addSupportLinks(containerEl);
+                this.addSupportSection(containerEl);
                 this.addEmailSetting(containerEl);
                 this.addSaveLocationSetting(containerEl);
+				containerEl.createEl("hr", {cls: "keepsidian-settings-hr"});
                 this.addSyncTokenSetting(containerEl);
                 this.createRetrieveTokenWebView(containerEl);
+				containerEl.createEl("hr", {cls: "keepsidian-settings-hr"});
                 await this.addAutoSyncSettings(containerEl);
-                this.addSubscriptionSettings(containerEl);
-                this.addSupportLinks(containerEl);
+				containerEl.createEl("hr", {cls: "keepsidian-settings-hr"});
+                await this.addSubscriptionSettings(containerEl);
+				containerEl.createEl("hr", {cls: "keepsidian-settings-hr"});
+                this.addSupportSection(containerEl);
         }
 
-        private addSupportLinks(containerEl: HTMLElement): void {
-                const supportContainer = containerEl.createEl("div", {
+        private addSupportSection(
+                containerEl: HTMLElement
+        ): void {
+                const supportRow = containerEl.createEl("div", {
+                        cls: "keepsidian-support-row",
+                });
+
+				supportRow.createEl("span", {
+					cls: "keepsidian-support-version",
+					text: `KeepSidian v${this.plugin.manifest.version}`,
+				});
+
+				supportRow.createEl("span", {
+					cls: "keepsidian-support-spacer",
+				});
+
+                supportRow.createEl("span", {
+                        cls: "keepsidian-support-label",
+                        text: "Need help?",
+                });
+
+                const linksContainer = supportRow.createEl("div", {
                         cls: "keepsidian-support-links",
                 });
 
-                const githubLink = supportContainer.createEl("a", {
-                        text: "GitHub Issues",
-                });
-                githubLink.setAttribute(
-                        "href",
-                        "https://github.com/lc0rp/KeepSidian/issues"
+                this.createSupportLink(
+                        linksContainer,
+                        "GitHub Issues",
+                        "https://github.com/lc0rp/KeepSidian/issues",
+                        "github"
                 );
-                githubLink.setAttribute("target", "_blank");
-                githubLink.setAttribute("rel", "noopener noreferrer");
 
-                supportContainer.createEl("span", { text: "|" });
-
-                const discordLink = supportContainer.createEl("a", {
-                        text: "Discord DM (@lc0rp)",
-                });
-                discordLink.setAttribute("href", "https://discord.com/users/lc0rp");
-                discordLink.setAttribute("target", "_blank");
-                discordLink.setAttribute("rel", "noopener noreferrer");
+                this.createSupportLink(
+                        linksContainer,
+                        "Discord DM (@lc0rp)",
+                        "https://discord.com/users/lc0rp",
+                        "message-circle"
+                );
         }
 
-	private addSubscriptionSettings(containerEl: HTMLElement): void {
+        private createSupportLink(
+                parentEl: HTMLElement,
+                label: string,
+                href: string,
+                icon: IconName
+        ): void {
+                const linkEl = parentEl.createEl("a", {
+                        cls: "keepsidian-support-link",
+                });
+                linkEl.setAttribute("href", href);
+                linkEl.setAttribute("target", "_blank");
+                linkEl.setAttribute("rel", "noopener noreferrer");
+                linkEl.setAttribute("aria-label", label);
+                linkEl.setAttribute("title", label);
+
+                const iconEl = linkEl.createEl("span", {
+                        cls: "keepsidian-support-icon",
+                });
+                setIcon(iconEl, icon);
+
+                linkEl.createEl("span", {
+                        cls: "keepsidian-support-text",
+                        text: label,
+                });
+        }
+
+	private async addSubscriptionSettings(containerEl: HTMLElement): Promise<void> {
 		const subscriptionTab = new SubscriptionSettingsTab(
 			containerEl,
 			this.plugin
 		);
-		subscriptionTab.display();
+		await subscriptionTab.display();
 	}
 
 	private addEmailSetting(containerEl: HTMLElement): void {
@@ -203,7 +255,6 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 					})
 			);
 
-		new Setting(containerEl);
 		const isSubscribed =
 			await this.plugin.subscriptionService.isSubscriptionActive();
 

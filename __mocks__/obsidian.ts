@@ -51,6 +51,18 @@ export class PluginSettingTab {
 
     const createElFunction = function(tagName: string, options?: any) {
       const el = document.createElement(tagName);
+      if (options?.cls) {
+        if (Array.isArray(options.cls)) {
+          el.classList.add(...options.cls);
+        } else if (typeof options.cls === 'string') {
+          el.classList.add(options.cls);
+        }
+      }
+      if (options?.attr) {
+        Object.entries(options.attr).forEach(([key, value]) => {
+          el.setAttribute(key, String(value));
+        });
+      }
       if (options?.text) {
         el.textContent = options.text;
       }
@@ -61,6 +73,10 @@ export class PluginSettingTab {
 
     (this.containerEl as any).createEl = createElFunction;
   }
+}
+
+export function setIcon(element: HTMLElement, icon: string): void {
+  element.setAttribute('data-icon', icon);
 }
 
 // Minimal normalizePath mock to mirror Obsidian API behavior in tests
@@ -86,10 +102,23 @@ export class SubscriptionSettingsTab {
 
     (this.containerEl as any).createEl = function(tagName: string, options?: any) {
       const el = document.createElement(tagName);
+      if (options?.cls) {
+        if (Array.isArray(options.cls)) {
+          el.classList.add(...options.cls);
+        } else if (typeof options.cls === 'string') {
+          el.classList.add(options.cls);
+        }
+      }
+      if (options?.attr) {
+        Object.entries(options.attr).forEach(([key, value]) => {
+          el.setAttribute(key, String(value));
+        });
+      }
       if (options?.text) {
         el.textContent = options.text;
       }
       this.appendChild(el);
+      (el as any).createEl = (this as any).createEl;
       return el;
     };
   }

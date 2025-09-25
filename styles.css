@@ -154,26 +154,73 @@ If your plugin does not need CSS, delete this file.
     margin-left: 4px;
 }
 
-.keepsidian-support-links {
+.keepsidian-support-row {
     display: flex;
-    justify-content: center;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    justify-content: center;
+    gap: 8px;
     margin: 16px 0;
     font-size: 0.95em;
     color: var(--text-muted);
 }
 
-.keepsidian-support-links a {
+.keepsidian-support-spacer {
+  flex: 1;
+}
+
+.keepsidian-support-label {
+    font-weight: 400;
+    font-size: var(--font-ui-small);
+}   
+
+.keepsidian-support-version {
+    font-weight: 400;
+    color: var(--text-faint, var(--text-muted));
+}
+
+.keepsidian-support-links {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.keepsidian-support-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--background-modifier-hover);
     color: var(--text-accent);
+    text-decoration: none;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.keepsidian-support-link:hover {
+    background: var(--background-modifier-active-hover, var(--background-modifier-border));
     text-decoration: none;
 }
 
-.keepsidian-support-links a:hover {
-    text-decoration: underline;
+.keepsidian-support-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.keepsidian-support-links span {
-    color: var(--text-muted);
-    font-weight: 500;
+.keepsidian-support-icon svg {
+    width: 1.1em;
+    height: 1.1em;
+}
+
+.keepsidian-support-text {
+    font-weight: 400;
+    font-size: var(--font-ui-small);
+}
+
+.keepsidian-settings-hr {
+    margin: 16px 0;
+    border: none;
+    border-top: 2px dashed var(--background-modifier-border);
 }

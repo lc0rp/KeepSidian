@@ -23,7 +23,8 @@ jest.mock('../../../integrations/google/keepToken', () => ({
 jest.mock('obsidian', () => ({
     ...jest.requireActual('obsidian'),
     requestUrl: jest.fn(),
-    Notice: jest.fn()
+    Notice: jest.fn(),
+    setIcon: jest.fn(),
 }));
 
 const mockSubscriptionService = () => {
@@ -91,8 +92,21 @@ describe('KeepSidianSettingsTab', () => {
         const spyAddEmailSetting = jest.spyOn<any, any>(settingsTab, 'addEmailSetting');
         const spyAddSyncTokenSetting = jest.spyOn<any, any>(settingsTab, 'addSyncTokenSetting');
         const spyAddSaveLocationSetting = jest.spyOn<any, any>(settingsTab, 'addSaveLocationSetting');
-        const spyAddSubscriptionSettings = jest.spyOn<any, any>(settingsTab, 'addSubscriptionSettings');
+        const callOrder: string[] = [];
+        const originalAddSubscriptionSettings = (settingsTab as any).addSubscriptionSettings;
+        const spyAddSubscriptionSettings = jest
+            .spyOn<any, any>(settingsTab, 'addSubscriptionSettings')
+            .mockImplementation((...args: unknown[]) => {
+                callOrder.push('subscription');
+                return originalAddSubscriptionSettings.apply(settingsTab, args);
+            });
         const spyCreateRetrieveTokenWebView = jest.spyOn<any, any>(settingsTab, 'createRetrieveTokenWebView');
+        const originalAddSupportSection = (settingsTab as any).addSupportSection;
+        const spyAddSupportSection = jest
+            .spyOn<any, any>(settingsTab, 'addSupportSection')
+            .mockImplementation((...args: unknown[]) => {
+                return originalAddSupportSection.apply(settingsTab, args);
+            });
 
         await settingsTab.display();
 
@@ -101,6 +115,7 @@ describe('KeepSidianSettingsTab', () => {
         expect(spyAddSaveLocationSetting).toHaveBeenCalled();
         expect(spyAddSubscriptionSettings).toHaveBeenCalled();
         expect(spyCreateRetrieveTokenWebView).toHaveBeenCalled();
+        expect(spyAddSupportSection).toHaveBeenCalledTimes(2);
     });
 
     test('should validate email properly', () => {
