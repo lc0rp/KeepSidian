@@ -11,6 +11,7 @@ jest.mock("@integrations/server/keepApi", () => ({
 
 jest.mock("@app/logging", () => ({
         logSync: jest.fn().mockResolvedValue(undefined),
+        flushLogSync: jest.fn().mockResolvedValue(undefined),
 }));
 
 describe("pushGoogleKeepNotes", () => {

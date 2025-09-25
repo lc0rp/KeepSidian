@@ -208,7 +208,12 @@ export default class KeepSidianPlugin extends Plugin {
 						return;
 					}
 
-					await logSync(this, `\n\n---\nManual sync started`);
+					const batchOptions = {
+						batchSize: 2,
+						batchKey: "start-manual-sync",
+					};
+					await logSync(this, `\n\n---\n`, batchOptions);
+					await logSync(this, `Manual sync started`, batchOptions);
 					this.currentSyncMode = "import";
 					startSyncUI(this);
 					try {
@@ -261,9 +266,12 @@ export default class KeepSidianPlugin extends Plugin {
 					return;
 				}
 
+				const batchOptions = { batchSize: 2, batchKey: "start-sync" };
+				await logSync(this, `\n\n---\n`, batchOptions);
 				await logSync(
 					this,
-					`\n\n---\n${auto ? "Auto" : "Manual"} sync started`
+					`${auto ? "Auto" : "Manual"} sync started`,
+					batchOptions
 				);
 				this.currentSyncMode = "import";
 				startSyncUI(this);
@@ -320,7 +328,9 @@ export default class KeepSidianPlugin extends Plugin {
 				return;
 			}
 
-			await logSync(this, `\n\n---\nPush sync started`);
+			const batchOptions = { batchSize: 2, batchKey: "start-push-sync" };
+			await logSync(this, `\n\n---\n`, batchOptions);
+			await logSync(this, `Push sync started`, batchOptions);
 			this.currentSyncMode = "push";
 			startSyncUI(this);
 			try {
@@ -387,7 +397,12 @@ export default class KeepSidianPlugin extends Plugin {
 				return;
 			}
 
-			await logSync(this, `\n\n---\nTwo-way sync started`);
+			const batchOptions = {
+				batchSize: 2,
+				batchKey: "start-2way-sync",
+			};
+			await logSync(this, `\n\n---\n`, batchOptions);
+			await logSync(this, `Two-way sync started`, batchOptions);
 			this.currentSyncMode = "two-way";
 			startSyncUI(this);
 			const callbacks = {

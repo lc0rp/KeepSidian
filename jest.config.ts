@@ -18,6 +18,7 @@ const config: Config.InitialOptions = {
         '^@test-utils/(.*)$': '<rootDir>/src/test-utils/$1',
         // Add any other module mappings here
     },
+    setupFiles: ['<rootDir>/src/tests/setup-env.ts'],
     setupFilesAfterEnv: ['<rootDir>/src/tests/setup.ts'],
     testPathIgnorePatterns: ['/node_modules/', '/dist/'],
     transform: {
