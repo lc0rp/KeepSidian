@@ -27,18 +27,18 @@ export async function prepareSyncLog(
 }
 
 export async function logSync(plugin: KeepSidianPlugin, message: string) {
-        // Ensure today's log file exists first
-        const logPath = await prepareSyncLog(plugin);
-        if (!logPath) return; // Notice already shown by prepareSyncLog
+	// Ensure today's log file exists first
+	const logPath = await prepareSyncLog(plugin);
+	if (!logPath) return; // Notice already shown by prepareSyncLog
 
-        plugin.lastSyncLogPath = logPath;
-        plugin.settings.lastSyncLogPath = logPath;
+	plugin.lastSyncLogPath = logPath;
+	plugin.settings.lastSyncLogPath = logPath;
 
-        // Prepend HH:MM (24h) to message
-        const now = new Date();
-        const hours = String(now.getHours()).padStart(2, "0");
-        const minutes = String(now.getMinutes()).padStart(2, "0");
-        const currentTime = `${hours}:${minutes}`;
+	// Prepend HH:MM (24h) to message
+	const now = new Date();
+	const hours = String(now.getHours()).padStart(2, "0");
+	const minutes = String(now.getMinutes()).padStart(2, "0");
+	const currentTime = `${hours}:${minutes}`;
 	try {
 		const raw = `${currentTime} ${message}`;
 		const line = raw.trimStart().startsWith("-") ? `${raw}` : `- ${raw}`;
