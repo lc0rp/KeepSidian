@@ -68,10 +68,10 @@ export class SyncProgressModal extends BaseModal {
                 contentEl.classList.add("keepsidian-modal");
 
                 const titleEl = (contentEl as any).createEl
-                        ? (contentEl as any).createEl("h2", { text: "Sync Progress" })
+                        ? (contentEl as any).createEl("h2", { text: "Sync progress" })
                         : (() => {
                                   const el = document.createElement("h2");
-                                  el.textContent = "Sync Progress";
+                                  el.textContent = "Sync progress";
                                   contentEl.appendChild(el);
                                   return el;
                           })();

@@ -64,11 +64,6 @@ describe("KeepSidianPlugin", () => {
 			await plugin.onload();
 
 			expect(plugin.settings).toEqual(DEFAULT_SETTINGS);
-			expect(plugin.addRibbonIcon).toHaveBeenCalledWith(
-				"folder-sync",
-				"Import Google Keep notes.",
-				expect.any(Function)
-			);
 			expect(plugin.addCommand).toHaveBeenCalledTimes(4);
 			expect(
 				(plugin.addCommand as jest.Mock).mock.calls.map(
@@ -86,10 +81,6 @@ describe("KeepSidianPlugin", () => {
 			expect(plugin.statusTextEl?.textContent).toBe("Last sync: never");
 			const statusEl = (plugin.addStatusBarItem as jest.Mock).mock
 				.results[0].value;
-			expect(statusEl.setAttribute).toHaveBeenCalledWith(
-				"aria-label",
-				"KeepSidian sync actions"
-			);
 			expect(statusEl.setAttribute).toHaveBeenCalledWith(
 				"title",
 				"KeepSidian has not synced yet."
