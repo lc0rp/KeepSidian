@@ -289,6 +289,7 @@ export class SyncProgressModal extends BaseModal {
                                   return el;
                           })();
                 button.type = "button";
+                button.classList.add("keepsidian-modal-action");
                 button.addEventListener("click", () => onClick());
                 return button as HTMLButtonElement;
         }

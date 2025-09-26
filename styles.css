@@ -144,6 +144,22 @@ If your plugin does not need CSS, delete this file.
     color: var(--text-muted);
 }
 
+.keepsidian-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.keepsidian-modal-action {
+    flex: 1 1 120px;
+    padding: 6px 12px;
+    white-space: nowrap;
+}
+
+.keepsidian-modal-action:disabled {
+    opacity: 0.6;
+}
+
 .requires-subscription {
     opacity: 0.6;
 }
