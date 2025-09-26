@@ -1,18 +1,10 @@
 import { Notice } from "obsidian";
 import type KeepSidianPlugin from "@app/main";
 import { extractFrontmatter } from "./domain/note";
-import {
-	dirnameSafe,
-	ensureFolder,
-	normalizePathSafe,
-	mediaFolderPath,
-} from "@services/paths";
+import { dirnameSafe, ensureFolder, normalizePathSafe, mediaFolderPath } from "@services/paths";
 import { logSync, flushLogSync } from "@app/logging";
 import { buildFrontmatterWithSyncDate, wrapMarkdown } from "./frontmatter";
-import {
-	CONFLICT_FILE_SUFFIX,
-	FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
-} from "./constants";
+import { CONFLICT_FILE_SUFFIX, FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY } from "./constants";
 import type { SyncCallbacks } from "./sync";
 import {
 	pushNotes as apiPushNotes,
@@ -20,7 +12,6 @@ import {
 	PushNotePayload,
 	PushNoteResult,
 } from "@integrations/server/keepApi";
-import { log } from "console";
 
 interface VaultAdapter {
 	list?: (path: string) => Promise<{ files: string[]; folders: string[] }>;
@@ -92,10 +83,7 @@ async function listMarkdownFilesRecursively(
 			if (name === "media" || name === "_KeepSidianLogs") {
 				continue;
 			}
-			const nested = await listMarkdownFilesRecursively(
-				adapter,
-				normalizedSubfolder
-			);
+			const nested = await listMarkdownFilesRecursively(adapter, normalizedSubfolder);
 			markdownFiles.push(...nested);
 		}
 
@@ -140,10 +128,7 @@ function extractAttachmentReferences(
 	const references = new Set<string>();
 	const mediaFolder = mediaFolderPath(saveLocation);
 	const mediaFolderNormalized = normalizePathSafe(mediaFolder);
-	const mediaRelative = normalizeRelativePath(
-		mediaFolderNormalized,
-		saveLocation
-	);
+	const mediaRelative = normalizeRelativePath(mediaFolderNormalized, saveLocation);
 	const noteDir = dirnameSafe(notePath);
 
 	const wikiLinkRegex = /!\[\[([^\]]+)\]\]/g;
@@ -169,17 +154,11 @@ function extractAttachmentReferences(
 		}
 
 		if (normalizedTarget.startsWith(mediaRelative)) {
-			candidates.add(
-				normalizePathSafe(`${saveLocation}/${normalizedTarget}`)
-			);
+			candidates.add(normalizePathSafe(`${saveLocation}/${normalizedTarget}`));
 		}
 
 		if (!normalizedTarget.includes("/")) {
-			candidates.add(
-				normalizePathSafe(
-					`${mediaFolderNormalized}/${normalizedTarget}`
-				)
-			);
+			candidates.add(normalizePathSafe(`${mediaFolderNormalized}/${normalizedTarget}`));
 		}
 
 		if (!normalizedTarget.startsWith(mediaFolderNormalized)) {
@@ -264,17 +243,11 @@ async function collectAttachments(
 	saveLocation: string,
 	lastSynced: Date | null
 ): Promise<AttachmentCollectionResult> {
-	const attachmentPaths = extractAttachmentReferences(
-		noteContent,
-		notePath,
-		saveLocation
-	);
+	const attachmentPaths = extractAttachmentReferences(noteContent, notePath, saveLocation);
 	const payloads: PushAttachmentPayload[] = [];
 	const updatedAttachments: string[] = [];
 	const missingAttachments: string[] = [];
-	const roundedLastSynced = lastSynced
-		? roundDateToSeconds(lastSynced)
-		: null;
+	const roundedLastSynced = lastSynced ? roundDateToSeconds(lastSynced) : null;
 
 	for (const attachmentPath of attachmentPaths) {
 		try {
@@ -287,12 +260,8 @@ async function collectAttachments(
 			}
 
 			const stat =
-				typeof adapter.stat === "function"
-					? await adapter.stat(attachmentPath)
-					: null;
-			const updated = stat?.mtime
-				? roundDateToSeconds(new Date(stat.mtime))
-				: null;
+				typeof adapter.stat === "function" ? await adapter.stat(attachmentPath) : null;
+			const updated = stat?.mtime ? roundDateToSeconds(new Date(stat.mtime)) : null;
 			const shouldInclude =
 				roundedLastSynced === null ||
 				updated === null ||
@@ -330,17 +299,12 @@ function deriveNoteTitle(relativePath: string): string {
 	return fileName.replace(/\.md$/i, "");
 }
 
-async function collectNotesToPush(
-	plugin: KeepSidianPlugin
-): Promise<CollectedNotesResult> {
+async function collectNotesToPush(plugin: KeepSidianPlugin): Promise<CollectedNotesResult> {
 	const adapter = plugin.app.vault.adapter as VaultAdapter;
 	const saveLocation = plugin.settings.saveLocation;
 	await ensureFolder(plugin.app, saveLocation);
 
-	const markdownFiles = await listMarkdownFilesRecursively(
-		adapter,
-		saveLocation
-	);
+	const markdownFiles = await listMarkdownFilesRecursively(adapter, saveLocation);
 
 	const notesToPush: NoteForPush[] = [];
 	const skippedNotes: Array<{ path: string; reason: string }> = [];
@@ -356,39 +320,28 @@ async function collectNotesToPush(
 			}
 
 			const content = await adapter.read(filePath);
-			const [frontmatter, body, frontmatterDict] =
-				extractFrontmatter(content);
-			const lastSyncedValue =
-				frontmatterDict[FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY];
+			const [frontmatter, body, frontmatterDict] = extractFrontmatter(content);
+			const lastSyncedValue = frontmatterDict[FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY];
 			const lastSyncedDate = parseDate(lastSyncedValue);
-			const stat =
-				typeof adapter.stat === "function"
-					? await adapter.stat(filePath)
-					: null;
-			const modifiedDate = stat?.mtime
-				? roundDateToSeconds(new Date(stat.mtime))
-				: null;
+			const stat = typeof adapter.stat === "function" ? await adapter.stat(filePath) : null;
+			const modifiedDate = stat?.mtime ? roundDateToSeconds(new Date(stat.mtime)) : null;
 			const roundedLastSyncedDate =
-				lastSyncedDate !== null
-					? roundDateToSeconds(lastSyncedDate)
-					: null;
+				lastSyncedDate !== null ? roundDateToSeconds(lastSyncedDate) : null;
 			const modifiedSinceLastSync =
 				!roundedLastSyncedDate ||
 				(modifiedDate !== null &&
 					roundedLastSyncedDate !== null &&
 					modifiedDate.getTime() > roundedLastSyncedDate.getTime());
 
-			const { payloads, updatedAttachments, missingAttachments } =
-				await collectAttachments(
-					adapter,
-					content,
-					filePath,
-					saveLocation,
-					lastSyncedDate
-				);
+			const { payloads, updatedAttachments, missingAttachments } = await collectAttachments(
+				adapter,
+				content,
+				filePath,
+				saveLocation,
+				lastSyncedDate
+			);
 
-			const shouldPush =
-				modifiedSinceLastSync || payloads.length > 0 || !lastSyncedDate;
+			const shouldPush = modifiedSinceLastSync || payloads.length > 0 || !lastSyncedDate;
 
 			const relativePath = normalizeRelativePath(filePath, saveLocation);
 			const title = frontmatterDict.Title
@@ -428,9 +381,7 @@ async function collectNotesToPush(
 	return { notesToPush, skippedNotes };
 }
 
-function mapResultsByPath(
-	results?: PushNoteResult[]
-): Map<string, PushNoteResult> {
+function mapResultsByPath(results?: PushNoteResult[]): Map<string, PushNoteResult> {
 	const map = new Map<string, PushNoteResult>();
 	if (!results) {
 		return map;
@@ -454,13 +405,9 @@ export async function pushGoogleKeepNotes(
 		if (skippedNotes.length > 0) {
 			for (const skipped of skippedNotes) {
 				const fileName = skipped.path.split("/").pop() || skipped.path;
-				const link = `[${fileName}](${normalizePathSafe(
-					skipped.path
-				)})`;
+				const link = `[${fileName}](${normalizePathSafe(skipped.path)})`;
 				const message =
-					skipped.reason === "up-to-date"
-						? "up to date (skipped)"
-						: skipped.reason;
+					skipped.reason === "up-to-date" ? "up to date (skipped)" : skipped.reason;
 				await logSync(plugin, `${link} - ${message}`, {
 					batchKey: "push:skipped",
 					batchSize: SKIPPED_LOG_BATCH_SIZE,
@@ -479,21 +426,13 @@ export async function pushGoogleKeepNotes(
 		const { email, token } = plugin.settings;
 		let successCount = 0;
 
-		for (
-			let index = 0;
-			index < notesToPush.length;
-			index += PUSH_PAYLOAD_BATCH_SIZE
-		) {
-			const batch = notesToPush.slice(
-				index,
-				index + PUSH_PAYLOAD_BATCH_SIZE
-			);
+		for (let index = 0; index < notesToPush.length; index += PUSH_PAYLOAD_BATCH_SIZE) {
+			const batch = notesToPush.slice(index, index + PUSH_PAYLOAD_BATCH_SIZE);
 			const payloadBatch: PushNotePayload[] = batch.map((note) => ({
 				path: note.relativePath,
 				title: note.title,
 				content: note.content,
-				attachments:
-					note.attachments.length > 0 ? note.attachments : undefined,
+				attachments: note.attachments.length > 0 ? note.attachments : undefined,
 			}));
 
 			const response = await apiPushNotes(email, token, payloadBatch);
@@ -504,16 +443,12 @@ export async function pushGoogleKeepNotes(
 			const batchOptions = { batchKey, batchSize };
 			for (const note of batch) {
 				try {
-					const pushTimestamp = roundDateToSeconds(
-						new Date()
-					).toISOString();
+					const pushTimestamp = roundDateToSeconds(new Date()).toISOString();
 					const normalizedPath = normalizePathSafe(note.relativePath);
 					const result =
-						resultMap.get(normalizedPath) ??
-						resultMap.get(note.relativePath);
+						resultMap.get(normalizedPath) ?? resultMap.get(note.relativePath);
 					if (result && result.success === false) {
-						const errorText =
-							result.error || result.message || "failed";
+						const errorText = result.error || result.message || "failed";
 						await flushLogSync(plugin, { batchKey });
 						await logSync(
 							plugin,
@@ -528,10 +463,7 @@ export async function pushGoogleKeepNotes(
 						note.frontmatter,
 						pushTimestamp
 					);
-					const updatedContent = wrapMarkdown(
-						frontmatterWithSync,
-						note.body
-					);
+					const updatedContent = wrapMarkdown(frontmatterWithSync, note.body);
 					await (plugin.app.vault.adapter as VaultAdapter).write(
 						note.fullPath,
 						updatedContent
@@ -567,9 +499,9 @@ export async function pushGoogleKeepNotes(
 					await flushLogSync(plugin, { batchKey });
 					await logSync(
 						plugin,
-						`[${note.title}](${normalizePathSafe(
-							note.fullPath
-						)}) - error: ${(error as Error).message}`
+						`[${note.title}](${normalizePathSafe(note.fullPath)}) - error: ${
+							(error as Error).message
+						}`
 					);
 				} finally {
 					callbacks?.reportProgress?.();

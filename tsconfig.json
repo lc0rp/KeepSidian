@@ -1,3 +1,59 @@
 {
-  "extends": "./config/tsconfig.json"
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "paths": {
+      "@app/*": [
+        "app/*"
+      ],
+      "@ui/*": [
+        "ui/*"
+      ],
+      "@features/*": [
+        "features/*"
+      ],
+      "@integrations/*": [
+        "integrations/*"
+      ],
+      "@services/*": [
+        "services/*"
+      ],
+      "@types": [
+        "types/index.ts"
+      ],
+      "@types/*": [
+        "types/*"
+      ],
+      "@schemas/*": [
+        "schemas/*"
+      ],
+      "@test-utils/*": [
+        "test-utils/*"
+      ]
+    },
+    "inlineSourceMap": true,
+    "inlineSources": true,
+    "module": "ESNext",
+    "target": "ES6",
+    "allowJs": true,
+    "noImplicitAny": true,
+    "moduleResolution": "node",
+    "importHelpers": true,
+    "isolatedModules": true,
+    "strictNullChecks": true,
+    "lib": [
+      "DOM",
+      "ES5",
+      "ES6",
+      "ES7"
+    ]
+  },
+  "include": [
+    "./src/**/*.ts",
+    "./src/types/**/*.d.ts",
+    "./__mocks__/electron.ts",
+    "./__mocks__/obsidian.ts"
+  ],
+  "exclude": [
+    "./dist/**/*"
+  ]
 }

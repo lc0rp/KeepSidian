@@ -40,7 +40,7 @@ function logErrorIfNotTest(...args: any[]) {
 			typeof process !== "undefined" &&
 			(process.env?.NODE_ENV === "test" || !!process.env?.JEST_WORKER_ID);
 		if (!isTest) {
-			// eslint-disable-next-line no-console
+			 
 			console.error(...args);
 		}
 	} catch {

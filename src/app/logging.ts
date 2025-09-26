@@ -99,7 +99,7 @@ export async function prepareSyncLog(
 		plugin.lastSyncLogPath = logPath;
 		plugin.settings.lastSyncLogPath = logPath;
 		return logPath;
-	} catch (e) {
+	} catch {
 		// Keep message text aligned with tests/UX expectations
 		new Notice(`KeepSidian: Failed to create log file: ${logPath}`);
 		return null;

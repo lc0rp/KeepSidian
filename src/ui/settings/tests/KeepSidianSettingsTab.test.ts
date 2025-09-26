@@ -8,6 +8,18 @@ import { SubscriptionService } from 'services/subscription';
 import { DEFAULT_SETTINGS } from '../../../types/keepsidian-plugin-settings';
 import { exchangeOauthToken, initRetrieveToken } from '../../../integrations/google/keepToken';
 
+type KeepSidianSettingsTabInternals = {
+	addEmailSetting(containerEl: HTMLElement): void;
+	addSyncTokenSetting(containerEl: HTMLElement): void;
+	addSaveLocationSetting(containerEl: HTMLElement): void;
+	addSubscriptionSettings(containerEl: HTMLElement): Promise<void>;
+	createRetrieveTokenWebView(containerEl: HTMLElement): void;
+	addSupportSection(containerEl: HTMLElement): void;
+	isValidEmail(email: string): boolean;
+	handleTokenPaste(event: ClipboardEvent): Promise<void>;
+	handleRetrieveToken(): Promise<void>;
+};
+
 jest.mock('../../modals/NoteImportOptionsModal', () => ({
     NoteImportOptionsModal: jest.fn().mockImplementation(() => ({
         open: jest.fn()
@@ -45,6 +57,7 @@ describe('KeepSidianSettingsTab', () => {
     let app: App;
     let plugin: KeepSidianPlugin;
     let settingsTab: KeepSidianSettingsTab;
+    let settingsTabInternals: KeepSidianSettingsTabInternals;
 
     const TEST_MANIFEST = {
         id: 'keepsidian',
@@ -79,7 +92,8 @@ describe('KeepSidianSettingsTab', () => {
         };
         plugin.subscriptionService = mockSubscriptionService();
         settingsTab = new KeepSidianSettingsTab(app, plugin);
-        
+	settingsTabInternals = settingsTab as unknown as KeepSidianSettingsTabInternals;
+
         // Reset the exchangeOauthToken mock
         (exchangeOauthToken as jest.Mock).mockReset();
     });
@@ -89,24 +103,12 @@ describe('KeepSidianSettingsTab', () => {
     });
 
     test('should display settings correctly', async () => {
-        const spyAddEmailSetting = jest.spyOn<any, any>(settingsTab, 'addEmailSetting');
-        const spyAddSyncTokenSetting = jest.spyOn<any, any>(settingsTab, 'addSyncTokenSetting');
-        const spyAddSaveLocationSetting = jest.spyOn<any, any>(settingsTab, 'addSaveLocationSetting');
-        const callOrder: string[] = [];
-        const originalAddSubscriptionSettings = (settingsTab as any).addSubscriptionSettings;
-        const spyAddSubscriptionSettings = jest
-            .spyOn<any, any>(settingsTab, 'addSubscriptionSettings')
-            .mockImplementation((...args: unknown[]) => {
-                callOrder.push('subscription');
-                return originalAddSubscriptionSettings.apply(settingsTab, args);
-            });
-        const spyCreateRetrieveTokenWebView = jest.spyOn<any, any>(settingsTab, 'createRetrieveTokenWebView');
-        const originalAddSupportSection = (settingsTab as any).addSupportSection;
-        const spyAddSupportSection = jest
-            .spyOn<any, any>(settingsTab, 'addSupportSection')
-            .mockImplementation((...args: unknown[]) => {
-                return originalAddSupportSection.apply(settingsTab, args);
-            });
+        const spyAddEmailSetting = jest.spyOn(settingsTabInternals, 'addEmailSetting');
+        const spyAddSyncTokenSetting = jest.spyOn(settingsTabInternals, 'addSyncTokenSetting');
+        const spyAddSaveLocationSetting = jest.spyOn(settingsTabInternals, 'addSaveLocationSetting');
+        const spyAddSubscriptionSettings = jest.spyOn(settingsTabInternals, 'addSubscriptionSettings');
+        const spyCreateRetrieveTokenWebView = jest.spyOn(settingsTabInternals, 'createRetrieveTokenWebView');
+        const spyAddSupportSection = jest.spyOn(settingsTabInternals, 'addSupportSection');
 
         await settingsTab.display();
 
@@ -119,8 +121,8 @@ describe('KeepSidianSettingsTab', () => {
     });
 
     test('should validate email properly', () => {
-        expect((settingsTab as any).isValidEmail('test@example.com')).toBe(true);
-        expect((settingsTab as any).isValidEmail('invalid-email')).toBe(false);
+        expect(settingsTabInternals.isValidEmail('test@example.com')).toBe(true);
+        expect(settingsTabInternals.isValidEmail('invalid-email')).toBe(false);
     });
 
     test('should handle oauth2_4 token paste specially', async () => {
@@ -133,7 +135,7 @@ describe('KeepSidianSettingsTab', () => {
 
         (exchangeOauthToken as jest.Mock).mockResolvedValue(undefined);
 
-        await (settingsTab as any).handleTokenPaste(event);
+        await settingsTabInternals.handleTokenPaste(event);
 
         expect(event.preventDefault).toHaveBeenCalled();
         expect(exchangeOauthToken).toHaveBeenCalledWith(settingsTab, plugin, 'oauth2_4/token_value');
@@ -147,7 +149,7 @@ describe('KeepSidianSettingsTab', () => {
             },
         } as unknown as ClipboardEvent;
 
-        await (settingsTab as any).handleTokenPaste(event);
+        await settingsTabInternals.handleTokenPaste(event);
 
         expect(event.preventDefault).not.toHaveBeenCalled();
         expect(exchangeOauthToken).not.toHaveBeenCalled();
@@ -160,7 +162,7 @@ describe('KeepSidianSettingsTab', () => {
         const newNoticeMock = jest.fn();
         (Notice as jest.Mock) = jest.fn(() => newNoticeMock);
 
-        await (settingsTab as any).handleRetrieveToken();
+        await settingsTabInternals.handleRetrieveToken();
 
         expect(initRetrieveTokenMock).toHaveBeenCalled();
         expect(newNoticeMock).not.toHaveBeenCalled();
@@ -172,7 +174,7 @@ describe('KeepSidianSettingsTab', () => {
         const noticeMock = jest.fn();
         (Notice as jest.Mock).mockImplementation(noticeMock);
 
-        await (settingsTab as any).handleRetrieveToken();
+        await settingsTabInternals.handleRetrieveToken();
 
         expect(noticeMock).toHaveBeenCalledWith('Please enter a valid email address before retrieving the token.');
     });

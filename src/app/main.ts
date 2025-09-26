@@ -6,10 +6,7 @@ import type {
 } from "../types/keepsidian-plugin-settings";
 import { DEFAULT_SETTINGS } from "../types/keepsidian-plugin-settings";
 import { SubscriptionService } from "@services/subscription";
-import {
-	NoteImportOptions,
-	NoteImportOptionsModal,
-} from "@ui/modals/NoteImportOptionsModal";
+import { NoteImportOptions, NoteImportOptionsModal } from "@ui/modals/NoteImportOptionsModal";
 import { SyncProgressModal } from "@ui/modals/SyncProgressModal";
 import {
 	startSyncUI,
@@ -21,10 +18,7 @@ import {
 import { logSync, prepareSyncLog } from "@app/logging";
 import { KeepSidianSettingsTab } from "@ui/settings/KeepSidianSettingsTab";
 import { registerRibbonAndCommands } from "@app/commands";
-import {
-	importGoogleKeepNotes,
-	importGoogleKeepNotesWithOptions,
-} from "@features/keep/sync";
+import { importGoogleKeepNotes, importGoogleKeepNotesWithOptions } from "@features/keep/sync";
 import { pushGoogleKeepNotes } from "@features/keep/push";
 import { ensureFolder, normalizePathSafe } from "@services/paths";
 
@@ -72,11 +66,7 @@ export default class KeepSidianPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			await this.loadData()
-		);
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 		this.lastSyncSummary = this.settings.lastSyncSummary ?? null;
 		this.lastSyncLogPath = this.settings.lastSyncLogPath ?? null;
 	}
@@ -122,9 +112,7 @@ export default class KeepSidianPlugin extends Plugin {
 		}
 
 		let logPath = this.lastSyncLogPath;
-		const logsFolder = normalizePathSafe(
-			`${this.settings.saveLocation}/_KeepSidianLogs`
-		);
+		const logsFolder = normalizePathSafe(`${this.settings.saveLocation}/_KeepSidianLogs`);
 
 		if (!logPath) {
 			if (typeof adapter.list === "function") {
@@ -135,22 +123,16 @@ export default class KeepSidianPlugin extends Plugin {
 							const normalized = normalizePathSafe(file);
 							return normalized.startsWith(logsFolder)
 								? normalized
-								: normalizePathSafe(
-										`${logsFolder}/${normalized
-											.split("/")
-											.pop()}`
-								  );
+								: normalizePathSafe(`${logsFolder}/${normalized.split("/").pop()}`);
 						})
-						.filter((file: string) =>
-							file.toLowerCase().endsWith(".md")
-						);
+						.filter((file: string) => file.toLowerCase().endsWith(".md"));
 					if (!markdownFiles.length) {
 						new Notice("KeepSidian: No sync logs found.");
 						return;
 					}
 					markdownFiles.sort();
 					logPath = markdownFiles[markdownFiles.length - 1];
-				} catch (error) {
+				} catch {
 					new Notice("KeepSidian: Failed to open sync log.");
 					return;
 				}
@@ -181,63 +163,57 @@ export default class KeepSidianPlugin extends Plugin {
 		try {
 			await ensureFolder(this.app, saveLocation);
 		} catch (e: any) {
-			new Notice(
-				`KeepSidian: Failed to create save location: ${saveLocation}`
-			);
+			new Notice(`KeepSidian: Failed to create save location: ${saveLocation}`);
 			throw e;
 		}
 	}
 
 	async showImportOptionsModal(): Promise<void> {
 		return new Promise((resolve) => {
-			new NoteImportOptionsModal(
-				this.app,
-				this,
-				async (options: NoteImportOptions) => {
-					try {
-						await this.ensureStoragePathsOrThrow();
-					} catch {
-						resolve();
-						return;
-					}
-
-					// Prepare log file; abort if not possible
-					const logPrepared = await prepareSyncLog(this);
-					if (!logPrepared) {
-						resolve();
-						return;
-					}
-
-					const batchOptions = {
-						batchSize: 2,
-						batchKey: "start-manual-sync",
-					};
-					await logSync(this, `\n\n---\n`, batchOptions);
-					await logSync(this, `Manual sync started`, batchOptions);
-					this.currentSyncMode = "import";
-					startSyncUI(this);
-					try {
-						await importGoogleKeepNotesWithOptions(this, options, {
-							setTotalNotes: (n) => uiSetTotalNotes(this, n),
-							reportProgress: () => reportSyncProgress(this),
-						});
-						await logSync(
-							this,
-							`Manual sync ended - success. Processed ${this.processedNotes} note(s).`
-						);
-						finishSyncUI(this, true);
-					} catch (error) {
-						finishSyncUI(this, false);
-						await logSync(
-							this,
-							`Manual sync ended - failed: ${
-								(error as Error).message
-							}. Processed ${this.processedNotes} note(s).`
-						);
-						resolve();
-					}
+			new NoteImportOptionsModal(this.app, this, async (options: NoteImportOptions) => {
+				try {
+					await this.ensureStoragePathsOrThrow();
+				} catch {
+					resolve();
+					return;
 				}
-			).open();
+
+				// Prepare log file; abort if not possible
+				const logPrepared = await prepareSyncLog(this);
+				if (!logPrepared) {
+					resolve();
+					return;
+				}
+
+				const batchOptions = {
+					batchSize: 2,
+					batchKey: "start-manual-sync",
+				};
+				await logSync(this, `\n\n---\n`, batchOptions);
+				await logSync(this, `Manual sync started`, batchOptions);
+				this.currentSyncMode = "import";
+				startSyncUI(this);
+				try {
+					await importGoogleKeepNotesWithOptions(this, options, {
+						setTotalNotes: (n) => uiSetTotalNotes(this, n),
+						reportProgress: () => reportSyncProgress(this),
+					});
+					await logSync(
+						this,
+						`Manual sync ended - success. Processed ${this.processedNotes} note(s).`
+					);
+					finishSyncUI(this, true);
+				} catch (error) {
+					finishSyncUI(this, false);
+					await logSync(
+						this,
+						`Manual sync ended - failed: ${(error as Error).message}. Processed ${
+							this.processedNotes
+						} note(s).`
+					);
+					resolve();
+				}
+			}).open();
 		});
 	}
 
@@ -247,8 +223,7 @@ export default class KeepSidianPlugin extends Plugin {
 		}
 		this.isSyncing = true;
 		try {
-			const isSubscriptionActive =
-				await this.subscriptionService.isSubscriptionActive();
+			const isSubscriptionActive = await this.subscriptionService.isSubscriptionActive();
 
 			if (!auto && isSubscriptionActive) {
 				await this.showImportOptionsModal();
@@ -268,11 +243,7 @@ export default class KeepSidianPlugin extends Plugin {
 
 				const batchOptions = { batchSize: 2, batchKey: "start-sync" };
 				await logSync(this, `\n\n---\n`, batchOptions);
-				await logSync(
-					this,
-					`${auto ? "Auto" : "Manual"} sync started`,
-					batchOptions
-				);
+				await logSync(this, `${auto ? "Auto" : "Manual"} sync started`, batchOptions);
 				this.currentSyncMode = "import";
 				startSyncUI(this);
 				try {
@@ -282,9 +253,7 @@ export default class KeepSidianPlugin extends Plugin {
 					});
 					await logSync(
 						this,
-						`${
-							auto ? "Auto" : "Manual"
-						} sync ended - success. Processed ${
+						`${auto ? "Auto" : "Manual"} sync ended - success. Processed ${
 							this.processedNotes
 						} note(s).`
 					);
@@ -302,9 +271,9 @@ export default class KeepSidianPlugin extends Plugin {
 		} catch (error: any) {
 			await logSync(
 				this,
-				`${auto ? "Auto" : "Manual"} sync ended - failed: ${
-					error.message
-				}. Processed ${this.processedNotes} note(s).`
+				`${auto ? "Auto" : "Manual"} sync ended - failed: ${error.message}. Processed ${
+					this.processedNotes
+				} note(s).`
 			);
 		} finally {
 			this.isSyncing = false;
@@ -338,10 +307,7 @@ export default class KeepSidianPlugin extends Plugin {
 					setTotalNotes: (n) => uiSetTotalNotes(this, n),
 					reportProgress: () => reportSyncProgress(this),
 				});
-				await logSync(
-					this,
-					`Push sync ended - success. Pushed ${pushed} note(s).`
-				);
+				await logSync(this, `Push sync ended - success. Pushed ${pushed} note(s).`);
 				finishSyncUI(this, true);
 			} catch (error: any) {
 				finishSyncUI(this, false);
