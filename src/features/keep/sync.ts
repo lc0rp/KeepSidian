@@ -1,10 +1,6 @@
 import { Notice } from "obsidian";
 import type KeepSidianPlugin from "@app/main";
-import {
-	normalizeNote,
-	PreNormalizedNote,
-	extractFrontmatter,
-} from "./domain/note";
+import { normalizeNote, PreNormalizedNote, extractFrontmatter } from "./domain/note";
 import { handleDuplicateNotes } from "./domain/compare";
 import { mergeNoteText } from "./domain/merge";
 // Import via legacy google path so tests can spy on this module
@@ -20,10 +16,7 @@ import {
 	normalizePathSafe,
 } from "@services/paths";
 import { logSync } from "@app/logging";
-import type {
-	GoogleKeepImportResponse,
-	PremiumFeatureFlags,
-} from "@integrations/server/keepApi";
+import type { GoogleKeepImportResponse, PremiumFeatureFlags } from "@integrations/server/keepApi";
 import {
 	fetchNotes as apiFetchNotes,
 	fetchNotesWithPremiumFeatures as apiFetchNotesWithPremium,
@@ -40,7 +33,6 @@ function logErrorIfNotTest(...args: any[]) {
 			typeof process !== "undefined" &&
 			(process.env?.NODE_ENV === "test" || !!process.env?.JEST_WORKER_ID);
 		if (!isTest) {
-			 
 			console.error(...args);
 		}
 	} catch {
@@ -50,10 +42,7 @@ function logErrorIfNotTest(...args: any[]) {
 
 async function importGoogleKeepNotesBase(
 	plugin: KeepSidianPlugin,
-	fetchFunction: (
-		offset: number,
-		limit: number
-	) => Promise<GoogleKeepImportResponse>,
+	fetchFunction: (offset: number, limit: number) => Promise<GoogleKeepImportResponse>,
 	callbacks?: SyncCallbacks
 ): Promise<number> {
 	try {
@@ -66,10 +55,7 @@ async function importGoogleKeepNotesBase(
 		while (true && !hasError) {
 			try {
 				const response = await fetchFunction(offset, limit);
-				if (
-					typeof response.total_notes === "number" &&
-					callbacks?.setTotalNotes
-				) {
+				if (typeof response.total_notes === "number" && callbacks?.setTotalNotes) {
 					try {
 						callbacks.setTotalNotes(response.total_notes);
 					} catch {
@@ -83,10 +69,7 @@ async function importGoogleKeepNotesBase(
 				totalImported += response.notes.length;
 				offset += limit;
 			} catch (error) {
-				logErrorIfNotTest(
-					`Error fetching notes at offset ${offset}:`,
-					error
-				);
+				logErrorIfNotTest(`Error fetching notes at offset ${offset}:`, error);
 				hasError = true;
 				foundError = error as Error;
 			}
@@ -126,15 +109,12 @@ export async function importGoogleKeepNotesWithOptions(
 	const { email, token } = plugin.settings;
 	return await importGoogleKeepNotesBase(
 		plugin,
-		(offset, limit) =>
-			apiFetchNotesWithPremium(email, token, featureFlags, offset, limit),
+		(offset, limit) => apiFetchNotesWithPremium(email, token, featureFlags, offset, limit),
 		callbacks
 	);
 }
 
-export function convertOptionsToFeatureFlags(
-	options: NoteImportOptions
-): PremiumFeatureFlags {
+export function convertOptionsToFeatureFlags(options: NoteImportOptions): PremiumFeatureFlags {
 	const featureFlags: PremiumFeatureFlags = {};
 
 	if (options.includeNotesTerms && options.includeNotesTerms.length > 0) {
@@ -196,9 +176,7 @@ export async function processAndSaveNote(
 	const lastSyncedDate = new Date().toISOString();
 
 	try {
-		const existedBefore = await plugin.app.vault.adapter.exists(
-			noteFilePath
-		);
+		const existedBefore = await plugin.app.vault.adapter.exists(noteFilePath);
 		const duplicateNotesAction = await handleDuplicateNotes(
 			saveLocation,
 			normalizedNote,
@@ -210,22 +188,16 @@ export async function processAndSaveNote(
 		if (duplicateNotesAction === "skip") {
 			await logSync(plugin, `${noteLink} - identical (skipped)`);
 		} else if (duplicateNotesAction === "create") {
-			const mdFrontmatter = buildFrontmatterWithSyncDate(
-				newFrontmatter,
-				lastSyncedDate
-			);
-			const newMdContent = wrapMarkdown(
-				mdFrontmatter,
-				newTextWithoutFrontmatter
-			);
+			const mdFrontmatter = buildFrontmatterWithSyncDate(newFrontmatter, lastSyncedDate);
+			const newMdContent = wrapMarkdown(mdFrontmatter, newTextWithoutFrontmatter);
 			await ensureParentFolderForFile(plugin.app, noteFilePath);
 			await plugin.app.vault.adapter.write(noteFilePath, newMdContent);
 			await logSync(plugin, `${noteLink} - new file created`);
 		} else {
-			const existingMarkdownFileContent =
-				await plugin.app.vault.adapter.read(noteFilePath);
-			const [existingFrontmatter, existingTextWithoutFrontmatter] =
-				extractFrontmatter(existingMarkdownFileContent);
+			const existingMarkdownFileContent = await plugin.app.vault.adapter.read(noteFilePath);
+			const [existingFrontmatter, existingTextWithoutFrontmatter] = extractFrontmatter(
+				existingMarkdownFileContent
+			);
 
 			const mdFrontmatter = buildFrontmatterWithSyncDate(
 				existingFrontmatter,
@@ -243,10 +215,7 @@ export async function processAndSaveNote(
 
 				if (!hasConflict) {
 					await ensureParentFolderForFile(plugin.app, noteFilePath);
-					await plugin.app.vault.adapter.write(
-						noteFilePath,
-						mergedMdContent
-					);
+					await plugin.app.vault.adapter.write(noteFilePath, mergedMdContent);
 					await logSync(plugin, `${noteLink} - merged (no conflict)`);
 				} else {
 					// Write a conflict copy
@@ -254,17 +223,9 @@ export async function processAndSaveNote(
 					noteFilePath = `${noteFilePath}${CONFLICT_FILE_SUFFIX}${lastSyncedDate}.md`;
 
 					await ensureParentFolderForFile(plugin.app, noteFilePath);
-					await plugin.app.vault.adapter.write(
-						noteFilePath,
-						mergedMdContent
-					);
-					const conflictLink = `[${noteTitle}](${normalizePathSafe(
-						noteFilePath
-					)})`;
-					await logSync(
-						plugin,
-						`${conflictLink} - conflict copy created`
-					);
+					await plugin.app.vault.adapter.write(noteFilePath, mergedMdContent);
+					const conflictLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
+					await logSync(plugin, `${conflictLink} - conflict copy created`);
 				}
 			} else {
 				const mdContentWithSyncDate = wrapMarkdown(
@@ -274,14 +235,8 @@ export async function processAndSaveNote(
 
 				// overwrite path: write to current path
 				await ensureParentFolderForFile(plugin.app, noteFilePath);
-				await plugin.app.vault.adapter.write(
-					noteFilePath,
-					mdContentWithSyncDate
-				);
-				await logSync(
-					plugin,
-					`${noteLink} - ${existedBefore ? "overwritten" : "created"}`
-				);
+				await plugin.app.vault.adapter.write(noteFilePath, mdContentWithSyncDate);
+				await logSync(plugin, `${noteLink} - ${existedBefore ? "overwritten" : "created"}`);
 			}
 		}
 
@@ -293,19 +248,15 @@ export async function processAndSaveNote(
 				normalizedNote.blob_names
 			);
 			if (downloaded > 0) {
-				const attachmentWord =
-					downloaded === 1 ? "attachment" : "attachments";
+				const attachmentWord = downloaded === 1 ? "attachment" : "attachments";
 				const skippedSuffix =
-					skippedIdentical > 0
-						? ` (${skippedIdentical} identical skipped)`
-						: "";
+					skippedIdentical > 0 ? ` (${skippedIdentical} identical skipped)` : "";
 				await logSync(
 					plugin,
 					`${noteLink} - downloaded ${downloaded} ${attachmentWord}${skippedSuffix}`
 				);
 			} else if (skippedIdentical > 0) {
-				const skippedWord =
-					skippedIdentical === 1 ? "attachment" : "attachments";
+				const skippedWord = skippedIdentical === 1 ? "attachment" : "attachments";
 				await logSync(
 					plugin,
 					`${noteLink} - attachments up to date (${skippedIdentical} ${skippedWord} identical)`
@@ -313,10 +264,7 @@ export async function processAndSaveNote(
 			}
 		}
 	} catch (err: any) {
-		await logSync(
-			plugin,
-			`${noteLink} - error: ${err?.message || String(err)}`
-		);
+		await logSync(plugin, `${noteLink} - error: ${err?.message || String(err)}`);
 		throw err;
 	}
 }
