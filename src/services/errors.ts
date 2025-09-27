@@ -34,7 +34,19 @@ export class IOError extends AppError {
 }
 
 export function isAppError(err: unknown): err is AppError {
-  return Boolean(err) && typeof err === 'object' && 'name' in (err as any) && 'message' in (err as any) && 'kind' in (err as any);
+	if (!err || typeof err !== 'object') {
+		return false;
+	}
+	const candidate = err as { name?: unknown; message?: unknown; kind?: unknown };
+	if (typeof candidate.name !== 'string' || typeof candidate.message !== 'string') {
+		return false;
+	}
+	return (
+		candidate.kind === 'network' ||
+		candidate.kind === 'parse' ||
+		candidate.kind === 'io' ||
+		candidate.kind === 'unknown'
+	);
 }
 
 export function toAppError(err: unknown): AppError {

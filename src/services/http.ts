@@ -1,4 +1,4 @@
-import { requestUrl } from "obsidian";
+import { requestUrl, type RequestUrlParam, type RequestUrlResponse } from "obsidian";
 import { NetworkError, ParseError } from "@services/errors";
 
 export interface HttpOptions {
@@ -10,17 +10,48 @@ export interface HttpRequestOptions extends HttpOptions {
 	body?: unknown;
 }
 
+type JsonCallable = (this: ResponseLike) => unknown | Promise<unknown>;
+type ArrayBufferCallable = (this: ResponseLike) => ArrayBuffer | Promise<ArrayBuffer>;
+
+interface ResponseLike {
+	status?: number;
+	headers?: Record<string, string>;
+	text?: string;
+	json?: unknown | JsonCallable;
+	arrayBuffer?: ArrayBuffer | ArrayBufferCallable;
+}
+
+const asResponseLike = (response: RequestUrlResponse): ResponseLike => response;
+
+const getTextSafely = (response: ResponseLike): string => {
+	const { text } = response;
+	return typeof text === "string" ? text : "";
+};
+
+const callIfFunction = async <T>(
+	value: unknown,
+	response: ResponseLike
+): Promise<{ hasValue: boolean; result?: T }> => {
+	if (typeof value === "function") {
+		const callable = value as JsonCallable | ArrayBufferCallable;
+		const result = await callable.call(response);
+		return { hasValue: true, result: result as T };
+	}
+	return { hasValue: false };
+};
+
 // Defensive JSON parsing for Obsidian's requestUrl response shape variations
-async function parseJsonDefensively<T>(response: any): Promise<T> {
+async function parseJsonDefensively<T>(response: ResponseLike): Promise<T> {
 	try {
-		const maybeJson = (response as any).json;
-		if (typeof maybeJson === "function") {
-			return await maybeJson.call(response);
+		const maybeJson = response.json;
+		const { hasValue, result } = await callIfFunction<T>(maybeJson, response);
+		if (hasValue) {
+			return result as T;
 		}
 		if (maybeJson !== undefined) {
 			return maybeJson as T;
 		}
-		const text = (response as any).text ?? "";
+		const text = getTextSafely(response);
 		return text ? (JSON.parse(text) as T) : (undefined as unknown as T);
 	} catch (e) {
 		throw new ParseError("Failed to parse JSON response", e);
@@ -32,7 +63,7 @@ export async function httpRequest<T = unknown>(
 	options: HttpRequestOptions = {}
 ): Promise<T> {
 	const { method = "GET", headers = {}, body } = options;
-	const reqInit: any = {
+	const reqInit: RequestUrlParam = {
 		url,
 		method,
 		headers,
@@ -47,14 +78,22 @@ export async function httpRequest<T = unknown>(
 	}
 
 	const response = await requestUrl(reqInit);
-	const status: number = (response as any).status ?? 0;
+	const status = typeof response.status === "number" ? response.status : 0;
 	if (status < 200 || status >= 300) {
 		// Try to extract error message from body, but don't fail parsing again here
 		let errMsg = `Server returned status ${status}`;
 		try {
-			const errJson = await parseJsonDefensively<any>(response);
-			if (errJson && (errJson.error || errJson.message)) {
-				errMsg = errJson.error || errJson.message;
+			const errJson = await parseJsonDefensively<{ error?: unknown; message?: unknown }>(
+				asResponseLike(response)
+			);
+			const candidateMessage =
+				typeof errJson?.error === "string"
+					? errJson.error
+					: typeof errJson?.message === "string"
+						? errJson.message
+						: undefined;
+			if (candidateMessage) {
+				errMsg = candidateMessage;
 			}
 		} catch {
 			/* empty */
@@ -62,7 +101,7 @@ export async function httpRequest<T = unknown>(
 		throw new NetworkError(errMsg, status);
 	}
 
-	return await parseJsonDefensively<T>(response);
+	return await parseJsonDefensively<T>(asResponseLike(response));
 }
 
 export async function httpGetJson<T = unknown>(
@@ -85,7 +124,7 @@ export async function httpPostJson<TRes = unknown, TReq = unknown>(
 export async function httpGetRaw(
 	url: string,
 	headers?: Record<string, string>
-): Promise<any> {
+): Promise<RequestUrlResponse> {
 	return requestUrl({ url, method: "GET", headers });
 }
 
@@ -95,13 +134,14 @@ export async function httpGetArrayBuffer(
 	headers?: Record<string, string>
 ): Promise<ArrayBuffer> {
 	const response = await requestUrl({ url, method: "GET", headers });
-	const statusRaw = (response as any).status;
+	const responseLike = asResponseLike(response);
+	const statusRaw = responseLike.status;
 	if (typeof statusRaw === "number") {
 		const status = statusRaw as number;
 		if (status < 200 || status >= 300) {
 			let errMsg = `Server returned status ${status}`;
 			try {
-				const text = (response as any).text ?? "";
+				const text = getTextSafely(responseLike);
 				if (text) {
 					const errJson = JSON.parse(text);
 					if (errJson && (errJson.error || errJson.message)) {
@@ -114,12 +154,19 @@ export async function httpGetArrayBuffer(
 			throw new NetworkError(errMsg, status);
 		}
 	}
-	const maybe = (response as any).arrayBuffer;
-	if (typeof maybe === "function") {
-		return await maybe.call(response);
+	const maybe = responseLike.arrayBuffer;
+	const { hasValue, result } = await callIfFunction<ArrayBuffer>(
+		maybe,
+		responseLike
+	);
+	if (hasValue && result) {
+		return result;
 	}
-	if (maybe !== undefined) {
-		return maybe as ArrayBuffer;
+	if (maybe instanceof ArrayBuffer) {
+		return maybe;
+	}
+	if (maybe !== undefined && typeof maybe !== "function") {
+		return maybe;
 	}
 	throw new Error("No binary content in response");
 }

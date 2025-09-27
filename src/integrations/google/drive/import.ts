@@ -34,7 +34,7 @@ async function downloadGDriveFile(
       { Authorization: `Bearer ${plugin.settings.gdriveToken}` }
     );
     const filePath = `${plugin.settings.gdriveSaveLocation}/${fileName}`;
-    await (plugin.app as any).vault.adapter.writeBinary(filePath, fileContent);
+    await plugin.app.vault.adapter.writeBinary(filePath, fileContent);
   } catch (error) {
     console.error(`Failed to download file ${fileName}:`, error);
   }

@@ -1,12 +1,17 @@
 import type KeepSidianPlugin from "@app/main";
 import { normalizePathSafe } from "@services/paths";
+import {
+	FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY,
+	FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY,
+	FRONTMATTER_GOOGLE_KEEP_URL_KEY,
+} from "../constants";
 
 const FRONTMATTER_FIX_FLAG = "frontmatterPascalCaseFixApplied" as const;
 
 const FRONTMATTER_KEY_MAPPINGS = [
-	{ hyphenated: "google-keep-created-date", pascal: "GoogleKeepCreatedDate" },
-	{ hyphenated: "google-keep-updated-date", pascal: "GoogleKeepUpdatedDate" },
-	{ hyphenated: "google-keep-url", pascal: "GoogleKeepUrl" },
+	{ hyphenated: "google-keep-created-date", pascal: FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY },
+	{ hyphenated: "google-keep-updated-date", pascal: FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY },
+	{ hyphenated: "google-keep-url", pascal: FRONTMATTER_GOOGLE_KEEP_URL_KEY },
 ] as const;
 
 interface ListableVaultAdapter {
@@ -113,7 +118,7 @@ function replaceHyphenatedKeys(frontmatter: string): { updated: string; changed:
 	let changed = false;
 
 	for (const { hyphenated, pascal } of FRONTMATTER_KEY_MAPPINGS) {
-		const pattern = new RegExp(`(^|\r?\n)(\s*)${escapeRegExp(hyphenated)}(\s*:)`, "g");
+		const pattern = new RegExp(`(^|\\r?\\n)(\\s*)${escapeRegExp(hyphenated)}(\\s*:)`, "g");
 		const next = updated.replace(pattern, (match, prefix, spacing, separator) => {
 			changed = true;
 			return `${prefix}${spacing}${pascal}${separator}`;

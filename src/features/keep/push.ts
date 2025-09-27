@@ -4,7 +4,11 @@ import { extractFrontmatter } from "./domain/note";
 import { dirnameSafe, ensureFolder, normalizePathSafe, mediaFolderPath } from "@services/paths";
 import { logSync, flushLogSync } from "@app/logging";
 import { buildFrontmatterWithSyncDate, wrapMarkdown } from "./frontmatter";
-import { CONFLICT_FILE_SUFFIX, FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY } from "./constants";
+import {
+	CONFLICT_FILE_SUFFIX,
+	FRONTMATTER_GOOGLE_KEEP_URL_KEY,
+	FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
+} from "./constants";
 import type { SyncCallbacks } from "./sync";
 import { ensurePascalCaseFrontmatter } from "./migrations/fixFrontmatterCasing";
 import {
@@ -188,8 +192,12 @@ function extractAttachmentReferences(
 	return Array.from(references);
 }
 
+interface Base64BufferLike {
+	from(data: ArrayBuffer | ArrayBufferView): { toString(encoding?: string): string };
+}
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
-	const globalBuffer = (globalThis as unknown as { Buffer?: any }).Buffer;
+	const globalBuffer = (globalThis as typeof globalThis & { Buffer?: Base64BufferLike }).Buffer;
 	if (globalBuffer?.from) {
 		return globalBuffer.from(buffer).toString("base64");
 	}
@@ -459,6 +467,30 @@ export async function pushGoogleKeepNotes(
 							)}) - push failed: ${errorText}`
 						);
 						continue;
+					}
+
+					// Update Google Keep URL if provided and changed
+					if (result?.keep_url) {
+						const normalizedKeepUrl = result.keep_url.trim();
+						if (normalizedKeepUrl) {
+							const keyPrefix = `${FRONTMATTER_GOOGLE_KEEP_URL_KEY}:`;
+							const match = note.frontmatter.match(
+								new RegExp(`^${FRONTMATTER_GOOGLE_KEEP_URL_KEY}:\\s*(.*)$`, "m")
+							);
+							const existingValue = match?.[1]?.trim();
+							if (existingValue !== normalizedKeepUrl) {
+								if (match) {
+									note.frontmatter = note.frontmatter.replace(
+										new RegExp(`^${FRONTMATTER_GOOGLE_KEEP_URL_KEY}:\\s*.*$`, "m"),
+										`${keyPrefix} ${normalizedKeepUrl}`
+									);
+								} else {
+									note.frontmatter = note.frontmatter
+										? `${note.frontmatter}\n${keyPrefix} ${normalizedKeepUrl}`
+										: `${keyPrefix} ${normalizedKeepUrl}`;
+								}
+							}
+						}
 					}
 
 					const frontmatterWithSync = buildFrontmatterWithSyncDate(

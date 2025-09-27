@@ -28,7 +28,7 @@ export interface SyncCallbacks {
 	reportProgress?: () => void;
 }
 
-function logErrorIfNotTest(...args: any[]) {
+function logErrorIfNotTest(...args: unknown[]) {
 	try {
 		const isTest =
 			typeof process !== "undefined" &&
@@ -53,7 +53,7 @@ async function importGoogleKeepNotesBase(
 		let foundError: Error | null = null;
 		let totalImported = 0;
 
-		while (true && !hasError) {
+		while (!hasError) {
 			try {
 				const response = await fetchFunction(offset, limit);
 				if (typeof response.total_notes === "number" && callbacks?.setTotalNotes) {
@@ -70,9 +70,11 @@ async function importGoogleKeepNotesBase(
 				totalImported += response.notes.length;
 				offset += limit;
 			} catch (error) {
-				logErrorIfNotTest(`Error fetching notes at offset ${offset}:`, error);
+				const normalizedError =
+					error instanceof Error ? error : new Error(String(error));
+				logErrorIfNotTest(`Error fetching notes at offset ${offset}:`, normalizedError);
 				hasError = true;
-				foundError = error as Error;
+				foundError = normalizedError;
 			}
 		}
 
@@ -83,9 +85,10 @@ async function importGoogleKeepNotesBase(
 		new Notice("Imported Google Keep notes.");
 		return totalImported;
 	} catch (error) {
-		logErrorIfNotTest(error);
+		const normalizedError = error instanceof Error ? error : new Error(String(error));
+		logErrorIfNotTest(normalizedError);
 		new Notice("Failed to import notes.");
-		throw error;
+		throw normalizedError;
 	}
 }
 
@@ -265,8 +268,9 @@ export async function processAndSaveNote(
 				);
 			}
 		}
-	} catch (err: any) {
-		await logSync(plugin, `${noteLink} - error: ${err?.message || String(err)}`);
+	} catch (err: unknown) {
+		const errorMessage = err instanceof Error ? err.message : String(err);
+		await logSync(plugin, `${noteLink} - error: ${errorMessage}`);
 		throw err;
 	}
 }

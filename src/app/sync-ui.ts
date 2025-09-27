@@ -3,22 +3,53 @@ import type KeepSidianPlugin from "@app/main";
 import { formatStatusBarText, formatStatusBarTooltip } from "@app/sync-status";
 import type { LastSyncSummary } from "@types";
 
+type StatusBarItemElement = HTMLElement & {
+	setText?: (text: string) => void;
+};
+
+type MenuWithPositioning = Menu & {
+	showAtMouseEvent?: (event: MouseEvent) => void;
+	showAtPosition?: (position: { x: number; y: number }) => void;
+};
+
+type NoticeWithControls = Notice & {
+	setMessage?: (message: string) => void;
+	hide?: () => void;
+};
+
+function hasSetText(element: HTMLElement | null): element is StatusBarItemElement & {
+	setText: (text: string) => void;
+} {
+	return (
+		element !== null &&
+		typeof (element as StatusBarItemElement).setText === "function"
+	);
+}
+
+function getNoticeControls(notice: Notice | null): NoticeWithControls | null {
+	return notice ? (notice as NoticeWithControls) : null;
+}
+
+function appendChildIfPossible(
+	parent: HTMLElement | null,
+	child: HTMLElement
+) {
+	const appendChild = parent?.appendChild;
+	if (typeof appendChild === "function") {
+		appendChild.call(parent, child);
+	}
+}
+
 function setStatusBarText(plugin: KeepSidianPlugin, text: string) {
 	if (plugin.statusTextEl) {
 		plugin.statusTextEl.textContent = text;
-	} else if (
-		plugin.statusBarItemEl &&
-		(plugin.statusBarItemEl as any).setText
-	) {
-		(plugin.statusBarItemEl as any).setText(text);
+	} else if (hasSetText(plugin.statusBarItemEl)) {
+		plugin.statusBarItemEl.setText(text);
 	}
 }
 
 function setStatusBarTooltip(plugin: KeepSidianPlugin, tooltip: string) {
-	if (
-		plugin.statusBarItemEl &&
-		(plugin.statusBarItemEl as any).setAttribute
-	) {
+	if (plugin.statusBarItemEl) {
 		plugin.statusBarItemEl.setAttribute("title", tooltip);
 	}
 }
@@ -30,17 +61,13 @@ function ensureStatusBarElements(plugin: KeepSidianPlugin) {
 			evt.preventDefault();
 			showStatusMenu(plugin, evt);
 		});
-		if ((plugin.statusBarItemEl as any).classList) {
-			(plugin.statusBarItemEl as any).classList.add("keepsidian-status");
-		}
+		plugin.statusBarItemEl.classList?.add("keepsidian-status");
 	}
 
 	if (!plugin.statusTextEl) {
 		plugin.statusTextEl = document.createElement("span");
 		plugin.statusTextEl.className = "keepsidian-status-text";
-		if ((plugin.statusBarItemEl as any).appendChild) {
-			(plugin.statusBarItemEl as any).appendChild(plugin.statusTextEl);
-		}
+		appendChildIfPossible(plugin.statusBarItemEl, plugin.statusTextEl);
 	}
 
 	if (!plugin.progressContainerEl) {
@@ -50,11 +77,10 @@ function ensureStatusBarElements(plugin: KeepSidianPlugin) {
 		plugin.progressBarEl = document.createElement("div");
 		plugin.progressBarEl.className = "keepsidian-progress-bar";
 		plugin.progressContainerEl.appendChild(plugin.progressBarEl);
-		if ((plugin.statusBarItemEl as any).appendChild) {
-			(plugin.statusBarItemEl as any).appendChild(
-				plugin.progressContainerEl
-			);
-		}
+		appendChildIfPossible(
+			plugin.statusBarItemEl,
+			plugin.progressContainerEl
+		);
 	}
 }
 
@@ -104,12 +130,13 @@ function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 		});
 	});
 
-	if (typeof (menu as any).showAtMouseEvent === "function" && evt) {
-		(menu as any).showAtMouseEvent(evt);
-	} else if (typeof (menu as any).showAtPosition === "function") {
+	const positionedMenu = menu as MenuWithPositioning;
+	if (evt && typeof positionedMenu.showAtMouseEvent === "function") {
+		positionedMenu.showAtMouseEvent(evt);
+	} else if (typeof positionedMenu.showAtPosition === "function") {
 		const x = evt?.pageX ?? evt?.clientX ?? 0;
 		const y = evt?.pageY ?? evt?.clientY ?? 0;
-		(menu as any).showAtPosition({ x, y });
+		positionedMenu.showAtPosition({ x, y });
 	}
 }
 
@@ -184,19 +211,20 @@ export function reportSyncProgress(plugin: KeepSidianPlugin) {
 
 export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 	if (plugin.progressNotice) {
-		const setter = (plugin.progressNotice as any).setMessage;
-		if (typeof setter === "function") {
-			setter.call(
-				plugin.progressNotice,
+		const noticeControls = getNoticeControls(plugin.progressNotice);
+		const setMessage = noticeControls?.setMessage;
+		if (setMessage) {
+			setMessage.call(
+				noticeControls,
 				success
 					? "Synced Google Keep Notes."
 					: "Failed to sync Google Keep Notes."
 			);
 		}
-		const hider = (plugin.progressNotice as any).hide;
-		if (typeof hider === "function") {
+		const hideNotice = noticeControls?.hide;
+		if (hideNotice) {
 			const delay = success ? 4000 : 10000;
-			setTimeout(() => hider.call(plugin.progressNotice), delay);
+			setTimeout(() => hideNotice.call(noticeControls), delay);
 		}
 	}
 	const totalValue = plugin.totalNotes ?? undefined;

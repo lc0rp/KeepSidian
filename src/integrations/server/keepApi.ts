@@ -114,12 +114,18 @@ export async function pushNotes(
 export function parseResponse(
     response: RequestUrlResponse
 ): GoogleKeepImportResponse {
-    const raw =
-        typeof (response as any).json === "function"
-            ? (response as any).json()
-            : (response as any).text
-            ? JSON.parse((response as any).text)
-            : (response as unknown as GoogleKeepImportResponse);
+    let raw: unknown;
+    const jsonField: unknown = response.json;
+
+    if (typeof jsonField === "function") {
+        raw = (jsonField as () => unknown)();
+    } else if (jsonField !== undefined) {
+        raw = jsonField;
+    } else if (typeof response.text === "string" && response.text.length > 0) {
+        raw = JSON.parse(response.text);
+    } else {
+        raw = response as unknown;
+    }
 
     // Try strict validation first; fall back to raw for legacy tests/inputs
     const safe = GoogleKeepImportResponseSchema.safeParse(raw);

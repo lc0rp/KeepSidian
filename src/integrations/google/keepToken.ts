@@ -7,17 +7,16 @@ import { httpPostJson } from "../../services/http";
 
 declare global {
 	interface Window {
-		require: (module: string) => any;
+		require: <T = unknown>(module: string) => T;
 	}
 }
 
-function logErrorIfNotTest(...args: any[]) {
+function logErrorIfNotTest(...args: unknown[]) {
 	try {
 		const isTest =
 			typeof process !== "undefined" &&
 			(process.env?.NODE_ENV === "test" || !!process.env?.JEST_WORKER_ID);
 		if (!isTest) {
-			 
 			console.error(...args);
 		}
 	} catch {
@@ -48,14 +47,24 @@ const sanitizeForJS = (input: string): string => {
 
 interface TokenResponse {
 	keep_token: string;
-	[key: string]: any;
+	[key: string]: unknown;
 }
 
-function isTokenResponse(obj: any): obj is TokenResponse {
+type TestableWebview = WebviewTag & {
+	loadURL?: (url: string) => Promise<void> | void;
+	src?: string;
+	show?: () => void;
+	hide?: () => void;
+	closeDevTools?: () => void;
+	getURL?: () => string;
+};
+
+function isTokenResponse(obj: unknown): obj is TokenResponse {
 	return (
 		typeof obj === "object" &&
 		obj !== null &&
-		typeof obj.keep_token === "string"
+		"keep_token" in obj &&
+		typeof (obj as Record<string, unknown>).keep_token === "string"
 	);
 }
 
@@ -64,6 +73,7 @@ async function getOAuthToken(
 	plugin: KeepSidianPlugin,
 	retrieveTokenWebview: WebviewTag
 ): Promise<string> {
+	const webview = retrieveTokenWebview as TestableWebview;
 	const OAUTH_URL = "https://accounts.google.com/EmbeddedSetup";
 	const GOOGLE_EMAIL = plugin.settings.email;
 
@@ -204,15 +214,14 @@ async function getOAuthToken(
 		(async () => {
 			try {
 			// Support both Electron WebviewTag and simple mocks used in tests
-			if (typeof (retrieveTokenWebview as any).loadURL === "function") {
-				await (retrieveTokenWebview as any).loadURL(OAUTH_URL);
+			const loadUrl = webview.loadURL ? webview.loadURL.bind(webview) : undefined;
+			if (loadUrl) {
+				await loadUrl(OAUTH_URL);
 			} else {
-				(retrieveTokenWebview as any).src = OAUTH_URL;
+				webview.src = OAUTH_URL;
 			}
-			if ((retrieveTokenWebview as any).show) {
-				(retrieveTokenWebview as any).show();
-			}
-			const style = (retrieveTokenWebview as any).style;
+			webview.show?.();
+			const style = webview.style;
 			if (style) {
 				try {
 					style.width = "0";
@@ -250,21 +259,21 @@ async function getOAuthToken(
 							oauthToken
 						);
 						cleanup();
-						if ((retrieveTokenWebview as any).closeDevTools) {
+						if (webview.closeDevTools) {
 							try {
-								(retrieveTokenWebview as any).closeDevTools();
+								webview.closeDevTools();
 							} catch {
 								/* empty */
 							}
 						}
-						if ((retrieveTokenWebview as any).hide) {
+						if (webview.hide) {
 							try {
-								(retrieveTokenWebview as any).hide();
+								webview.hide();
 							} catch {
 								/* empty */
 							}
 						} else {
-							const style = (retrieveTokenWebview as any).style;
+							const style = webview.style;
 							if (style) {
 								try {
 									style.display = "none";
@@ -290,8 +299,8 @@ async function getOAuthToken(
 
 			intervalId = setInterval(async () => {
 				const currentUrl =
-					typeof (retrieveTokenWebview as any).getURL === "function"
-						? (retrieveTokenWebview as any).getURL()
+					typeof webview.getURL === "function"
+						? webview.getURL()
 						: "";
 				if (!currentUrl || typeof currentUrl !== "string") {
 					return;

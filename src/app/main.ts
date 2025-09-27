@@ -1,4 +1,5 @@
 import { Notice, Plugin } from "obsidian";
+import type { DataAdapter } from "obsidian";
 import type {
 	KeepSidianPluginSettings,
 	LastSyncSummary,
@@ -21,6 +22,10 @@ import { registerRibbonAndCommands } from "@app/commands";
 import { importGoogleKeepNotes, importGoogleKeepNotesWithOptions } from "@features/keep/sync";
 import { pushGoogleKeepNotes } from "@features/keep/push";
 import { ensureFolder, normalizePathSafe } from "@services/paths";
+
+function getErrorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
 
 export default class KeepSidianPlugin extends Plugin {
 	settings: KeepSidianPluginSettings;
@@ -105,7 +110,7 @@ export default class KeepSidianPlugin extends Plugin {
 	}
 
 	async openLatestSyncLog() {
-		const adapter = (this.app?.vault as any)?.adapter;
+		const adapter: DataAdapter | null = this.app?.vault?.adapter ?? null;
 		if (!adapter) {
 			new Notice("KeepSidian: Unable to open sync log.");
 			return;
@@ -162,9 +167,9 @@ export default class KeepSidianPlugin extends Plugin {
 		const saveLocation = this.settings.saveLocation;
 		try {
 			await ensureFolder(this.app, saveLocation);
-		} catch (e: any) {
+		} catch (error: unknown) {
 			new Notice(`KeepSidian: Failed to create save location: ${saveLocation}`);
-			throw e;
+			throw error;
 		}
 	}
 
@@ -203,11 +208,11 @@ export default class KeepSidianPlugin extends Plugin {
 						`Manual sync ended - success. Processed ${this.processedNotes} note(s).`
 					);
 					finishSyncUI(this, true);
-				} catch (error) {
+				} catch (error: unknown) {
 					finishSyncUI(this, false);
 					await logSync(
 						this,
-						`Manual sync ended - failed: ${(error as Error).message}. Processed ${
+						`Manual sync ended - failed: ${getErrorMessage(error)}. Processed ${
 							this.processedNotes
 						} note(s).`
 					);
@@ -258,20 +263,22 @@ export default class KeepSidianPlugin extends Plugin {
 						} note(s).`
 					);
 					finishSyncUI(this, true);
-				} catch (error: any) {
+				} catch (error: unknown) {
 					finishSyncUI(this, false);
+					const errorMessage = getErrorMessage(error);
 					await logSync(
 						this,
-						`${auto ? "Auto" : "Manual"} sync ended - failed: ${
-							error.message
-						}. Processed ${this.processedNotes} note(s).`
+						`${auto ? "Auto" : "Manual"} sync ended - failed: ${errorMessage}. Processed ${
+							this.processedNotes
+						} note(s).`
 					);
 				}
 			}
-		} catch (error: any) {
+		} catch (error: unknown) {
+			const errorMessage = getErrorMessage(error);
 			await logSync(
 				this,
-				`${auto ? "Auto" : "Manual"} sync ended - failed: ${error.message}. Processed ${
+				`${auto ? "Auto" : "Manual"} sync ended - failed: ${errorMessage}. Processed ${
 					this.processedNotes
 				} note(s).`
 			);
@@ -309,17 +316,19 @@ export default class KeepSidianPlugin extends Plugin {
 				});
 				await logSync(this, `Push sync ended - success. Pushed ${pushed} note(s).`);
 				finishSyncUI(this, true);
-			} catch (error: any) {
+			} catch (error: unknown) {
 				finishSyncUI(this, false);
+				const errorMessage = getErrorMessage(error);
 				await logSync(
 					this,
-					`Push sync ended - failed: ${error.message}. Processed ${this.processedNotes} note(s).`
+					`Push sync ended - failed: ${errorMessage}. Processed ${this.processedNotes} note(s).`
 				);
 			}
-		} catch (error: any) {
+		} catch (error: unknown) {
+			const errorMessage = getErrorMessage(error);
 			await logSync(
 				this,
-				`Push sync ended - failed: ${error.message}. Processed ${this.processedNotes} note(s).`
+				`Push sync ended - failed: ${errorMessage}. Processed ${this.processedNotes} note(s).`
 			);
 		} finally {
 			this.isSyncing = false;
@@ -384,11 +393,12 @@ export default class KeepSidianPlugin extends Plugin {
 					this,
 					`Two-way sync - import completed. Processed ${importProcessed} note(s).`
 				);
-			} catch (error: any) {
+			} catch (error: unknown) {
 				finishSyncUI(this, false);
+				const errorMessage = getErrorMessage(error);
 				await logSync(
 					this,
-					`Two-way sync ended - import failed: ${error.message}. Processed ${this.processedNotes} note(s).`
+					`Two-way sync ended - import failed: ${errorMessage}. Processed ${this.processedNotes} note(s).`
 				);
 				return;
 			}
@@ -403,17 +413,19 @@ export default class KeepSidianPlugin extends Plugin {
 					`Two-way sync ended - success. Imported ${importProcessed} note(s), pushed ${pushed} note(s).`
 				);
 				finishSyncUI(this, true);
-			} catch (error: any) {
+			} catch (error: unknown) {
 				finishSyncUI(this, false);
+				const errorMessage = getErrorMessage(error);
 				await logSync(
 					this,
-					`Two-way sync ended - push failed: ${error.message}. Processed ${this.processedNotes} note(s).`
+					`Two-way sync ended - push failed: ${errorMessage}. Processed ${this.processedNotes} note(s).`
 				);
 			}
-		} catch (error: any) {
+		} catch (error: unknown) {
+			const errorMessage = getErrorMessage(error);
 			await logSync(
 				this,
-				`Two-way sync ended - failed: ${error.message}. Processed ${this.processedNotes} note(s).`
+				`Two-way sync ended - failed: ${errorMessage}. Processed ${this.processedNotes} note(s).`
 			);
 		} finally {
 			this.isSyncing = false;
@@ -428,8 +440,11 @@ export default class KeepSidianPlugin extends Plugin {
 				this.importNotes(true);
 			}
 		}, intervalMs);
-		if (typeof (this as any).registerInterval === "function") {
-			(this as any).registerInterval(this.autoSyncInterval);
+		if (
+			this.autoSyncInterval !== undefined &&
+			typeof this.registerInterval === "function"
+		) {
+			this.registerInterval(this.autoSyncInterval);
 		}
 	}
 

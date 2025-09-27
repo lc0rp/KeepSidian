@@ -2,33 +2,85 @@ import { App, Modal as ObsidianModal } from "obsidian";
 import { formatModalSummary } from "@app/sync-status";
 import type { LastSyncSummary } from "@types";
 
-class BaseModal extends ((ObsidianModal as any) ||
-	class {
-		app: App;
-		titleEl: HTMLElement = document.createElement("div");
-		contentEl: HTMLElement;
-		modalEl: HTMLElement = document.createElement("div");
-		constructor(app: App) {
-			this.app = app;
-			this.contentEl = document.createElement("div");
-			(this.contentEl as HTMLDivElement).empty = function () {
-				this.innerHTML = "";
-			};
-			(this.contentEl as any).createEl = function (tag: string, options?: any) {
-				const el = document.createElement(tag);
-				if (options?.text) {
-					el.textContent = options.text;
-				}
-				this.appendChild(el);
-				return el;
-			};
-		}
-		open() {}
-		close() {}
-	}) {
+interface ModalInstance {
+	app: App;
+	titleEl: HTMLElement;
+	contentEl: HTMLElement;
+	modalEl: HTMLElement;
+	open(): void;
+	close(): void;
+}
+
+type ModalConstructor = new (app: App) => ModalInstance;
+
+interface CreateElOptions {
+	text?: string;
+}
+
+type MaybeObsidianElement = HTMLElement & {
+	empty?: () => void;
+	createEl?: <K extends keyof HTMLElementTagNameMap>(
+		tagName: K,
+		options?: CreateElOptions
+	) => HTMLElementTagNameMap[K];
+	setText?: (text: string) => void;
+};
+
+const clearElement = (element: HTMLElement) => {
+	const maybeObsidianElement = element as MaybeObsidianElement;
+	if (typeof maybeObsidianElement.empty === "function") {
+		maybeObsidianElement.empty();
+		return;
+	}
+	element.innerHTML = "";
+};
+
+const createChild = <K extends keyof HTMLElementTagNameMap>(
+	parent: HTMLElement,
+	tagName: K,
+	options?: CreateElOptions
+): HTMLElementTagNameMap[K] => {
+	const maybeObsidianParent = parent as MaybeObsidianElement;
+	if (typeof maybeObsidianParent.createEl === "function") {
+		return maybeObsidianParent.createEl(tagName, options);
+	}
+	const element = document.createElement(tagName);
+	if (options?.text) {
+		element.textContent = options.text;
+	}
+	parent.appendChild(element);
+	return element;
+};
+
+const setElementText = (element: HTMLElement, text: string) => {
+	const maybeObsidianElement = element as MaybeObsidianElement;
+	if (typeof maybeObsidianElement.setText === "function") {
+		maybeObsidianElement.setText(text);
+		return;
+	}
+	element.textContent = text;
+};
+
+const ModalFallback: ModalConstructor = class ModalFallbackImpl
+	implements ModalInstance
+{
+	app: App;
+	titleEl: HTMLElement = document.createElement("div");
+	contentEl: HTMLElement = document.createElement("div");
+	modalEl: HTMLElement = document.createElement("div");
 	constructor(app: App) {
-		// Ensure TS knows our super accepts an argument while remaining runtime-safe
-		super(app as any);
+		this.app = app;
+	}
+	open() {}
+	close() {}
+};
+
+const ModalBaseClass =
+	(ObsidianModal as unknown as ModalConstructor | undefined) || ModalFallback;
+
+class BaseModal extends ModalBaseClass {
+	constructor(app: App) {
+		super(app);
 	}
 }
 
@@ -69,55 +121,25 @@ export class SyncProgressModal extends BaseModal {
 
 	onOpen() {
 		const { contentEl } = this;
-		contentEl.empty();
+		clearElement(contentEl);
 		contentEl.classList.add("keepsidian-modal");
 
-		const titleEl = (contentEl as any).createEl
-			? (contentEl as any).createEl("h2", { text: "Sync progress" })
-			: (() => {
-					const el = document.createElement("h2");
-					el.textContent = "Sync progress";
-					contentEl.appendChild(el);
-					return el;
-			  })();
-		(titleEl as HTMLElement).classList.add("keepsidian-modal-title");
+		const titleEl = createChild(contentEl, "h2", { text: "Sync progress" });
+		titleEl.classList.add("keepsidian-modal-title");
 
-		this.progressWrapEl = (contentEl as any).createEl
-			? ((contentEl as any).createEl("div") as HTMLDivElement)
-			: (() => {
-					const el = document.createElement("div");
-					contentEl.appendChild(el);
-					return el as HTMLDivElement;
-			  })();
+		this.progressWrapEl = createChild(contentEl, "div");
 		this.progressWrapEl.className = "keepsidian-modal-progress indeterminate";
-		this.progressBarEl = (this.progressWrapEl as any).createEl
-			? ((this.progressWrapEl as any).createEl("div") as HTMLDivElement)
-			: (() => {
-					const el = document.createElement("div");
-					this.progressWrapEl!.appendChild(el);
-					return el as HTMLDivElement;
-			  })();
+		this.progressBarEl = createChild(this.progressWrapEl, "div");
 		this.progressBarEl.className = "keepsidian-modal-progress-bar";
 
-		this.statusEl = (contentEl as any).createEl
-			? (contentEl as any).createEl("div", { text: "No sync has been run yet." })
-			: (() => {
-					const el = document.createElement("div");
-					el.textContent = "No sync has been run yet.";
-					contentEl.appendChild(el);
-					return el;
-			  })();
-		(this.statusEl as HTMLElement).classList.add("keepsidian-modal-status");
+		this.statusEl = createChild(contentEl, "div", {
+			text: "No sync has been run yet.",
+		});
+		this.statusEl.classList.add("keepsidian-modal-status");
 		this.statusEl?.setAttribute("aria-live", "polite");
 
-		const actionsEl = (contentEl as any).createEl
-			? (contentEl as any).createEl("div")
-			: (() => {
-					const el = document.createElement("div");
-					contentEl.appendChild(el);
-					return el;
-			  })();
-		(actionsEl as HTMLElement).classList.add("keepsidian-modal-actions");
+		const actionsEl = createChild(contentEl, "div");
+		actionsEl.classList.add("keepsidian-modal-actions");
 
 		this.buttons.twoWay = this.createActionButton(
 			actionsEl,
@@ -140,15 +162,8 @@ export class SyncProgressModal extends BaseModal {
 			this.callbacks.onOpenSyncLog
 		);
 
-		const closeButton = (contentEl as any).createEl
-			? (contentEl as any).createEl("button", { text: "Close" })
-			: (() => {
-					const el = document.createElement("button");
-					el.textContent = "Close";
-					contentEl.appendChild(el);
-					return el;
-			  })();
-		(closeButton as HTMLElement).classList.add("mod-cta");
+		const closeButton = createChild(contentEl, "button", { text: "Close" });
+		closeButton.classList.add("mod-cta");
 		closeButton.addEventListener("click", () => this.close());
 
 		this.applyState();
@@ -156,7 +171,7 @@ export class SyncProgressModal extends BaseModal {
 	}
 
 	onClose() {
-		this.contentEl.empty();
+		clearElement(this.contentEl);
 		this.buttons = {
 			twoWay: null,
 			importOnly: null,
@@ -197,11 +212,7 @@ export class SyncProgressModal extends BaseModal {
 		if (!this.statusEl) {
 			return;
 		}
-		if ((this.statusEl as any).setText) {
-			(this.statusEl as any).setText(msg);
-		} else {
-			this.statusEl.textContent = msg;
-		}
+		setElementText(this.statusEl, msg);
 	}
 
 	private applyState() {
@@ -285,17 +296,10 @@ export class SyncProgressModal extends BaseModal {
 		label: string,
 		onClick: () => void
 	): HTMLButtonElement {
-		const button = (container as any).createEl
-			? (container as any).createEl("button", { text: label })
-			: (() => {
-					const el = document.createElement("button");
-					el.textContent = label;
-					container.appendChild(el);
-					return el;
-			  })();
+		const button = createChild(container, "button", { text: label });
 		button.type = "button";
 		button.classList.add("keepsidian-modal-action");
 		button.addEventListener("click", () => onClick());
-		return button as HTMLButtonElement;
+		return button;
 	}
 }
