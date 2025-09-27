@@ -3,7 +3,7 @@ import type KeepSidianPlugin from "@app/main";
 export function registerRibbonIcon(plugin: KeepSidianPlugin) {
 	plugin.addRibbonIcon(
 		"folder-sync",
-		"KeepSidian: Perform two-way sync.",
+		"KeepSidian: Perform two-way sync",
 		(_evt: MouseEvent) => {
 			plugin.performTwoWaySync();
 		}
@@ -19,7 +19,7 @@ export function registerCommands(plugin: KeepSidianPlugin) {
 
 	plugin.addCommand({
 		id: "import-google-keep-notes",
-		name: "Import Google Keep notes",
+		name: "Download notes from Google Keep",
 		callback: async () => await plugin.importNotes(),
 	});
 
@@ -31,7 +31,7 @@ export function registerCommands(plugin: KeepSidianPlugin) {
 
 	plugin.addCommand({
 		id: "open-keepsidian-sync-log",
-		name: "Open sync log",
+		name: "Open sync log file",
 		callback: async () => await plugin.openLatestSyncLog(),
 	});
 }

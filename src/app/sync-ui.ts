@@ -76,7 +76,7 @@ function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 	});
 
 	menu.addItem((item) => {
-		item.setTitle("Import only")
+		item.setTitle("Download from Google Keep")
 			.setDisabled(syncing)
 			.onClick(() => {
 				plugin.importNotes();
@@ -84,7 +84,7 @@ function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 	});
 
 	menu.addItem((item) => {
-		item.setTitle("Upload only")
+		item.setTitle("Upload to Google Keep")
 			.setDisabled(syncing)
 			.onClick(() => {
 				plugin.pushNotes();
@@ -92,7 +92,7 @@ function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 	});
 
 	menu.addItem((item) => {
-		item.setTitle("Open sync log").onClick(() => {
+		item.setTitle("Open sync log file").onClick(() => {
 			plugin.openLatestSyncLog();
 		});
 	});
