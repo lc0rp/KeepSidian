@@ -8,6 +8,7 @@ import { processAttachments } from "../keep/io/attachments";
 import type { NoteImportOptions } from "@ui/modals/NoteImportOptionsModal";
 import { CONFLICT_FILE_SUFFIX } from "./constants";
 import { buildFrontmatterWithSyncDate, wrapMarkdown } from "./frontmatter";
+import { ensurePascalCaseFrontmatter } from "./migrations/fixFrontmatterCasing";
 import {
 	buildNotePath,
 	ensureFolder,
@@ -152,6 +153,7 @@ export async function processAndSaveNotes(
 	const saveLocation = plugin.settings.saveLocation;
 	await ensureFolder(plugin.app, saveLocation);
 	await ensureFolder(plugin.app, mediaFolderPath(saveLocation));
+	await ensurePascalCaseFrontmatter(plugin);
 
 	for (const note of notes) {
 		await processAndSaveNote(plugin, note, saveLocation);

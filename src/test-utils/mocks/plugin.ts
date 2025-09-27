@@ -2,6 +2,7 @@
 
 export interface MockVaultAdapter {
 	exists: jest.Mock<Promise<boolean>, [string]>;
+	list: jest.Mock<Promise<{ files: string[]; folders: string[] }>, [string]>;
 	read: jest.Mock<Promise<string>, [string]>;
 	write: jest.Mock<Promise<void>, [string, string]>;
 	writeBinary: jest.Mock<Promise<void>, [string, ArrayBuffer]>;
@@ -29,11 +30,10 @@ export interface MockPlugin {
 export function createMockPlugin(overrides?: Partial<MockPlugin>): MockPlugin {
 	const adapter: MockVaultAdapter = {
 		exists: jest.fn(async (_path: string) => false),
+		list: jest.fn(async (_path: string) => ({ files: [], folders: [] })),
 		read: jest.fn(async (_path: string) => ""),
 		write: jest.fn(async (_path: string, _data: string) => undefined),
-		writeBinary: jest.fn(
-			async (_path: string, _data: ArrayBuffer) => undefined
-		),
+		writeBinary: jest.fn(async (_path: string, _data: ArrayBuffer) => undefined),
 		stat: jest.fn(async (_path: string) => ({
 			ctime: Date.now(),
 			mtime: Date.now(),
@@ -48,7 +48,9 @@ export function createMockPlugin(overrides?: Partial<MockPlugin>): MockPlugin {
 			email: "user@example.com",
 			token: "test-token",
 			saveLocation: "Keep",
+			frontmatterPascalCaseFixApplied: false,
 		},
+		saveSettings: jest.fn(async () => undefined),
 	};
 
 	return {

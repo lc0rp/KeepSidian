@@ -6,6 +6,7 @@ import { logSync, flushLogSync } from "@app/logging";
 import { buildFrontmatterWithSyncDate, wrapMarkdown } from "./frontmatter";
 import { CONFLICT_FILE_SUFFIX, FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY } from "./constants";
 import type { SyncCallbacks } from "./sync";
+import { ensurePascalCaseFrontmatter } from "./migrations/fixFrontmatterCasing";
 import {
 	pushNotes as apiPushNotes,
 	PushAttachmentPayload,
@@ -303,6 +304,7 @@ async function collectNotesToPush(plugin: KeepSidianPlugin): Promise<CollectedNo
 	const adapter = plugin.app.vault.adapter as VaultAdapter;
 	const saveLocation = plugin.settings.saveLocation;
 	await ensureFolder(plugin.app, saveLocation);
+	await ensurePascalCaseFrontmatter(plugin);
 
 	const markdownFiles = await listMarkdownFilesRecursively(adapter, saveLocation);
 
