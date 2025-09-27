@@ -28,10 +28,15 @@ jest.mock("main");
 
 describe("Google Keep Import Functions", () => {
 	let mockPlugin: jest.Mocked<KeepSidianPlugin>;
+	let getVaultConfigMock: jest.Mock;
+	let setVaultConfigMock: jest.Mock;
 
 	beforeEach(() => {
 		// Reset all mocks before each test
 		jest.clearAllMocks();
+
+		getVaultConfigMock = jest.fn().mockReturnValue(undefined);
+		setVaultConfigMock = jest.fn();
 
 		// Setup mock plugin
 		mockPlugin = {
@@ -39,11 +44,14 @@ describe("Google Keep Import Functions", () => {
 				email: "test@example.com",
 				token: "test-token",
 				saveLocation: "Test Folder",
+				keepSidianLastSuccessfulSyncDate: null,
 				frontmatterPascalCaseFixApplied: false,
 			},
-			app: {
-				vault: {
-					adapter: {
+				app: {
+					vault: {
+						getConfig: getVaultConfigMock,
+						setConfig: setVaultConfigMock,
+						adapter: {
 						exists: jest.fn().mockImplementation(() => Promise.resolve(false)),
 						list: jest.fn().mockResolvedValue({ files: [], folders: [] }),
 						write: jest.fn(),
@@ -77,6 +85,48 @@ describe("Google Keep Import Functions", () => {
 			(requestUrl as jest.Mock).mockRejectedValue(new Error("Network error"));
 			await expect(importGoogleKeepNotes(mockPlugin)).rejects.toThrow("Network error");
 			expect(Notice).toHaveBeenCalledWith("Failed to import notes.");
+			expect(mockPlugin.settings.keepSidianLastSuccessfulSyncDate).toBeNull();
+			expect(setVaultConfigMock).not.toHaveBeenCalled();
+		});
+
+		it("uses last successful sync date from settings to filter requests", async () => {
+			mockPlugin.settings.keepSidianLastSuccessfulSyncDate = "2024-01-01T00:00:00.000Z";
+
+			await importGoogleKeepNotes(mockPlugin);
+
+			const [[requestParams]] = (requestUrl as jest.Mock).mock.calls;
+			expect(requestParams.url).toContain("created_gt=2024-01-01T00%3A00%3A00.000Z");
+			expect(requestParams.url).toContain("updated_gt=2024-01-01T00%3A00%3A00.000Z");
+		});
+
+		it("uses vault config when settings sync date is unavailable", async () => {
+			mockPlugin.settings.keepSidianLastSuccessfulSyncDate = null;
+			getVaultConfigMock.mockReturnValue(
+				"2024-02-02T00:00:00.000Z"
+			);
+
+			await importGoogleKeepNotes(mockPlugin);
+
+			const [[requestParams]] = (requestUrl as jest.Mock).mock.calls;
+			expect(requestParams.url).toContain("created_gt=2024-02-02T00%3A00%3A00.000Z");
+			expect(requestParams.url).toContain("updated_gt=2024-02-02T00%3A00%3A00.000Z");
+		});
+
+		it("persists the last successful sync date after import", async () => {
+			jest.useFakeTimers().setSystemTime(new Date("2024-03-03T12:34:56.000Z"));
+
+			try {
+				await importGoogleKeepNotes(mockPlugin);
+
+				const expected = "2024-03-03T12:34:56.000Z";
+				expect(mockPlugin.settings.keepSidianLastSuccessfulSyncDate).toBe(expected);
+				expect(setVaultConfigMock).toHaveBeenCalledWith(
+					"KeepSidianLastSuccessfulSyncDate",
+					expected
+				);
+			} finally {
+				jest.useRealTimers();
+			}
 		});
 	});
 
@@ -171,8 +221,10 @@ describe("Google Keep Import Functions", () => {
 			expect(mockPlugin.app.vault.adapter.exists).toHaveBeenCalledWith("Test Folder");
 			expect(mockPlugin.app.vault.adapter.exists).toHaveBeenCalledWith("Test Folder/media");
 			// saveLocation and media folder; logging may also ensure parent exists
-			const createFolderMock =
-				mockPlugin.app.vault.createFolder as unknown as jest.Mock<Promise<void>, [string]>;
+			const createFolderMock = mockPlugin.app.vault.createFolder as unknown as jest.Mock<
+				Promise<void>,
+				[string]
+			>;
 			expect(createFolderMock.mock.calls.length).toBeGreaterThanOrEqual(2);
 		});
 

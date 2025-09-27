@@ -6,7 +6,6 @@ import { pushGoogleKeepNotes } from "../push";
 import { pushNotes as apiPushNotes } from "@integrations/server/keepApi";
 import { createMockPlugin, type MockVaultAdapter } from "../../../test-utils/mocks/plugin";
 
-
 jest.mock("@integrations/server/keepApi", () => ({
 	pushNotes: jest.fn(),
 }));
@@ -37,6 +36,7 @@ describe("pushGoogleKeepNotes", () => {
 				email,
 				token,
 				saveLocation,
+				keepSidianLastSuccessfulSyncDate: null,
 				frontmatterPascalCaseFixApplied: false,
 			},
 			app: {
@@ -58,8 +58,10 @@ describe("pushGoogleKeepNotes", () => {
 
 		const plugin = base as unknown as KeepSidianPlugin;
 		const adapter = plugin.app.vault.adapter as unknown as MockVaultAdapter;
-		const createFolderMock =
-			plugin.app.vault.createFolder as unknown as jest.Mock<Promise<void>, [string]>;
+		const createFolderMock = plugin.app.vault.createFolder as unknown as jest.Mock<
+			Promise<void>,
+			[string]
+		>;
 		createFolderMock.mockResolvedValue(undefined);
 
 		return { plugin, adapter };

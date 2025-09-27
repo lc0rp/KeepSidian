@@ -27,6 +27,7 @@ export interface KeepSidianPluginSettings {
 	autoSyncIntervalHours: number;
 	lastSyncSummary: LastSyncSummary | null;
 	lastSyncLogPath?: string | null;
+	keepSidianLastSuccessfulSyncDate?: string | null;
 	frontmatterPascalCaseFixApplied?: boolean;
 }
 
@@ -43,5 +44,6 @@ export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
 	autoSyncIntervalHours: 24,
 	lastSyncSummary: null,
 	lastSyncLogPath: null,
+	keepSidianLastSuccessfulSyncDate: null,
 	frontmatterPascalCaseFixApplied: false,
 };

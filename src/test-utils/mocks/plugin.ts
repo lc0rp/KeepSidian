@@ -60,6 +60,7 @@ export function createMockPlugin(overrides?: Partial<MockPlugin>): MockPlugin {
 			email: "user@example.com",
 			token: "test-token",
 			saveLocation: "Keep",
+			keepSidianLastSuccessfulSyncDate: null,
 			frontmatterPascalCaseFixApplied: false,
 		},
 		saveSettings: jest.fn(async () => undefined),
@@ -78,8 +79,7 @@ export function createMockPlugin(overrides?: Partial<MockPlugin>): MockPlugin {
 					...adapter,
 					...(overrides?.app?.vault?.adapter ?? {}),
 				},
-				createFolder:
-					overrides?.app?.vault?.createFolder ?? plugin.app.vault.createFolder,
+				createFolder: overrides?.app?.vault?.createFolder ?? plugin.app.vault.createFolder,
 			},
 		},
 		settings: {

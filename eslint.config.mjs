@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
 import { FlatCompat } from "@eslint/eslintrc";
+import obsidianmd from "eslint-plugin-obsidianmd";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,9 +24,12 @@ export default [
 		"plugin:@typescript-eslint/eslint-recommended",
 		"plugin:@typescript-eslint/recommended"
 	),
+	...obsidianmd.configs.recommended,
 	{
+		files: ["**/*.ts"],
 		plugins: {
 			"@typescript-eslint": typescriptEslint,
+			obsidianmd,
 		},
 
 		languageOptions: {
@@ -36,6 +40,10 @@ export default [
 			parser: tsParser,
 			ecmaVersion: 5,
 			sourceType: "module",
+			parserOptions: {
+				project: [path.resolve(__dirname, "tsconfig.json")],
+				tsconfigRootDir: __dirname,
+			},
 		},
 
 		rules: {
@@ -56,6 +64,31 @@ export default [
 			"@typescript-eslint/no-restricted-imports": [
 				"error",
 				{
+					paths: [
+						{
+							name: "axios",
+							message: "Use the built-in `requestUrl` function instead of `axios`.",
+						},
+						{
+							name: "superagent",
+							message:
+								"Use the built-in `requestUrl` function instead of `superagent`.",
+						},
+						{
+							name: "got",
+							message: "Use the built-in `requestUrl` function instead of `got`.",
+						},
+						{
+							name: "node-fetch",
+							message:
+								"Use the built-in `requestUrl` function instead of `node-fetch`.",
+						},
+						{
+							name: "moment",
+							message:
+								"The 'moment' package is bundled with Obsidian. Please import it from 'obsidian' instead.",
+						},
+					],
 					patterns: [
 						{
 							group: ["@types/*"],
@@ -70,6 +103,16 @@ export default [
 			"@typescript-eslint/ban-ts-comment": "off",
 			"no-prototype-builtins": "off",
 			"@typescript-eslint/no-empty-function": "off",
+		},
+	},
+	{
+		files: ["src/**/tests/**/*.ts", "src/**/test-utils/**/*.ts"],
+		languageOptions: {
+			globals: {
+				...globals.node,
+				...globals.browser,
+				...globals.jest,
+			},
 		},
 	},
 ];

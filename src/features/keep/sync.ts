@@ -17,11 +17,61 @@ import {
 	normalizePathSafe,
 } from "@services/paths";
 import { logSync } from "@app/logging";
-import type { GoogleKeepImportResponse, PremiumFeatureFlags } from "@integrations/server/keepApi";
+import type {
+	GoogleKeepImportResponse,
+	PremiumFeatureFlags,
+	SyncFilters,
+} from "@integrations/server/keepApi";
 import {
 	fetchNotes as apiFetchNotes,
 	fetchNotesWithPremiumFeatures as apiFetchNotesWithPremium,
 } from "@integrations/server/keepApi";
+
+const LAST_SUCCESSFUL_SYNC_DATE_KEY = "KeepSidianLastSuccessfulSyncDate";
+
+function getVaultConfig(plugin: KeepSidianPlugin, key: string): unknown {
+	const vault = plugin.app?.vault as { getConfig?: (configKey: string) => unknown } | undefined;
+	if (vault?.getConfig) {
+		try {
+			return vault.getConfig(key);
+		} catch {
+			/* empty */
+		}
+	}
+	return undefined;
+}
+
+function setVaultConfig(plugin: KeepSidianPlugin, key: string, value: unknown): void {
+	const vault = plugin.app?.vault as
+		| { setConfig?: (configKey: string, configValue: unknown) => void }
+		| undefined;
+	if (vault?.setConfig) {
+		try {
+			vault.setConfig(key, value);
+		} catch {
+			/* empty */
+		}
+	}
+}
+
+function getLastSuccessfulSyncDate(plugin: KeepSidianPlugin): string | undefined {
+	const fromSettings = plugin.settings.keepSidianLastSuccessfulSyncDate;
+	if (typeof fromSettings === "string" && fromSettings.trim().length > 0) {
+		return fromSettings;
+	}
+
+	const fromVault = getVaultConfig(plugin, LAST_SUCCESSFUL_SYNC_DATE_KEY);
+	if (typeof fromVault === "string" && fromVault.trim().length > 0) {
+		return fromVault;
+	}
+
+	return undefined;
+}
+
+function persistLastSuccessfulSyncDate(plugin: KeepSidianPlugin, isoString: string): void {
+	plugin.settings.keepSidianLastSuccessfulSyncDate = isoString;
+	setVaultConfig(plugin, LAST_SUCCESSFUL_SYNC_DATE_KEY, isoString);
+}
 
 export interface SyncCallbacks {
 	setTotalNotes?: (total: number) => void;
@@ -43,7 +93,11 @@ function logErrorIfNotTest(...args: unknown[]) {
 
 async function importGoogleKeepNotesBase(
 	plugin: KeepSidianPlugin,
-	fetchFunction: (offset: number, limit: number) => Promise<GoogleKeepImportResponse>,
+	fetchFunction: (
+		offset: number,
+		limit: number,
+		filters?: SyncFilters
+	) => Promise<GoogleKeepImportResponse>,
 	callbacks?: SyncCallbacks
 ): Promise<number> {
 	try {
@@ -53,9 +107,20 @@ async function importGoogleKeepNotesBase(
 		let foundError: Error | null = null;
 		let totalImported = 0;
 
+		const lastSuccessfulSyncDate = getLastSuccessfulSyncDate(plugin);
+		const syncFilters: SyncFilters | undefined = lastSuccessfulSyncDate
+			? {
+					created_gt: lastSuccessfulSyncDate,
+					updated_gt: lastSuccessfulSyncDate,
+			  }
+			: undefined;
+
+		let completionDate: string | undefined;
+
 		while (!hasError) {
 			try {
-				const response = await fetchFunction(offset, limit);
+				const response = await fetchFunction(offset, limit, syncFilters);
+				completionDate = new Date().toISOString();
 				if (typeof response.total_notes === "number" && callbacks?.setTotalNotes) {
 					try {
 						callbacks.setTotalNotes(response.total_notes);
@@ -70,8 +135,7 @@ async function importGoogleKeepNotesBase(
 				totalImported += response.notes.length;
 				offset += limit;
 			} catch (error) {
-				const normalizedError =
-					error instanceof Error ? error : new Error(String(error));
+				const normalizedError = error instanceof Error ? error : new Error(String(error));
 				logErrorIfNotTest(`Error fetching notes at offset ${offset}:`, normalizedError);
 				hasError = true;
 				foundError = normalizedError;
@@ -80,6 +144,10 @@ async function importGoogleKeepNotesBase(
 
 		if (foundError) {
 			throw foundError;
+		}
+
+		if (completionDate) {
+			persistLastSuccessfulSyncDate(plugin, completionDate);
 		}
 
 		new Notice("Imported Google Keep notes.");
@@ -99,7 +167,7 @@ export async function importGoogleKeepNotes(
 	const { email, token } = plugin.settings;
 	return await importGoogleKeepNotesBase(
 		plugin,
-		(offset, limit) => apiFetchNotes(email, token, offset, limit),
+		(offset, limit, filters) => apiFetchNotes(email, token, offset, limit, filters),
 		callbacks
 	);
 }
@@ -113,7 +181,8 @@ export async function importGoogleKeepNotesWithOptions(
 	const { email, token } = plugin.settings;
 	return await importGoogleKeepNotesBase(
 		plugin,
-		(offset, limit) => apiFetchNotesWithPremium(email, token, featureFlags, offset, limit),
+		(offset, limit, filters) =>
+			apiFetchNotesWithPremium(email, token, featureFlags, offset, limit, filters),
 		callbacks
 	);
 }

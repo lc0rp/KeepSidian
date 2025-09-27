@@ -19,6 +19,7 @@ describe("ensurePascalCaseFrontmatter", () => {
 				email: "user@example.com",
 				token: "token",
 				saveLocation: "Keep",
+				keepSidianLastSuccessfulSyncDate: null,
 				frontmatterPascalCaseFixApplied: false,
 			},
 			saveSettings: jest.fn().mockResolvedValue(undefined),
