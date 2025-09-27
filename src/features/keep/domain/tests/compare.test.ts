@@ -4,6 +4,11 @@ import {
 	checkForDuplicateData,
 } from "../compare";
 import { NormalizedNote } from "../note";
+import type { App } from "obsidian";
+import {
+	createMockPlugin,
+	type MockVaultAdapter,
+} from "../../../../test-utils/mocks/plugin";
 
 describe("normalizeDate", () => {
 	it("should return null for undefined input", () => {
@@ -22,47 +27,71 @@ describe("normalizeDate", () => {
 });
 
 describe("handleDuplicateNotes", () => {
-	let mockApp: any;
+	let mockApp: App;
+	let adapter: MockVaultAdapter;
 
 	beforeEach(() => {
-		mockApp = {
-			vault: {
-				adapter: {
-					exists: jest.fn(),
-					read: jest.fn(),
-					stat: jest.fn(),
-				},
-			},
-		};
+		const plugin = createMockPlugin();
+		adapter = plugin.app.vault.adapter;
+		mockApp = plugin.app as unknown as App;
 	});
 
 	it('should return "create" when file does not exist', async () => {
-		mockApp.vault.adapter.exists.mockResolvedValue(false);
+		adapter.exists.mockResolvedValue(false);
+
+		const note: NormalizedNote = {
+			title: "Sample",
+			text: "Sample",
+			created: null,
+			updated: null,
+			frontmatter: "",
+			frontmatterDict: {},
+			archived: false,
+			trashed: false,
+			labels: [],
+			blobs: [],
+			blob_urls: [],
+			blob_names: [],
+			media: [],
+			header: "",
+			textWithoutFrontmatter: "",
+		};
 
 		const result = await handleDuplicateNotes(
 			"/save/location",
-			{} as NormalizedNote,
+			note,
 			mockApp
 		);
 		expect(result).toBe("create");
 	});
 
 	it("should call checkForDuplicateData when file exists", async () => {
-		mockApp.vault.adapter.exists.mockResolvedValue(true);
-		mockApp.vault.adapter.read.mockResolvedValue(
+		adapter.exists.mockResolvedValue(true);
+		adapter.read.mockResolvedValue(
 			"---\nCreated: 2023-05-25\n---\nExisting content"
 		);
-		mockApp.vault.adapter.stat.mockResolvedValue({
+		adapter.stat.mockResolvedValue({
 			ctime: Date.now(),
 			mtime: Date.now(),
 		});
 
 		const incomingNote: NormalizedNote = {
 			title: "Test Note",
-			textWithoutFrontmatter: "New content",
+			text: "Content",
 			created: new Date("2023-05-25"),
 			updated: new Date("2023-05-26"),
-		} as NormalizedNote;
+			frontmatter: "",
+			frontmatterDict: {},
+			archived: false,
+			trashed: false,
+			labels: [],
+			blobs: [],
+			blob_urls: [],
+			blob_names: [],
+			media: [],
+			header: "",
+			textWithoutFrontmatter: "New content",
+		};
 
 		const result = await handleDuplicateNotes(
 			"/save/location",

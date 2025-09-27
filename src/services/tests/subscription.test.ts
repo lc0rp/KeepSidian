@@ -2,6 +2,7 @@ import { SubscriptionService } from '../subscription';
 import { SubscriptionInfo, SubscriptionCache } from '../../types/subscription';
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import * as obsidian from 'obsidian';
+import type { RequestUrlResponse } from 'obsidian';
 
 // Mock Obsidian requestUrl + Notice
 jest.mock('obsidian', () => ({
@@ -10,6 +11,19 @@ jest.mock('obsidian', () => ({
   },
   requestUrl: jest.fn(),
 }));
+
+type RequestUrlMock = jest.MockedFunction<
+  (params: unknown) => Promise<RequestUrlResponse>
+>;
+const requestUrlMock = obsidian.requestUrl as unknown as RequestUrlMock;
+
+const buildResponse = (json: unknown, status = 200): RequestUrlResponse => ({
+  status,
+  headers: {},
+  arrayBuffer: new ArrayBuffer(0),
+  json,
+  text: JSON.stringify(json),
+});
 
 global.console.error = jest.fn();
 
@@ -51,7 +65,7 @@ describe('SubscriptionService', () => {
     );
 
     // Reset requestUrl mock
-    (obsidian.requestUrl as jest.Mock).mockReset();
+    requestUrlMock.mockReset();
   });
 
   describe('checkSubscription', () => {
@@ -59,7 +73,7 @@ describe('SubscriptionService', () => {
       mockGetEmail.mockReturnValue('');
       const result = await service.checkSubscription();
       expect(result).toBeNull();
-      expect(obsidian.requestUrl).not.toHaveBeenCalled();
+      expect(requestUrlMock).not.toHaveBeenCalled();
     });
 
     it('should use cached data if available and not expired', async () => {
@@ -72,7 +86,7 @@ describe('SubscriptionService', () => {
 
       const result = await service.checkSubscription();
       expect(result).toEqual(mockSubscriptionInfo);
-      expect(obsidian.requestUrl).not.toHaveBeenCalled();
+      expect(requestUrlMock).not.toHaveBeenCalled();
     });
 
     it('should fetch new data if cache is expired', async () => {
@@ -83,15 +97,12 @@ describe('SubscriptionService', () => {
       };
       mockGetCache.mockReturnValue(cachedInfo);
 
-      const mockResponse = {
-        status: 200,
-        json: mockSubscriptionInfo,
-      };
-      (obsidian.requestUrl as any).mockResolvedValueOnce(mockResponse);
+      const mockResponse = buildResponse(mockSubscriptionInfo);
+      requestUrlMock.mockResolvedValueOnce(mockResponse);
 
       const result = await service.checkSubscription();
       expect(result).toEqual(mockSubscriptionInfo);
-      expect(obsidian.requestUrl).toHaveBeenCalledTimes(1);
+      expect(requestUrlMock).toHaveBeenCalledTimes(1);
       expect(mockSetCache).toHaveBeenCalled();
     });
 
@@ -104,15 +115,12 @@ describe('SubscriptionService', () => {
       mockGetCache.mockReturnValue(cachedInfo);
 
       // Create a proper Response mock
-      const mockResponse = {
-        status: 200,
-        json: mockSubscriptionInfo,
-      };
-      (obsidian.requestUrl as any).mockResolvedValueOnce(mockResponse);
+      const mockResponse = buildResponse(mockSubscriptionInfo);
+      requestUrlMock.mockResolvedValueOnce(mockResponse);
 
       const result = await service.checkSubscription();
       expect(result).toEqual(mockSubscriptionInfo);
-      expect(obsidian.requestUrl).toHaveBeenCalledTimes(1);
+      expect(requestUrlMock).toHaveBeenCalledTimes(1);
       expect(mockSetCache).toHaveBeenCalled();
     });
 
@@ -125,25 +133,19 @@ describe('SubscriptionService', () => {
       mockGetCache.mockReturnValue(cachedInfo);
 
       // Create a proper Response mock
-      const mockResponse = {
-        status: 200,
-        json: mockSubscriptionInfo,
-      };
-      (obsidian.requestUrl as any).mockResolvedValueOnce(mockResponse);
+      const mockResponse = buildResponse(mockSubscriptionInfo);
+      requestUrlMock.mockResolvedValueOnce(mockResponse);
 
       const result = await service.checkSubscription(true);
       expect(result).toEqual(mockSubscriptionInfo);
-      expect(obsidian.requestUrl).toHaveBeenCalledTimes(1);
+      expect(requestUrlMock).toHaveBeenCalledTimes(1);
       expect(mockSetCache).toHaveBeenCalled();
     });
 
     it('should handle API errors gracefully', async () => {
       // Create a proper error Response mock
-      const mockResponse = {
-        status: 400,
-        json: { error: 'API Error' },
-      };
-      (obsidian.requestUrl as any).mockResolvedValueOnce(mockResponse);
+      const mockResponse = buildResponse({ error: 'API Error' }, 400);
+      requestUrlMock.mockResolvedValueOnce(mockResponse);
 
       const result = await service.checkSubscription();
       expect(result).toBeNull();
@@ -152,7 +154,7 @@ describe('SubscriptionService', () => {
     });
 
     it('should handle network errors gracefully', async () => {
-      (obsidian.requestUrl as any).mockRejectedValueOnce(new Error('Network error'));
+      requestUrlMock.mockRejectedValueOnce(new Error('Network error'));
 
       const result = await service.checkSubscription();
       expect(result).toBeNull();

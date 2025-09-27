@@ -171,9 +171,9 @@ describe("Google Keep Import Functions", () => {
 			expect(mockPlugin.app.vault.adapter.exists).toHaveBeenCalledWith("Test Folder");
 			expect(mockPlugin.app.vault.adapter.exists).toHaveBeenCalledWith("Test Folder/media");
 			// saveLocation and media folder; logging may also ensure parent exists
-			expect(
-				(mockPlugin.app.vault.createFolder as unknown as any).mock.calls.length
-			).toBeGreaterThanOrEqual(2);
+			const createFolderMock =
+				mockPlugin.app.vault.createFolder as unknown as jest.Mock<Promise<void>, [string]>;
+			expect(createFolderMock.mock.calls.length).toBeGreaterThanOrEqual(2);
 		});
 
 		it("should process each note", async () => {
@@ -446,24 +446,38 @@ describe("Google Keep Import Functions", () => {
 
 		it("should parse response with json function", () => {
 			const response = {
+				status: 200,
+				headers: {},
+				arrayBuffer: new ArrayBuffer(0),
 				json: () => ({ notes: [{ title: "Note 1" }] }),
-			} as any;
-			const result = parseResponse(response);
+				text: "",
+			} satisfies Partial<RequestUrlResponse>;
+			const result = parseResponse(response as RequestUrlResponse);
 			expect(result).toEqual({ notes: [{ title: "Note 1" }] });
 		});
 
 		it("should parse response with text property", () => {
 			const response = {
+				status: 200,
+				headers: {},
+				arrayBuffer: new ArrayBuffer(0),
+				json: undefined,
 				text: JSON.stringify({ notes: [{ title: "Note 1" }] }),
-			} as any;
-			const result = parseResponse(response);
+			} satisfies Partial<RequestUrlResponse>;
+			const result = parseResponse(response as RequestUrlResponse);
 			expect(result).toEqual({ notes: [{ title: "Note 1" }] });
 		});
 
 		it("should return response if json and text are not present", () => {
-			const response = { notes: [{ title: "Note 1" }] } as any;
-			const result = parseResponse(response);
-			expect(result).toEqual(response);
+			const response = {
+				status: 200,
+				headers: {},
+				arrayBuffer: new ArrayBuffer(0),
+				json: { notes: [{ title: "Note 1" }] },
+				text: "",
+			} satisfies Partial<RequestUrlResponse>;
+			const result = parseResponse(response as RequestUrlResponse);
+			expect(result).toEqual(response.json);
 		});
 	});
 });

@@ -1,5 +1,6 @@
 import { initRetrieveToken, exchangeOauthToken } from '../keepToken';
 import { WebviewTag } from 'electron';
+import type { ConsoleMessageEvent } from 'electron';
 import * as obsidian from 'obsidian';
 import KeepSidianPlugin from 'main';
 import { KeepSidianSettingsTab } from 'ui/settings/KeepSidianSettingsTab';
@@ -114,22 +115,23 @@ describe('Token Management', () => {
             retrieveTokenWebview.executeJavaScript.mockResolvedValue(undefined);
         
             // Mock setInterval to immediately invoke the callback
-            jest.spyOn(global, 'setInterval').mockImplementation((callback: any, ms: number) => {
-                // Immediately call the callback
-                callback();
-                // Return a mock interval ID
-                return 1 as any;
-            });
+            jest.spyOn(global, 'setInterval').mockImplementation(((callback: TimerHandler, _ms?: number, ...args: unknown[]) => {
+                if (typeof callback === 'function') {
+                    callback(...(args as []));
+                }
+                return 1 as unknown as ReturnType<typeof setInterval>;
+            }) as typeof setInterval);
         
             // Mock the 'console-message' event to simulate token retrieval
-            retrieveTokenWebview.addEventListener.mockImplementation((event: string, handler: any) => {
-                if (event === 'console-message') {
-                    handler({
+            retrieveTokenWebview.addEventListener.mockImplementation((event: Parameters<WebviewTag['addEventListener']>[0], handler: Parameters<WebviewTag['addEventListener']>[1]) => {
+                if (event === 'console-message' && typeof handler === 'function') {
+                    const messageEvent = {
                         message: `oauthToken: ${mockOAuthToken}`,
                         level: 0,
                         line: 1,
                         sourceId: 'test',
-                    });
+                    } as unknown as ConsoleMessageEvent;
+                    handler(messageEvent);
                 }
             });
         

@@ -33,7 +33,7 @@ describe("KeepSidianPlugin", () => {
 		mockApp = {
 			workspace: {},
 			vault: {},
-		} as any;
+		} as unknown as jest.Mocked<Plugin["app"]>;
 
 		plugin = new KeepSidianPlugin(mockApp, TEST_MANIFEST);
 
@@ -48,7 +48,7 @@ describe("KeepSidianPlugin", () => {
 					setText: jest.fn(),
 					addEventListener: jest.fn(),
 					setAttribute: jest.fn(),
-				} as any)
+				} as unknown as ReturnType<Plugin["addStatusBarItem"]>)
 		);
 
 		const mockSubscriptionService = {
@@ -108,7 +108,7 @@ describe("KeepSidianPlugin", () => {
 					},
 					createFolder: jest.fn().mockResolvedValue(undefined),
 				},
-			} as any;
+			} as unknown as Plugin["app"];
 
 			await plugin.onload();
 
@@ -185,7 +185,7 @@ describe("KeepSidianPlugin", () => {
 							.mockResolvedValue({ files: [], folders: [] }),
 					},
 				},
-			} as any;
+			} as unknown as Plugin["app"];
 		});
 
 		it("opens stored log path when available", async () => {
@@ -280,7 +280,7 @@ describe("KeepSidianPlugin", () => {
 						write: jest.fn().mockResolvedValue(undefined),
 					},
 				},
-			} as any;
+			} as unknown as Plugin["app"];
 			const importMock = jest
 				.spyOn(SyncModule, "importGoogleKeepNotes")
 				.mockResolvedValue(0);
@@ -329,7 +329,7 @@ describe("KeepSidianPlugin", () => {
 					},
 					createFolder: createFolderMock,
 				},
-			} as any;
+			} as unknown as Plugin["app"];
 
 			jest.spyOn(SyncModule, "importGoogleKeepNotes").mockResolvedValue(
 				0
@@ -356,7 +356,7 @@ describe("KeepSidianPlugin", () => {
 						.fn()
 						.mockRejectedValue(new Error("perm denied")),
 				},
-			} as any;
+			} as unknown as Plugin["app"];
 
 			const importSpy = jest
 				.spyOn(SyncModule, "importGoogleKeepNotes")
@@ -394,7 +394,7 @@ describe("KeepSidianPlugin", () => {
 					},
 					createFolder: jest.fn().mockResolvedValue(undefined),
 				},
-			} as any;
+			} as unknown as Plugin["app"];
 
 			const importSpy = jest
 				.spyOn(SyncModule, "importGoogleKeepNotes")
@@ -435,7 +435,7 @@ describe("KeepSidianPlugin", () => {
 					adapter: { exists, read, write },
 					createFolder: jest.fn().mockResolvedValue(undefined),
 				},
-			} as any;
+			} as unknown as Plugin["app"];
 
 			jest.spyOn(SyncModule, "importGoogleKeepNotes").mockResolvedValue(
 				0
@@ -485,7 +485,7 @@ describe("KeepSidianPlugin", () => {
 					adapter: { exists, read, write },
 					createFolder: jest.fn().mockResolvedValue(undefined),
 				},
-			} as any;
+			} as unknown as Plugin["app"];
 
 			jest.spyOn(SyncModule, "importGoogleKeepNotes").mockResolvedValue(
 				0
@@ -527,7 +527,7 @@ describe("KeepSidianPlugin", () => {
 					adapter: { exists, read, write },
 					createFolder: jest.fn().mockResolvedValue(undefined),
 				},
-			} as any;
+			} as unknown as Plugin["app"];
 
 			jest.spyOn(SyncModule, "importGoogleKeepNotes").mockResolvedValue(
 				0

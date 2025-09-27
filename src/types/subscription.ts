@@ -1,3 +1,5 @@
+export type TrialOrPromoDetails = null | Record<string, unknown>;
+
 export interface SubscriptionInfo {
   subscription_status: 'active' | 'inactive' | 'expired';
   plan_details: {
@@ -8,7 +10,7 @@ export interface SubscriptionInfo {
     usage: number;
     limit: number;
   };
-  trial_or_promo: any;
+  trial_or_promo: TrialOrPromoDetails;
 }
 
 export interface SubscriptionCache {

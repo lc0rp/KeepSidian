@@ -24,13 +24,13 @@ export const validEmptyResponsePage = {
   notes: [],
 };
 
-export const invalidResponseMissingNotes = {
+export const invalidResponseMissingNotes: unknown = {
   total_notes: 3,
-} as any;
+};
 
-export const invalidResponseWrongNoteShape = {
+export const invalidResponseWrongNoteShape: unknown = {
   notes: [{ title: 123 }],
-} as any;
+};
 
 export const validFlags = {
   filter_notes: { terms: ["work", "idea"] },
@@ -40,10 +40,9 @@ export const validFlags = {
 };
 
 export const invalidFlagsMissingSuggestTagsFields = {
-  suggest_tags: { max_tags: 5 } as any,
-};
+  suggest_tags: { max_tags: 5 },
+} satisfies Record<string, unknown>;
 
 export const invalidFlagsWrongTermsType = {
-  filter_notes: { terms: ["ok", 123] } as any,
-};
-
+  filter_notes: { terms: ["ok", 123] },
+} satisfies Record<string, unknown>;

@@ -20,10 +20,19 @@ describe('SyncProgressModal', () => {
         const modal = new SyncProgressModal(app, callbacks);
         modal.onOpen();
 
+        const internalButtons = (modal as unknown as {
+            buttons: {
+                twoWay: HTMLButtonElement | null;
+                importOnly: HTMLButtonElement | null;
+                uploadOnly: HTMLButtonElement | null;
+                openLog: HTMLButtonElement | null;
+            };
+        }).buttons;
+
         modal.setProgress(5, 10);
         expect(modal['statusEl']?.textContent).toContain('Processed 5 of 10 notes');
-        expect(((modal as any).buttons.twoWay as HTMLButtonElement).disabled).toBe(true);
-        expect(((modal as any).buttons.openLog as HTMLButtonElement).disabled).toBe(false);
+        expect(internalButtons.twoWay?.disabled).toBe(true);
+        expect(internalButtons.openLog?.disabled).toBe(false);
 
         modal.setComplete(true, 5);
         const summary: LastSyncSummary = {
@@ -34,7 +43,7 @@ describe('SyncProgressModal', () => {
             mode: 'import',
         };
         modal.setIdleSummary(summary);
-        expect(((modal as any).buttons.twoWay as HTMLButtonElement).disabled).toBe(false);
+        expect(internalButtons.twoWay?.disabled).toBe(false);
         expect(modal['statusEl']?.textContent).toContain('Synced 5/10 notes');
     });
 });

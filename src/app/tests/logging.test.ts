@@ -14,15 +14,18 @@ jest.mock("../../services/paths", () => ({
 import { logSync, flushLogSync } from "../logging";
 import { appendLog } from "../../services/logger";
 import { ensureFile } from "../../services/paths";
+import { createMockPlugin } from "../../test-utils/mocks/plugin";
+import type KeepSidianPlugin from "../../app/main";
 
 const appendLogMock = appendLog as jest.MockedFunction<typeof appendLog>;
 
 describe("logSync", () => {
-        const createPlugin = () =>
-                ({
-                        settings: { saveLocation: "Keep" },
-                        app: {},
-                } as any);
+	const createPlugin = (): KeepSidianPlugin => {
+		const plugin = createMockPlugin();
+		const castPlugin = plugin as unknown as KeepSidianPlugin;
+		(castPlugin as { lastSyncLogPath: string | null }).lastSyncLogPath = null;
+		return castPlugin;
+	};
 
         beforeEach(() => {
                 jest.clearAllMocks();

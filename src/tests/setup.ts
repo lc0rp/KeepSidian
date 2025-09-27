@@ -8,11 +8,23 @@ class MockSetting {
         this.containerEl = containerEl;
     }
 
-    setName(name: string) { return this; }
-    setDesc(desc: string) { return this; }
-    addText(cb: (text: any) => void) { return this; }
-    addButton(cb: (button: any) => void) { return this; }
-    addExtraButton(cb: (button: any) => void) { return this; }
+    setName(_name: string) { return this; }
+    setDesc(_desc: string) { return this; }
+
+    addText(cb: (text: Record<string, unknown>) => void) {
+        cb({});
+        return this;
+    }
+
+    addButton(cb: (button: Record<string, unknown>) => void) {
+        cb({});
+        return this;
+    }
+
+    addExtraButton(cb: (button: Record<string, unknown>) => void) {
+        cb({});
+        return this;
+    }
 }
 
 // Define our mock WebviewTag element
@@ -24,7 +36,7 @@ class MockWebviewElement extends HTMLElement {
     // Override addEventListener to return 'this' for method chaining
     addEventListener<K extends keyof HTMLElementEventMap>(
         type: K,
-        listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
+        listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => void,
         options?: boolean | AddEventListenerOptions
     ): this;
     addEventListener(

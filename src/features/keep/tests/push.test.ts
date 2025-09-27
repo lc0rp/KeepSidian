@@ -4,6 +4,8 @@ import { Notice } from "obsidian";
 import KeepSidianPlugin from "main";
 import { pushGoogleKeepNotes } from "../push";
 import { pushNotes as apiPushNotes } from "@integrations/server/keepApi";
+import { createMockPlugin, type MockVaultAdapter } from "../../../test-utils/mocks/plugin";
+
 
 jest.mock("@integrations/server/keepApi", () => ({
 	pushNotes: jest.fn(),
@@ -19,18 +21,18 @@ describe("pushGoogleKeepNotes", () => {
 	const token = "test-token";
 	const saveLocation = "Keep";
 
-	function createPlugin(overrides: Partial<KeepSidianPlugin["app"]["vault"]["adapter"]> = {}) {
-		const adapter = {
-			list: jest.fn().mockResolvedValue({ files: [], folders: [] }),
-			read: jest.fn(),
-			write: jest.fn().mockResolvedValue(undefined),
-			readBinary: jest.fn(),
-			stat: jest.fn(),
-			exists: jest.fn().mockResolvedValue(true),
-			...overrides,
-		} as any;
+	function createPlugin(overrides: Partial<MockVaultAdapter> = {}) {
+		const list = jest.fn().mockResolvedValue({ files: [], folders: [] });
+		const read = jest.fn();
+		const write = jest.fn().mockResolvedValue(undefined);
+		const readBinary = jest.fn();
+		const writeBinary = jest.fn().mockResolvedValue(undefined);
+		const stat = jest.fn();
+		const exists = jest.fn().mockResolvedValue(true);
 
-		const plugin = {
+		const createFolder = jest.fn().mockResolvedValue(undefined);
+
+		const base = createMockPlugin({
 			settings: {
 				email,
 				token,
@@ -39,12 +41,26 @@ describe("pushGoogleKeepNotes", () => {
 			},
 			app: {
 				vault: {
-					adapter,
-					createFolder: jest.fn().mockResolvedValue(undefined),
+					createFolder,
+					adapter: {
+						list,
+						read,
+						write,
+						writeBinary,
+						readBinary,
+						stat,
+						exists,
+						...overrides,
+					},
 				},
 			},
-			saveSettings: jest.fn().mockResolvedValue(undefined),
-		} as unknown as KeepSidianPlugin;
+		});
+
+		const plugin = base as unknown as KeepSidianPlugin;
+		const adapter = plugin.app.vault.adapter as unknown as MockVaultAdapter;
+		const createFolderMock =
+			plugin.app.vault.createFolder as unknown as jest.Mock<Promise<void>, [string]>;
+		createFolderMock.mockResolvedValue(undefined);
 
 		return { plugin, adapter };
 	}

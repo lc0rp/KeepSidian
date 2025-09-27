@@ -5,12 +5,137 @@ import KeepSidianPlugin from "main";
 import { App } from "obsidian";
 import { NoteImportOptionsModal } from "../NoteImportOptionsModal";
 import { DEFAULT_SETTINGS } from "../../../types";
+import type { PremiumFeatureSettings } from "../../../types/subscription";
+
+type MockCreateElOptions = {
+	text?: string | DocumentFragment;
+	attr?: Record<string, string | number | boolean | null>;
+	cls?: string | string[];
+};
+
+type MockElement = HTMLElement & {
+	createEl(
+		this: MockElement,
+		tag: string,
+		options?: MockCreateElOptions | string,
+		callback?: (el: MockElement) => void
+	): MockElement;
+	empty: () => void;
+};
+
+type CreateElFn = MockElement["createEl"];
+
+interface MockButtonComponent {
+	setButtonText: jest.Mock<MockButtonComponent, [string]>;
+	setCta: jest.Mock<MockButtonComponent, []>;
+	onClick: jest.Mock<MockButtonComponent, [() => void]>;
+}
+
+interface MockExtraButtonComponent {
+	setIcon: jest.Mock<MockExtraButtonComponent, [string]>;
+	setTooltip: jest.Mock<MockExtraButtonComponent, [string]>;
+	onClick: jest.Mock<MockExtraButtonComponent, [() => void]>;
+}
+
+function createElImpl(
+	this: MockElement,
+	tag: string,
+	options?: MockCreateElOptions | string,
+	callback?: (el: MockElement) => void
+): MockElement {
+	const element = attachCreateEl(document.createElement(tag));
+	if (typeof options === "string") {
+		element.className = options;
+	} else if (options) {
+		if (typeof options.text === "string") {
+			element.textContent = options.text;
+		} else if (options.text instanceof DocumentFragment) {
+			element.appendChild(options.text);
+		}
+		if (options.cls) {
+			const classes = Array.isArray(options.cls)
+				? options.cls
+				: [options.cls];
+			for (const cls of classes) {
+				if (cls) {
+					element.classList.add(String(cls));
+				}
+			}
+		}
+		if (options.attr) {
+			for (const [key, value] of Object.entries(options.attr)) {
+				if (value === null) {
+					element.removeAttribute(key);
+				} else {
+					element.setAttribute(key, String(value));
+				}
+			}
+		}
+	}
+	this.appendChild(element);
+	if (typeof callback === "function") {
+		callback(element);
+	}
+	return element;
+}
+
+const typedCreateEl = createElImpl as unknown as CreateElFn;
+
+const attachCreateEl = <T extends HTMLElement>(element: T): MockElement & T => {
+	const mockElement = element as MockElement & T;
+	if (mockElement.createEl !== typedCreateEl) {
+		mockElement.createEl = typedCreateEl;
+	}
+	if (typeof mockElement.empty !== "function") {
+		mockElement.empty = () => {
+			mockElement.innerHTML = "";
+		};
+	}
+	return mockElement;
+};
+
+class ButtonComponentMock implements MockButtonComponent {
+	private readonly el: HTMLButtonElement;
+	setButtonText: jest.Mock<MockButtonComponent, [string]>;
+	setCta: jest.Mock<MockButtonComponent, []>;
+	onClick: jest.Mock<MockButtonComponent, [() => void]>;
+
+	constructor(el: HTMLButtonElement) {
+		this.el = el;
+		this.setButtonText = jest.fn<MockButtonComponent, [string]>((text) => {
+			this.el.textContent = text;
+			return this;
+		});
+		this.setCta = jest.fn<MockButtonComponent, []>(() => this);
+		this.onClick = jest.fn<MockButtonComponent, [() => void]>((fn) => {
+			this.el.addEventListener("click", fn);
+			return this;
+		});
+	}
+}
+
+class ExtraButtonComponentMock implements MockExtraButtonComponent {
+	private readonly el: HTMLButtonElement;
+	setIcon: jest.Mock<MockExtraButtonComponent, [string]>;
+	setTooltip: jest.Mock<MockExtraButtonComponent, [string]>;
+	onClick: jest.Mock<MockExtraButtonComponent, [() => void]>;
+
+	constructor(el: HTMLButtonElement) {
+		this.el = el;
+		this.setIcon = jest.fn<MockExtraButtonComponent, [string]>((_icon) => this);
+		this.setTooltip = jest.fn<MockExtraButtonComponent, [string]>((_tooltip) => this);
+		this.onClick = jest.fn<MockExtraButtonComponent, [() => void]>((fn) => {
+			this.el.addEventListener("click", fn);
+			return this;
+		});
+	}
+}
 
 // Mock SubscriptionSettingsTab static method used by the modal
 jest.mock("../../settings/SubscriptionSettingsTab", () => ({
 	SubscriptionSettingsTab: {
 		displayPremiumFeaturesServer: jest.fn(
-			(contentEl: HTMLElement, _plugin: any, premium: any) => {
+			(contentEl: HTMLElement, _plugin: KeepSidianPlugin, premium: PremiumFeatureSettings) => {
 				// Simulate that UI mutates some premium values prior to submit
 				premium.includeNotesTerms = ["foo"];
 			}
@@ -21,18 +146,11 @@ jest.mock("../../settings/SubscriptionSettingsTab", () => ({
 // DOM-driven Setting mock we can click
 jest.mock("obsidian", () => {
 	const actual = jest.requireActual("obsidian");
-	const createEl = function (this: HTMLElement, tag: string, opts?: any) {
-		const el = document.createElement(tag);
-		if (opts?.text) el.textContent = opts.text;
-		this.appendChild(el);
-		(el as any).createEl = createEl;
-		return el;
-	};
+
 	class Setting {
-		settingEl: HTMLElement;
+		settingEl: MockElement;
 		constructor(containerEl: HTMLElement) {
-			this.settingEl = document.createElement("div");
-			(this.settingEl as any).createEl = createEl;
+			this.settingEl = attachCreateEl(document.createElement("div"));
 			containerEl.appendChild(this.settingEl);
 		}
 		setName(name: string) {
@@ -43,39 +161,59 @@ jest.mock("obsidian", () => {
 			this.settingEl.createEl("div", { text: String(desc) });
 			return this;
 		}
-		addButton(cb: (btn: any) => void) {
+		addButton(cb: (btn: MockButtonComponent) => void) {
 			const btnEl = document.createElement("button");
 			this.settingEl.appendChild(btnEl);
-			const btn = {
-				setButtonText: jest.fn((t: string) => {
-					btnEl.textContent = t;
-					return btn;
-				}),
-				setCta: jest.fn(() => btn),
-				onClick: jest.fn((fn: () => void) => {
-					btnEl.addEventListener("click", fn);
-					return btn;
-				}),
-			} as any;
+			const btn = new ButtonComponentMock(btnEl);
 			cb(btn);
 			return this;
 		}
-		addExtraButton(cb: (extra: any) => void) {
+		addExtraButton(cb: (extra: MockExtraButtonComponent) => void) {
 			const btnEl = document.createElement("button");
 			this.settingEl.appendChild(btnEl);
-			const extra = {
-				setIcon: jest.fn(() => extra),
-				setTooltip: jest.fn(() => extra),
-				onClick: jest.fn(() => extra),
-			} as any;
+			const extra = new ExtraButtonComponentMock(btnEl);
 			cb(extra);
 			return this;
 		}
 	}
-	class Modal extends actual.Modal {}
-	class PluginSettingTab extends actual.PluginSettingTab {}
-	class App extends actual.App {}
-	return { ...actual, Setting, Modal, PluginSettingTab, App };
+
+	class Modal {
+		app: App;
+		contentEl: MockElement;
+		modalEl: HTMLElement;
+		titleEl: HTMLElement;
+
+		constructor(app: App) {
+			this.app = app;
+			this.modalEl = document.createElement("div");
+			this.titleEl = document.createElement("div");
+			this.contentEl = attachCreateEl(document.createElement("div"));
+			this.modalEl.appendChild(this.contentEl);
+		}
+
+		open() {}
+		close() {}
+		onOpen() {}
+		onClose() {}
+	}
+
+	class PluginSettingTab {
+		app: App;
+		plugin: unknown;
+		containerEl: MockElement;
+
+		constructor(app: App, plugin: unknown) {
+			this.app = app;
+			this.plugin = plugin;
+			this.containerEl = attachCreateEl(document.createElement("div"));
+		}
+
+	display() {}
+	}
+
+	class MockApp extends actual.App {}
+
+	return { ...actual, Setting, Modal, PluginSettingTab, App: MockApp };
 });
 
 describe("NoteImportOptionsModal", () => {

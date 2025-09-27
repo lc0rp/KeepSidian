@@ -2,7 +2,7 @@
 import * as http from "../../services/http";
 
 export function mockHttpGetJsonOnce<T = unknown>(data: T) {
-  return jest.spyOn(http, "httpGetJson").mockResolvedValueOnce(data as any);
+	return jest.spyOn(http, "httpGetJson").mockResolvedValueOnce(data);
 }
 
 export function mockHttpGetJsonRejectOnce(error: unknown) {
@@ -10,7 +10,7 @@ export function mockHttpGetJsonRejectOnce(error: unknown) {
 }
 
 export function mockHttpPostJsonOnce<TRes = unknown>(data: TRes) {
-  return jest.spyOn(http, "httpPostJson").mockResolvedValueOnce(data as any);
+	return jest.spyOn(http, "httpPostJson").mockResolvedValueOnce(data);
 }
 
 export function mockHttpPostJsonRejectOnce(error: unknown) {
@@ -20,4 +20,3 @@ export function mockHttpPostJsonRejectOnce(error: unknown) {
 export function restoreHttpMocks() {
   jest.restoreAllMocks();
 }
-
