@@ -10,233 +10,156 @@ If your plugin does not need CSS, delete this file.
 /* Add these styles to your existing styles.css file */
 
 .subscription-active {
-    background-color: var(--background-modifier-success);
-    border-radius: 4px;
-    padding: 8px;
+	background-color: var(--background-modifier-success);
+	border-radius: 4px;
+	padding: 8px;
 }
 
 .setting-item.subscription-active .setting-item-control {
-    color: var(--text-success);
-    font-weight: bold;
+	color: var(--text-success);
+	font-weight: bold;
 }
 
 .premium-features-list {
-    margin: 12px 0;
-    padding-left: 24px;
+	margin: 12px 0;
+	padding-left: 24px;
 }
 
 .premium-features-list li {
-    margin: 4px 0;
+	margin: 4px 0;
 }
 
 /* KeepSidian: Status bar progress meter */
 .keepsidian-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.keepsidian-hidden {
+	display: none !important;
 }
 
 .keepsidian-status .keepsidian-status-text {
-    white-space: nowrap;
+	white-space: nowrap;
 }
 
 .keepsidian-progress {
-    position: relative;
-    width: 64px;
-    height: 4px;
-    border-radius: 2px;
-    overflow: hidden;
-    background: var(--background-modifier-border);
-}
-
-.keepsidian-progress-bar {
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: 0%;
-    background: var(--text-accent);
-    opacity: 0.85;
-}
-
-.keepsidian-progress.indeterminate .keepsidian-progress-bar {
-    left: -40%;
-    width: 40%;
-    animation: ks-indeterminate 1.2s ease-in-out infinite;
-}
-
-.keepsidian-progress.complete .keepsidian-progress-bar {
-    left: 0;
-    width: 100%;
-    animation: none;
-    background: var(--text-success);
-    opacity: 0.9;
-}
-
-.keepsidian-progress.failed .keepsidian-progress-bar {
-    left: 0;
-    width: 100%;
-    animation: none;
-    background: var(--text-error, #ff5c57);
-}
-
-@keyframes ks-indeterminate {
-    0% { left: -40%; width: 40%; }
-    50% { left: 20%; width: 60%; }
-    100% { left: 100%; width: 40%; }
+	min-width: 64px;
 }
 
 /* KeepSidian: Progress modal styles */
 .keepsidian-modal {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-width: 360px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	min-width: 360px;
 }
 
 .keepsidian-modal-title {
-    margin: 0 0 4px 0;
-    color: var(--text-accent);
-    font-weight: 700;
+	margin: 0 0 4px 0;
+	color: var(--text-accent);
+	font-weight: 700;
 }
 
-.keepsidian-modal-progress {
-    position: relative;
-    width: 100%;
-    height: 8px;
-    border-radius: 6px;
-    background: var(--background-modifier-border);
-    overflow: hidden;
-}
-
-.keepsidian-modal-progress-bar {
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: 25%;
-    background: var(--interactive-accent);
-    opacity: 0.9;
-}
-
-.keepsidian-modal-progress.indeterminate .keepsidian-modal-progress-bar {
-    left: -25%;
-    animation: ks-modal-indeterminate 1.2s ease-in-out infinite;
-}
-
-.keepsidian-modal-progress.complete .keepsidian-modal-progress-bar {
-    width: 100%;
-    background: var(--text-success);
-}
-
-.keepsidian-modal-progress.failed .keepsidian-modal-progress-bar {
-    width: 100%;
-    background: var(--text-error, #ff5c57);
-}
-
-@keyframes ks-modal-indeterminate {
-    0% { left: -30%; width: 30%; }
-    50% { left: 35%; width: 40%; }
-    100% { left: 100%; width: 30%; }
-}
 
 .keepsidian-modal-status {
-    color: var(--text-muted);
+	color: var(--text-muted);
 }
 
 .keepsidian-modal-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .keepsidian-modal-action {
-    flex: 1 1 120px;
-    padding: 6px 12px;
-    white-space: nowrap;
+	flex: 1 1 120px;
+	padding: 6px 12px;
+	white-space: nowrap;
 }
 
 .keepsidian-modal-action:disabled {
-    opacity: 0.6;
+	opacity: 0.6;
 }
 
 .requires-subscription {
-    opacity: 0.6;
+	opacity: 0.6;
 }
 
 .requires-subscription .setting-item-name::after {
-    content: '\1F512';
-    /* Unicode lock icon */
-    margin-left: 4px;
+	content: "\1F512";
+	/* Unicode lock icon */
+	margin-left: 4px;
 }
 
 .keepsidian-support-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin: 16px 0;
-    font-size: 0.95em;
-    color: var(--text-muted);
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin: 16px 0;
+	font-size: 0.95em;
+	color: var(--text-muted);
 }
 
 .keepsidian-support-spacer {
-  flex: 1;
+	flex: 1;
 }
 
 .keepsidian-support-label {
-    font-weight: 400;
-    font-size: var(--font-ui-small);
-}   
+	font-weight: 400;
+	font-size: var(--font-ui-small);
+}
 
 .keepsidian-support-version {
-    font-weight: 400;
-    color: var(--text-faint, var(--text-muted));
+	font-weight: 400;
+	color: var(--text-faint, var(--text-muted));
 }
 
 .keepsidian-support-links {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
 }
 
 .keepsidian-support-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: var(--background-modifier-hover);
-    color: var(--text-accent);
-    text-decoration: none;
-    transition: background 0.2s ease, color 0.2s ease;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 12px;
+	border-radius: 999px;
+	background: var(--background-modifier-hover);
+	color: var(--text-accent);
+	text-decoration: none;
+	transition: background 0.2s ease, color 0.2s ease;
 }
 
 .keepsidian-support-link:hover {
-    background: var(--background-modifier-active-hover, var(--background-modifier-border));
-    text-decoration: none;
+	background: var(--background-modifier-active-hover, var(--background-modifier-border));
+	text-decoration: none;
 }
 
 .keepsidian-support-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .keepsidian-support-icon svg {
-    width: 1.1em;
-    height: 1.1em;
+	width: 1.1em;
+	height: 1.1em;
 }
 
 .keepsidian-support-text {
-    font-weight: 400;
-    font-size: var(--font-ui-small);
+	font-weight: 400;
+	font-size: var(--font-ui-small);
 }
 
 .keepsidian-settings-hr {
-    margin: 16px 0;
-    border: none;
-    border-top: 2px dashed var(--background-modifier-border);
+	margin: 16px 0;
+	border: none;
+	border-top: 2px dashed var(--background-modifier-border);
 }

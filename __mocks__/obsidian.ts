@@ -1,216 +1,442 @@
 // __mocks__/obsidian.ts
-export class App {}
 
-export class Plugin {
-  app: App;
-  manifest: any;
+type AttributeValue = string | number | boolean;
 
-  constructor(app: App, manifest: any) {
-    this.app = app;
-    this.manifest = manifest;
-  }
-
-  onload() {}
-  onunload() {}
-  addCommand() {}
-  addRibbonIcon() {}
-  addSettingTab() {}
-  loadData() {}
-  saveData() {}
-  registerDomEvent() {}
-  registerInterval() {}
-  addStatusBarItem() {
-    const el = document.createElement('div') as any;
-    el.setText = function(text: string) { this.textContent = text; };
-    return el;
-  }
+interface CreateElOptions {
+	cls?: string | string[];
+	text?: string | DocumentFragment;
+	attr?: Record<string, AttributeValue>;
 }
 
-export const Notice = jest.fn().mockImplementation(function (this: any, message: string, timeout?: number) {
-  this.message = message;
-  this.timeout = timeout;
-});
-Notice.prototype.setMessage = function(message: string) { this.message = message; };
-Notice.prototype.hide = function() {};
+type ToggleClassPrototype = typeof HTMLElement.prototype & {
+	toggleClass?: (cls: string, force?: boolean) => HTMLElement;
+};
+
+type CreateElFunction = <K extends keyof HTMLElementTagNameMap>(
+	tagName: K,
+	options?: CreateElOptions
+) => EnhancedElement<K>;
+
+type EnhancableHTMLElement = HTMLElement & {
+	createEl?: CreateElFunction;
+	empty?: () => void;
+};
+
+type EnhancedElement<K extends keyof HTMLElementTagNameMap> = HTMLElementTagNameMap[K] & EnhancableHTMLElement;
+
+type EnhancedHTMLElementMap = {
+	[K in keyof HTMLElementTagNameMap]: EnhancedElement<K>;
+};
+
+type StatusBarItemElement = EnhancedElement<"div"> & {
+	setText: (text: string) => void;
+};
+
+const togglePrototype = HTMLElement.prototype as ToggleClassPrototype;
+
+if (typeof togglePrototype.toggleClass !== "function") {
+	togglePrototype.toggleClass = function (
+		this: HTMLElement,
+		cls: string,
+		force?: boolean
+	): HTMLElement {
+		if (typeof force === "boolean") {
+			this.classList.toggle(cls, force);
+			return this;
+		}
+		if (this.classList.contains(cls)) {
+			this.classList.remove(cls);
+		} else {
+			this.classList.add(cls);
+		}
+		return this;
+	};
+}
+
+function applyOptions(target: HTMLElement, options?: CreateElOptions): void {
+	if (!options) {
+		return;
+	}
+
+	if (options.cls) {
+		const classes = Array.isArray(options.cls) ? options.cls : [options.cls];
+		classes
+			.filter((cls): cls is string => Boolean(cls))
+			.forEach((cls) => target.classList.add(cls));
+	}
+
+	if (options.text instanceof DocumentFragment) {
+		target.appendChild(options.text);
+	} else if (typeof options.text === "string") {
+		target.textContent = options.text;
+	}
+
+	if (options.attr) {
+		Object.entries(options.attr).forEach(([key, value]) => {
+			target.setAttribute(key, String(value));
+		});
+	}
+}
+
+function enhanceElement<T extends HTMLElement>(element: T): T & EnhancableHTMLElement {
+	const enhanced = element as T & EnhancableHTMLElement;
+
+	if (!enhanced.createEl) {
+		enhanced.createEl = function createChild<K extends keyof HTMLElementTagNameMap>(
+			this: EnhancableHTMLElement,
+			tagName: K,
+			options?: CreateElOptions
+		): EnhancedHTMLElementMap[K] {
+			const child = document.createElement(tagName) as HTMLElement;
+			applyOptions(child, options);
+			this.appendChild(child);
+			return enhanceElement(child) as EnhancedHTMLElementMap[K];
+		};
+	}
+
+	if (!enhanced.empty) {
+		enhanced.empty = function empty(this: EnhancableHTMLElement): void {
+			this.innerHTML = "";
+		};
+	}
+
+	return enhanced;
+}
+
+export class App {
+	workspace?: Record<string, unknown>;
+}
+
+type PluginManifest = Record<string, unknown>;
+
+export class Plugin {
+	app: App;
+	manifest: PluginManifest;
+
+	constructor(app: App, manifest: PluginManifest) {
+		this.app = app;
+		this.manifest = manifest;
+	}
+
+	onload(): void {}
+	onunload(): void {}
+	addCommand(): void {}
+	addRibbonIcon(): void {}
+	addSettingTab(): void {}
+	loadData(): void {}
+	saveData(): void {}
+	registerDomEvent(): void {}
+	registerInterval(): void {}
+	addStatusBarItem(): StatusBarItemElement {
+		const element = enhanceElement(document.createElement("div")) as StatusBarItemElement;
+		element.setText = (text: string) => {
+			element.textContent = text;
+		};
+		const createChild: CreateElFunction = function createChild<K extends keyof HTMLElementTagNameMap>(
+			this: StatusBarItemElement,
+			tagName: K,
+			options?: CreateElOptions
+		): EnhancedHTMLElementMap[K] {
+			const child = document.createElement(tagName);
+			applyOptions(child, options);
+			this.appendChild(child);
+			return enhanceElement(child) as EnhancedHTMLElementMap[K];
+		}.bind(element);
+		element.createEl = createChild;
+		return element;
+	}
+}
+
+class NoticeInstance {
+	message: string;
+	timeout?: number;
+
+	constructor(message: string, timeout?: number) {
+		this.message = message;
+		this.timeout = timeout;
+	}
+
+	setMessage(message: string): void {
+		this.message = message;
+	}
+
+	hide(): void {}
+}
+
+export const Notice = jest.fn<NoticeInstance, [string, number | undefined]>((message, timeout) =>
+	new NoticeInstance(message, timeout)
+);
+
+export function arrayBufferToBase64(data: ArrayBuffer): string {
+	return Buffer.from(new Uint8Array(data)).toString("base64");
+}
 
 export class PluginSettingTab {
-  app: App;
-  plugin: Plugin;
-  containerEl: HTMLElement;
+	app: App;
+	plugin: Plugin;
+	containerEl: EnhancedElement<"div">;
 
-  constructor(app: App, plugin: Plugin) {
-    this.app = app;
-    this.plugin = plugin;
-
-    // Create a container element and add the empty method
-    this.containerEl = document.createElement('div');
-    (this.containerEl as any).empty = function() {
-      this.innerHTML = '';
-    };
-
-
-    const createElFunction = function(tagName: string, options?: any) {
-      const el = document.createElement(tagName);
-      if (options?.cls) {
-        if (Array.isArray(options.cls)) {
-          el.classList.add(...options.cls);
-        } else if (typeof options.cls === 'string') {
-          el.classList.add(options.cls);
-        }
-      }
-      if (options?.attr) {
-        Object.entries(options.attr).forEach(([key, value]) => {
-          el.setAttribute(key, String(value));
-        });
-      }
-      if (options?.text) {
-        el.textContent = options.text;
-      }
-      this.appendChild(el);
-      (el as any).createEl = createElFunction;
-      return el;
-    };
-
-    (this.containerEl as any).createEl = createElFunction;
-  }
+	constructor(app: App, plugin: Plugin) {
+		this.app = app;
+		this.plugin = plugin;
+		this.containerEl = enhanceElement(document.createElement("div"));
+	}
 }
 
 export function setIcon(element: HTMLElement, icon: string): void {
-  element.setAttribute('data-icon', icon);
+	element.setAttribute("data-icon", icon);
 }
 
-// Minimal normalizePath mock to mirror Obsidian API behavior in tests
-export function normalizePath(p: string): string {
-  if (!p) return '';
-  // Replace backslashes and collapse duplicate slashes
-  return p.replace(/\\/g, '/').replace(/\/+/g, '/');
-}
+export let normalizePath = (path: string): string => {
+	if (!path) {
+		return "";
+	}
+	return path.replace(/\\/g, "/").replace(/\/+/g, "/");
+};
 
 export class SubscriptionSettingsTab {
-  containerEl: HTMLElement;
-  plugin: Plugin;
+	containerEl: EnhancedElement<"div">;
+	plugin: Plugin;
 
-  constructor(containerEl: HTMLElement, plugin: Plugin) {
-    this.containerEl = containerEl;
-    this.plugin = plugin;
-
-    // Create a container element and add the empty method
-    this.containerEl = document.createElement('div');
-    (this.containerEl as any).empty = function() {
-      this.innerHTML = '';
-    };
-
-    (this.containerEl as any).createEl = function(tagName: string, options?: any) {
-      const el = document.createElement(tagName);
-      if (options?.cls) {
-        if (Array.isArray(options.cls)) {
-          el.classList.add(...options.cls);
-        } else if (typeof options.cls === 'string') {
-          el.classList.add(options.cls);
-        }
-      }
-      if (options?.attr) {
-        Object.entries(options.attr).forEach(([key, value]) => {
-          el.setAttribute(key, String(value));
-        });
-      }
-      if (options?.text) {
-        el.textContent = options.text;
-      }
-      this.appendChild(el);
-      (el as any).createEl = (this as any).createEl;
-      return el;
-    };
-  }
+	constructor(containerEl: HTMLElement, plugin: Plugin) {
+		this.containerEl = enhanceElement(document.createElement("div"));
+		this.plugin = plugin;
+		this.containerEl.empty = function empty() {
+			this.innerHTML = "";
+		};
+		containerEl.appendChild(this.containerEl);
+	}
 }
 
+class MockTextComponent {
+	inputEl: HTMLInputElement;
+
+	constructor(inputEl: HTMLInputElement) {
+		this.inputEl = inputEl;
+	}
+
+	setPlaceholder(value: string): this {
+		this.inputEl.placeholder = value;
+		return this;
+	}
+
+	setValue(value: string): this {
+		this.inputEl.value = value;
+		return this;
+	}
+
+	onChange(callback: (value: string) => void): this {
+		this.inputEl.addEventListener("input", () => callback(this.inputEl.value));
+		return this;
+	}
+}
+
+class MockToggleComponent {
+	private inputEl: HTMLInputElement;
+
+	constructor(inputEl: HTMLInputElement) {
+		this.inputEl = inputEl;
+	}
+
+	setValue(value: boolean): this {
+		this.inputEl.checked = value;
+		return this;
+	}
+
+	onChange(callback: (value: boolean) => void): this {
+		this.inputEl.addEventListener("change", () => callback(this.inputEl.checked));
+		return this;
+	}
+}
+
+class MockButtonComponent {
+	private buttonEl: HTMLButtonElement;
+
+	constructor(buttonEl: HTMLButtonElement) {
+		this.buttonEl = buttonEl;
+	}
+
+	setButtonText(text: string): this {
+		this.buttonEl.textContent = text;
+		return this;
+	}
+
+	setCta(): this {
+		return this;
+	}
+
+	onClick(callback: () => void): this {
+		this.buttonEl.addEventListener("click", callback);
+		return this;
+	}
+}
+
+class MockExtraButtonComponent {
+	private buttonEl: HTMLButtonElement;
+
+	constructor(buttonEl: HTMLButtonElement) {
+		this.buttonEl = buttonEl;
+	}
+
+	setIcon(): this {
+		return this;
+	}
+
+	setTooltip(tooltip: string): this {
+		this.buttonEl.setAttribute("aria-label", tooltip);
+		return this;
+	}
+
+	onClick(callback: () => void): this {
+		this.buttonEl.addEventListener("click", callback);
+		return this;
+	}
+}
+
+class MockSliderComponent {
+	private inputEl: HTMLInputElement;
+
+	constructor(inputEl: HTMLInputElement) {
+		this.inputEl = inputEl;
+	}
+
+	setLimits(min: number, max: number, step = 1): this {
+		this.inputEl.min = String(min);
+		this.inputEl.max = String(max);
+		this.inputEl.step = String(step);
+		return this;
+	}
+
+	setValue(value: number): this {
+		this.inputEl.value = String(value);
+		return this;
+	}
+
+	setDynamicTooltip(): this {
+		return this;
+	}
+
+	onChange(callback: (value: number) => void): this {
+		this.inputEl.addEventListener("input", () => callback(Number(this.inputEl.value)));
+		return this;
+	}
+}
 
 export class Setting {
-  constructor(containerEl: HTMLElement) {}
-  setName(name: string) { return this; }
-  setDesc(desc: string) { return this; }
-  setClass(cls: string) { return this; }
-  addText(callback: (text: any) => void) { return this; }
-  addToggle(callback: (toggle: any) => void) { return this; }
-  addButton(callback: (button: any) => void) { return this; }
-  addSlider(callback: (slider: any) => void) { return this; }
-  addExtraButton(callback: (extraButton: any) => void) { return this; }
-  setDisabled(disabled: boolean) { return this; }
-  setValue(value: any) { return this; }
-  onChange(callback: (value: any) => void) { return this; }
+	private settingEl: EnhancedElement<"div">;
+
+	constructor(containerEl: HTMLElement) {
+		const enhancedContainer = enhanceElement(containerEl);
+		this.settingEl = enhanceElement(document.createElement("div"));
+		enhancedContainer.appendChild(this.settingEl);
+	}
+
+	setName(name: string): this {
+		this.settingEl.createEl("div", { text: name });
+		return this;
+	}
+
+	setDesc(description: string): this {
+		this.settingEl.createEl("div", { text: description });
+		return this;
+	}
+
+	setClass(cls: string): this {
+		this.settingEl.classList.add(cls);
+		return this;
+	}
+
+	setHeading(): this {
+		this.settingEl.classList.add("setting-heading");
+		return this;
+	}
+
+	setDisabled(disabled: boolean): this {
+		if (disabled) {
+			this.settingEl.classList.add("is-disabled");
+		}
+		return this;
+	}
+
+	addText(callback: (text: MockTextComponent) => void): this {
+		const inputEl = document.createElement("input");
+		inputEl.type = "text";
+		this.settingEl.appendChild(inputEl);
+		callback(new MockTextComponent(inputEl));
+		return this;
+	}
+
+	addToggle(callback: (toggle: MockToggleComponent) => void): this {
+		const inputEl = document.createElement("input");
+		inputEl.type = "checkbox";
+		this.settingEl.appendChild(inputEl);
+		callback(new MockToggleComponent(inputEl));
+		return this;
+	}
+
+	addButton(callback: (button: MockButtonComponent) => void): this {
+		const buttonEl = document.createElement("button");
+		this.settingEl.appendChild(buttonEl);
+		callback(new MockButtonComponent(buttonEl));
+		return this;
+	}
+
+	addExtraButton(callback: (button: MockExtraButtonComponent) => void): this {
+		const buttonEl = document.createElement("button");
+		this.settingEl.appendChild(buttonEl);
+		callback(new MockExtraButtonComponent(buttonEl));
+		return this;
+	}
+
+	addSlider(callback: (slider: MockSliderComponent) => void): this {
+		const inputEl = document.createElement("input");
+		inputEl.type = "range";
+		this.settingEl.appendChild(inputEl);
+		callback(new MockSliderComponent(inputEl));
+		return this;
+	}
+
+	onChange(): this {
+		return this;
+	}
+
+	setValue(): this {
+		return this;
+	}
 }
 
 export class Modal {
-  app: App;
-  titleEl: HTMLElement = document.createElement('div');
-  contentEl: HTMLElement;
-  modalEl: HTMLElement = document.createElement('div');
+	app: App;
+	titleEl: EnhancedElement<"div">;
+	contentEl: EnhancedElement<"div">;
+	modalEl: EnhancedElement<"div">;
 
-  constructor(app: App) {
-    this.app = app;
-    this.contentEl = document.createElement('div');
-    (this.contentEl as any).empty = function() { this.innerHTML = ''; };
-    (this.contentEl as any).createEl = function(tagName: string, options?: any) {
-      const el = document.createElement(tagName);
-      if (options?.text) { el.textContent = options.text; }
-      this.appendChild(el);
-      return el;
-    };
-  }
+	constructor(app: App) {
+		this.app = app;
+		this.titleEl = enhanceElement(document.createElement("div"));
+		this.contentEl = enhanceElement(document.createElement("div"));
+		this.modalEl = enhanceElement(document.createElement("div"));
+	}
 
-  open() {}
-  close() {}
-  onOpen() {}
-  onClose() {}
+	open(): void {}
+	close(): void {}
+	onOpen(): void {}
+	onClose(): void {}
 }
 
-// Add requestUrl mock
-export const requestUrl = jest.fn();
+export class ProgressBarComponent {
+	private containerEl: HTMLElement;
+	private barEl: HTMLElement;
+	value = 0;
 
-class MenuItemMock {
-  title = '';
-  disabled = false;
-  onClickCallback?: () => void;
+	constructor(containerEl: HTMLElement) {
+		this.containerEl = containerEl;
+		this.barEl = document.createElement("div");
+		this.barEl.classList.add("progress-bar");
+		this.containerEl.appendChild(this.barEl);
+	}
 
-  setTitle(title: string) {
-    this.title = title;
-    return this;
-  }
-
-  setDisabled(disabled: boolean) {
-    this.disabled = disabled;
-    return this;
-  }
-
-  onClick(callback: () => void) {
-    this.onClickCallback = callback;
-    return this;
-  }
-
-  setIcon() {
-    return this;
-  }
-}
-
-export class Menu {
-  items: Array<{ title: string; disabled: boolean; onClick?: () => void }> = [];
-
-  addItem(callback: (item: MenuItemMock) => void) {
-    const item = new MenuItemMock();
-    callback(item);
-    this.items.push({
-      title: item.title,
-      disabled: item.disabled,
-      onClick: item.onClickCallback,
-    });
-    return this;
-  }
-
-  addSeparator() {
-    return this;
-  }
-
-  showAtMouseEvent() {}
-
-  showAtPosition() {}
+	setValue(value: number): void {
+		this.value = value;
+	}
 }

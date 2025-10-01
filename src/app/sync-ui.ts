@@ -1,10 +1,15 @@
-import { Menu, Notice } from "obsidian";
+import { Menu, Notice, ProgressBarComponent } from "obsidian";
 import type KeepSidianPlugin from "@app/main";
 import { formatStatusBarText, formatStatusBarTooltip } from "@app/sync-status";
 import type { LastSyncSummary } from "@types";
+import { HIDDEN_CLASS } from "@app/ui-constants";
 
 type StatusBarItemElement = HTMLElement & {
 	setText?: (text: string) => void;
+	createEl?: <K extends keyof HTMLElementTagNameMap>(
+		tagName: K,
+		options?: { cls?: string | string[]; text?: string }
+	) => HTMLElementTagNameMap[K];
 };
 
 type MenuWithPositioning = Menu & {
@@ -20,24 +25,11 @@ type NoticeWithControls = Notice & {
 function hasSetText(element: HTMLElement | null): element is StatusBarItemElement & {
 	setText: (text: string) => void;
 } {
-	return (
-		element !== null &&
-		typeof (element as StatusBarItemElement).setText === "function"
-	);
+	return element !== null && typeof (element as StatusBarItemElement).setText === "function";
 }
 
 function getNoticeControls(notice: Notice | null): NoticeWithControls | null {
 	return notice ? (notice as NoticeWithControls) : null;
-}
-
-function appendChildIfPossible(
-	parent: HTMLElement | null,
-	child: HTMLElement
-) {
-	const appendChild = parent?.appendChild;
-	if (typeof appendChild === "function") {
-		appendChild.call(parent, child);
-	}
 }
 
 function setStatusBarText(plugin: KeepSidianPlugin, text: string) {
@@ -54,6 +46,17 @@ function setStatusBarTooltip(plugin: KeepSidianPlugin, tooltip: string) {
 	}
 }
 
+function createStatusElement<K extends keyof HTMLElementTagNameMap>(
+	parent: HTMLElement,
+	tagName: K
+): HTMLElementTagNameMap[K] {
+	const maybeObsidianParent = parent as StatusBarItemElement;
+	if (typeof maybeObsidianParent.createEl === "function") {
+		return maybeObsidianParent.createEl(tagName);
+	}
+	throw new Error("Cannot create child element without a parent with createEl method");
+}
+
 function ensureStatusBarElements(plugin: KeepSidianPlugin) {
 	if (!plugin.statusBarItemEl) {
 		plugin.statusBarItemEl = plugin.addStatusBarItem();
@@ -65,22 +68,17 @@ function ensureStatusBarElements(plugin: KeepSidianPlugin) {
 	}
 
 	if (!plugin.statusTextEl) {
-		plugin.statusTextEl = document.createElement("span");
+		plugin.statusTextEl = createStatusElement(plugin.statusBarItemEl, "span");
 		plugin.statusTextEl.className = "keepsidian-status-text";
-		appendChildIfPossible(plugin.statusBarItemEl, plugin.statusTextEl);
 	}
 
 	if (!plugin.progressContainerEl) {
-		plugin.progressContainerEl = document.createElement("div");
-		plugin.progressContainerEl.className =
-			"keepsidian-progress indeterminate";
-		plugin.progressBarEl = document.createElement("div");
-		plugin.progressBarEl.className = "keepsidian-progress-bar";
-		plugin.progressContainerEl.appendChild(plugin.progressBarEl);
-		appendChildIfPossible(
-			plugin.statusBarItemEl,
-			plugin.progressContainerEl
-		);
+		plugin.progressContainerEl = createStatusElement(plugin.statusBarItemEl, "div");
+		plugin.progressContainerEl.className = "keepsidian-progress indeterminate";
+	}
+	if (!plugin.progressBar && plugin.progressContainerEl) {
+		plugin.progressBar = new ProgressBarComponent(plugin.progressContainerEl);
+		plugin.progressBar.setValue(0);
 	}
 }
 
@@ -148,8 +146,12 @@ export function initializeStatusBar(plugin: KeepSidianPlugin) {
 	ensureStatusBarElements(plugin);
 	updateStatusBarSummary(plugin);
 	if (plugin.progressContainerEl) {
-		plugin.progressContainerEl.style.display = "none";
+		plugin.progressContainerEl.classList.add(HIDDEN_CLASS);
 		plugin.progressContainerEl.classList.remove("complete", "failed");
+		plugin.progressContainerEl.classList.add("indeterminate");
+	}
+	if (plugin.progressBar) {
+		plugin.progressBar.setValue(0);
 	}
 }
 
@@ -166,16 +168,13 @@ export function startSyncUI(plugin: KeepSidianPlugin) {
 	ensureStatusBarElements(plugin);
 
 	if (plugin.progressContainerEl) {
-		plugin.progressContainerEl.style.display = "";
+		plugin.progressContainerEl.classList.remove(HIDDEN_CLASS);
 		plugin.progressContainerEl.classList.remove("complete", "failed");
 		if (!plugin.progressContainerEl.classList.contains("indeterminate")) {
 			plugin.progressContainerEl.classList.add("indeterminate");
 		}
 	}
-	if (plugin.progressBarEl) {
-		plugin.progressBarEl.classList.remove("paused");
-		plugin.progressBarEl.style.width = "";
-	}
+	plugin.progressBar?.setValue(0);
 
 	setStatusBarText(plugin, "Sync: 0/?");
 	setStatusBarTooltip(plugin, "KeepSidian syncing...");
@@ -195,16 +194,13 @@ export function reportSyncProgress(plugin: KeepSidianPlugin) {
 	setStatusBarTooltip(plugin, "KeepSidian syncing...");
 	if (
 		plugin.progressContainerEl &&
-		plugin.progressBarEl &&
+		plugin.progressBar &&
 		typeof total === "number" &&
 		total > 0
 	) {
+		const pct = Math.max(0, Math.min(100, Math.round((plugin.processedNotes / total) * 100)));
 		plugin.progressContainerEl.classList.remove("indeterminate");
-		const pct = Math.max(
-			0,
-			Math.min(100, Math.round((plugin.processedNotes / total) * 100))
-		);
-		plugin.progressBarEl.style.width = pct + "%";
+		plugin.progressBar.setValue(pct);
 	}
 	plugin.progressModal?.setProgress(plugin.processedNotes, total);
 }
@@ -216,9 +212,7 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 		if (setMessage) {
 			setMessage.call(
 				noticeControls,
-				success
-					? "Synced Google Keep Notes."
-					: "Failed to sync Google Keep Notes."
+				success ? "Synced Google Keep Notes." : "Failed to sync Google Keep Notes."
 			);
 		}
 		const hideNotice = noticeControls?.hide;
@@ -231,10 +225,7 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 	const summary: LastSyncSummary = {
 		timestamp: Date.now(),
 		processedNotes: plugin.processedNotes,
-		totalNotes:
-			typeof totalValue === "number" && totalValue > 0
-				? totalValue
-				: null,
+		totalNotes: typeof totalValue === "number" && totalValue > 0 ? totalValue : null,
 		success,
 		mode: plugin.currentSyncMode ?? "import",
 	};
@@ -242,11 +233,11 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 	plugin.settings.lastSyncSummary = summary;
 	updateStatusBarSummary(plugin);
 	if (plugin.progressContainerEl) {
-		plugin.progressContainerEl.classList.toggle("complete", !!success);
-		plugin.progressContainerEl.classList.toggle("failed", !success);
+		plugin.progressContainerEl.toggleClass("complete", !!success);
+		plugin.progressContainerEl.toggleClass("failed", !success);
 		setTimeout(() => {
 			if (plugin.progressContainerEl) {
-				plugin.progressContainerEl.style.display = "none";
+				plugin.progressContainerEl.classList.add(HIDDEN_CLASS);
 			}
 		}, 3000);
 	}
@@ -263,12 +254,9 @@ export function setTotalNotes(plugin: KeepSidianPlugin, total: number) {
 	if (plugin.progressContainerEl) {
 		plugin.progressContainerEl.classList.remove("indeterminate");
 	}
-	if (plugin.progressBarEl) {
-		const pct = Math.max(
-			0,
-			Math.min(100, Math.round((plugin.processedNotes / total) * 100))
-		);
-		plugin.progressBarEl.style.width = pct + "%";
+	if (plugin.progressBar) {
+		const pct = Math.max(0, Math.min(100, Math.round((plugin.processedNotes / total) * 100)));
+		plugin.progressBar.setValue(pct);
 	}
 	plugin.progressModal?.setProgress(plugin.processedNotes, total);
 }

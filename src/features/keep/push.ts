@@ -1,4 +1,4 @@
-import { Notice } from "obsidian";
+import { Notice, arrayBufferToBase64 } from "obsidian";
 import type KeepSidianPlugin from "@app/main";
 import { extractFrontmatter } from "./domain/note";
 import { dirnameSafe, ensureFolder, normalizePathSafe, mediaFolderPath } from "@services/paths";
@@ -190,26 +190,6 @@ function extractAttachmentReferences(
 	}
 
 	return Array.from(references);
-}
-
-interface Base64BufferLike {
-	from(data: ArrayBuffer | ArrayBufferView): { toString(encoding?: string): string };
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-	const globalBuffer = (globalThis as typeof globalThis & { Buffer?: Base64BufferLike }).Buffer;
-	if (globalBuffer?.from) {
-		return globalBuffer.from(buffer).toString("base64");
-	}
-	const bytes = new Uint8Array(buffer);
-	let binary = "";
-	for (let i = 0; i < bytes.byteLength; i += 1) {
-		binary += String.fromCharCode(bytes[i]);
-	}
-	if (typeof btoa === "function") {
-		return btoa(binary);
-	}
-	throw new Error("Unable to encode attachment to base64");
 }
 
 function guessMimeType(fileName: string): string {

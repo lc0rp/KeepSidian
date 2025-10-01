@@ -291,9 +291,17 @@ describe("SubscriptionSettingsTab", () => {
 				plugin.subscriptionService.isSubscriptionActive as jest.Mock
 			).mockResolvedValue(false);
 
-			// Mock window.open
-			const mockOpen = jest.fn();
-			jest.spyOn(window, "open").mockImplementation(mockOpen);
+			const setViewState = jest.fn().mockResolvedValue(undefined);
+			const mockGetLeaf = jest
+				.fn()
+				.mockReturnValue({ setViewState });
+
+			const appWithWorkspace = plugin.app as unknown as {
+				workspace?: unknown;
+			};
+			appWithWorkspace.workspace = { getLeaf: mockGetLeaf };
+
+			const windowOpenSpy = jest.spyOn(window, "open");
 
 			await subscriptionTab.display();
 
@@ -301,10 +309,17 @@ describe("SubscriptionSettingsTab", () => {
 			const subscribeButton = containerEl.querySelector("button");
 			subscribeButton?.click();
 
-			expect(mockOpen).toHaveBeenCalledWith(
-				"https://keepsidian.com/subscribe",
-				"_blank"
-			);
+			expect(mockGetLeaf).toHaveBeenCalledWith("window");
+			expect(setViewState).toHaveBeenCalledWith({
+				type: "webviewer",
+				state: {
+					url: "https://keepsidian.com/subscribe",
+					navigate: true,
+				},
+				active: true,
+			});
+			expect(windowOpenSpy).not.toHaveBeenCalled();
+			windowOpenSpy.mockRestore();
 		});
 	});
 });

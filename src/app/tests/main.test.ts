@@ -18,6 +18,11 @@ describe("KeepSidianPlugin", () => {
 	let plugin: KeepSidianPlugin;
 	let mockApp: jest.Mocked<Plugin["app"]>;
 
+	function setTestCredentials(target: KeepSidianPlugin) {
+		target.settings.email = "tester@example.com";
+		target.settings.token = "test-token";
+	}
+
 	const TEST_MANIFEST = {
 		id: "keepsidian",
 		name: "KeepSidian",
@@ -42,14 +47,25 @@ describe("KeepSidianPlugin", () => {
 		plugin.addRibbonIcon = jest.fn();
 		plugin.addCommand = jest.fn();
 		plugin.addSettingTab = jest.fn();
-		plugin.addStatusBarItem = jest.fn(
-			() =>
-				({
-					setText: jest.fn(),
-					addEventListener: jest.fn(),
-					setAttribute: jest.fn(),
-				} as unknown as ReturnType<Plugin["addStatusBarItem"]>)
+		const statusBarItem = document.createElement("div") as unknown as HTMLElement & {
+			setText: jest.Mock;
+			setAttribute: jest.Mock;
+			addEventListener: jest.Mock;
+			createEl: jest.Mock;
+		};
+		statusBarItem.setText = jest.fn();
+		statusBarItem.setAttribute = jest.fn();
+		statusBarItem.addEventListener = jest.fn();
+		statusBarItem.createEl = jest.fn(
+			<K extends keyof HTMLElementTagNameMap>(tagName: K) => {
+				const child = document.createElement(tagName);
+				statusBarItem.appendChild(child);
+				return child;
+			}
 		);
+		plugin.addStatusBarItem = jest
+			.fn()
+			.mockReturnValue(statusBarItem as unknown as ReturnType<Plugin["addStatusBarItem"]>);
 
 		const mockSubscriptionService = {
 			isSubscriptionActive: jest.fn().mockResolvedValue(false),
@@ -73,7 +89,7 @@ describe("KeepSidianPlugin", () => {
 				"two-way-sync-google-keep",
 				"import-google-keep-notes",
 				"push-google-keep-notes",
-				"open-keepsidian-sync-log",
+				"open-sync-log-file",
 			]);
 			expect(plugin.addSettingTab).toHaveBeenCalledWith(
 				expect.any(KeepSidianSettingsTab)
@@ -90,9 +106,6 @@ describe("KeepSidianPlugin", () => {
 
 	describe("importNotes", () => {
 		it("should use basic import for non-premium users", async () => {
-			plugin.subscriptionService.isSubscriptionActive = jest
-				.fn()
-				.mockResolvedValue(false);
 			const importMock = jest
 				.spyOn(SyncModule, "importGoogleKeepNotes")
 				.mockResolvedValue(0);
@@ -111,6 +124,10 @@ describe("KeepSidianPlugin", () => {
 			} as unknown as Plugin["app"];
 
 			await plugin.onload();
+			setTestCredentials(plugin);
+			const isSubscriptionActiveSpy = jest
+				.spyOn(plugin.subscriptionService, "isSubscriptionActive")
+				.mockResolvedValue(false);
 
 			await plugin.importNotes();
 			await new Promise((resolve) => setTimeout(resolve, 0));
@@ -141,10 +158,12 @@ describe("KeepSidianPlugin", () => {
 				)
 			).toBe(true);
 			expect(plugin.statusTextEl?.textContent).toContain("Last synced");
+			isSubscriptionActiveSpy.mockRestore();
 		});
 
 		it("should show options modal for premium users", async () => {
 			await plugin.onload(); // Initialize the plugin and subscriptionService
+			setTestCredentials(plugin);
 
 			const isSubscriptionActiveSpy = jest
 				.spyOn(plugin.subscriptionService, "isSubscriptionActive")
@@ -272,6 +291,7 @@ describe("KeepSidianPlugin", () => {
 				.fn()
 				.mockResolvedValue(false);
 			plugin.settings = { ...DEFAULT_SETTINGS };
+			setTestCredentials(plugin);
 			plugin.app = {
 				vault: {
 					adapter: {
@@ -311,6 +331,7 @@ describe("KeepSidianPlugin", () => {
 				.fn()
 				.mockResolvedValue(false);
 			plugin.settings = { ...DEFAULT_SETTINGS };
+			setTestCredentials(plugin);
 			const saveLocation = plugin.settings.saveLocation;
 			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
 				.toISOString()
@@ -345,6 +366,7 @@ describe("KeepSidianPlugin", () => {
 				.fn()
 				.mockResolvedValue(false);
 			plugin.settings = { ...DEFAULT_SETTINGS };
+			setTestCredentials(plugin);
 			const saveLocation = plugin.settings.saveLocation;
 
 			const notice = Notice as unknown as jest.Mock;
@@ -374,6 +396,7 @@ describe("KeepSidianPlugin", () => {
 				.fn()
 				.mockResolvedValue(false);
 			plugin.settings = { ...DEFAULT_SETTINGS };
+			setTestCredentials(plugin);
 			const saveLocation = plugin.settings.saveLocation;
 			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
 				.toISOString()
@@ -412,6 +435,7 @@ describe("KeepSidianPlugin", () => {
 				.fn()
 				.mockResolvedValue(false);
 			plugin.settings = { ...DEFAULT_SETTINGS };
+			setTestCredentials(plugin);
 			const saveLocation = plugin.settings.saveLocation;
 			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
 				.toISOString()
@@ -469,6 +493,7 @@ describe("KeepSidianPlugin", () => {
 				.fn()
 				.mockResolvedValue(false);
 			plugin.settings = { ...DEFAULT_SETTINGS };
+			setTestCredentials(plugin);
 			const saveLocation = plugin.settings.saveLocation;
 			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
 				.toISOString()
@@ -511,6 +536,7 @@ describe("KeepSidianPlugin", () => {
 				.fn()
 				.mockResolvedValue(false);
 			plugin.settings = { ...DEFAULT_SETTINGS };
+			setTestCredentials(plugin);
 			const saveLocation = plugin.settings.saveLocation;
 			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
 				.toISOString()

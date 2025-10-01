@@ -1,5 +1,5 @@
 import { Notice, Plugin } from "obsidian";
-import type { DataAdapter } from "obsidian";
+import type { DataAdapter, ProgressBarComponent } from "obsidian";
 import type {
 	KeepSidianPluginSettings,
 	LastSyncSummary,
@@ -16,6 +16,7 @@ import {
 	reportSyncProgress,
 	initializeStatusBar,
 } from "@app/sync-ui";
+import { HIDDEN_CLASS } from "@app/ui-constants";
 import { logSync, prepareSyncLog } from "@app/logging";
 import { KeepSidianSettingsTab } from "@ui/settings/KeepSidianSettingsTab";
 import { registerRibbonAndCommands } from "@app/commands";
@@ -34,7 +35,7 @@ export default class KeepSidianPlugin extends Plugin {
 	// Elements for visual status in the status bar
 	statusTextEl: HTMLSpanElement | null = null;
 	progressContainerEl: HTMLDivElement | null = null;
-	progressBarEl: HTMLDivElement | null = null;
+	progressBar: ProgressBarComponent | null = null;
 	progressModal: SyncProgressModal | null = null;
 	progressNotice: Notice | null = null;
 	processedNotes = 0;
@@ -42,7 +43,7 @@ export default class KeepSidianPlugin extends Plugin {
 	lastSyncSummary: LastSyncSummary | null = null;
 	lastSyncLogPath: string | null = null;
 	currentSyncMode: SyncMode | null = null;
-	private autoSyncInterval?: number;
+	private autoSyncInterval?: ReturnType<typeof setInterval>;
 	private isSyncing = false;
 
 	async onload() {
@@ -68,6 +69,26 @@ export default class KeepSidianPlugin extends Plugin {
 
 	private initializeSettings() {
 		this.addSettingTab(new KeepSidianSettingsTab(this.app, this));
+	}
+
+	private ensureCredentials(): boolean {
+		const email = this.settings.email?.trim();
+		if (!email) {
+			new Notice(
+				"KeepSidian: Please enter your Google account email in the settings before syncing."
+			);
+			return false;
+		}
+
+		const token = this.settings.token?.trim();
+		if (!token) {
+			new Notice(
+				"KeepSidian: Please add your Google Keep token in the settings before syncing."
+			);
+			return false;
+		}
+
+		return true;
 	}
 
 	async loadSettings() {
@@ -226,6 +247,12 @@ export default class KeepSidianPlugin extends Plugin {
 		if (this.isSyncing) {
 			return;
 		}
+
+		if (!this.ensureCredentials()) {
+			await logSync(this, `${auto ? "Auto" : "Manual"} sync aborted - missing credentials.`);
+			return;
+		}
+
 		this.isSyncing = true;
 		try {
 			const isSubscriptionActive = await this.subscriptionService.isSubscriptionActive();
@@ -268,7 +295,9 @@ export default class KeepSidianPlugin extends Plugin {
 					const errorMessage = getErrorMessage(error);
 					await logSync(
 						this,
-						`${auto ? "Auto" : "Manual"} sync ended - failed: ${errorMessage}. Processed ${
+						`${
+							auto ? "Auto" : "Manual"
+						} sync ended - failed: ${errorMessage}. Processed ${
 							this.processedNotes
 						} note(s).`
 					);
@@ -291,6 +320,12 @@ export default class KeepSidianPlugin extends Plugin {
 		if (this.isSyncing) {
 			return;
 		}
+
+		if (!this.ensureCredentials()) {
+			await logSync(this, "Push sync aborted - missing credentials.");
+			return;
+		}
+
 		this.isSyncing = true;
 		try {
 			try {
@@ -342,16 +377,13 @@ export default class KeepSidianPlugin extends Plugin {
 			this.statusTextEl.textContent = "Sync: 0/?";
 		}
 		if (this.progressContainerEl) {
-			this.progressContainerEl.style.display = "";
+			this.progressContainerEl.classList.remove(HIDDEN_CLASS);
 			this.progressContainerEl.classList.remove("complete", "failed");
 			if (!this.progressContainerEl.classList.contains("indeterminate")) {
 				this.progressContainerEl.classList.add("indeterminate");
 			}
 		}
-		if (this.progressBarEl) {
-			this.progressBarEl.style.width = "";
-			this.progressBarEl.classList.remove("paused");
-		}
+		this.progressBar?.setValue(0);
 		this.progressModal?.setProgress(0, undefined);
 	}
 
@@ -359,6 +391,12 @@ export default class KeepSidianPlugin extends Plugin {
 		if (this.isSyncing) {
 			return;
 		}
+
+		if (!this.ensureCredentials()) {
+			await logSync(this, "Two-way sync aborted - missing credentials.");
+			return;
+		}
+
 		this.isSyncing = true;
 		try {
 			try {
@@ -435,22 +473,20 @@ export default class KeepSidianPlugin extends Plugin {
 	startAutoSync() {
 		this.stopAutoSync();
 		const intervalMs = this.settings.autoSyncIntervalHours * 60 * 60 * 1000;
-		this.autoSyncInterval = window.setInterval(() => {
+		const intervalId = setInterval(() => {
 			if (!this.isSyncing) {
 				this.importNotes(true);
 			}
 		}, intervalMs);
-		if (
-			this.autoSyncInterval !== undefined &&
-			typeof this.registerInterval === "function"
-		) {
-			this.registerInterval(this.autoSyncInterval);
+		this.autoSyncInterval = intervalId;
+		if (typeof this.registerInterval === "function" && typeof intervalId === "number") {
+			this.registerInterval(intervalId);
 		}
 	}
 
 	stopAutoSync() {
 		if (this.autoSyncInterval) {
-			window.clearInterval(this.autoSyncInterval);
+			clearInterval(this.autoSyncInterval);
 			this.autoSyncInterval = undefined;
 		}
 	}

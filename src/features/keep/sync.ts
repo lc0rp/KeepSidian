@@ -16,7 +16,7 @@ import {
 	mediaFolderPath,
 	normalizePathSafe,
 } from "@services/paths";
-import { logSync } from "@app/logging";
+import { flushLogSync, logSync } from "@app/logging";
 import type {
 	GoogleKeepImportResponse,
 	PremiumFeatureFlags,
@@ -28,6 +28,12 @@ import {
 } from "@integrations/server/keepApi";
 
 const LAST_SUCCESSFUL_SYNC_DATE_KEY = "KeepSidianLastSuccessfulSyncDate";
+const NOTE_LOG_BATCH_KEY = "sync:notes";
+const NOTE_LOG_BATCH_SIZE = 50;
+const NOTE_LOG_BATCH_OPTIONS = {
+        batchKey: NOTE_LOG_BATCH_KEY,
+        batchSize: NOTE_LOG_BATCH_SIZE,
+} as const;
 
 function getVaultConfig(plugin: KeepSidianPlugin, key: string): unknown {
 	const vault = plugin.app?.vault as { getConfig?: (configKey: string) => unknown } | undefined;
@@ -218,34 +224,38 @@ export function convertOptionsToFeatureFlags(options: NoteImportOptions): Premiu
 }
 
 export async function processAndSaveNotes(
-	plugin: KeepSidianPlugin,
-	notes: PreNormalizedNote[],
-	callbacks?: SyncCallbacks
+        plugin: KeepSidianPlugin,
+        notes: PreNormalizedNote[],
+        callbacks?: SyncCallbacks
 ) {
-	const saveLocation = plugin.settings.saveLocation;
-	await ensureFolder(plugin.app, saveLocation);
-	await ensureFolder(plugin.app, mediaFolderPath(saveLocation));
-	await ensurePascalCaseFrontmatter(plugin);
+        const saveLocation = plugin.settings.saveLocation;
+        await ensureFolder(plugin.app, saveLocation);
+        await ensureFolder(plugin.app, mediaFolderPath(saveLocation));
+        await ensurePascalCaseFrontmatter(plugin);
 
-	for (const note of notes) {
-		await processAndSaveNote(plugin, note, saveLocation);
-		callbacks?.reportProgress?.();
-	}
+        try {
+                for (const note of notes) {
+                        await processAndSaveNote(plugin, note, saveLocation);
+                        callbacks?.reportProgress?.();
+                }
+        } finally {
+                await flushLogSync(plugin, { batchKey: NOTE_LOG_BATCH_KEY });
+        }
 }
 
 export async function processAndSaveNote(
-	plugin: KeepSidianPlugin,
-	note: PreNormalizedNote,
-	saveLocation: string
+        plugin: KeepSidianPlugin,
+        note: PreNormalizedNote,
+        saveLocation: string
 ) {
-	const normalizedNote = normalizeNote(note);
-	const noteTitle = normalizedNote.title;
-	if (!noteTitle) {
-		await logSync(plugin, "Skipped note without a title");
-		return;
-	}
-	let noteFilePath = buildNotePath(saveLocation, noteTitle);
-	const noteLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
+        const normalizedNote = normalizeNote(note);
+        const noteTitle = normalizedNote.title;
+        if (!noteTitle) {
+                await logSync(plugin, "Skipped note without a title", NOTE_LOG_BATCH_OPTIONS);
+                return;
+        }
+        let noteFilePath = buildNotePath(saveLocation, noteTitle);
+        const noteLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
 
 	const lastSyncedDate = new Date().toISOString();
 
@@ -260,15 +270,15 @@ export async function processAndSaveNote(
 		const newTextWithoutFrontmatter = normalizedNote.textWithoutFrontmatter;
 
 		if (duplicateNotesAction === "skip") {
-			await logSync(plugin, `${noteLink} - identical (skipped)`);
-		} else if (duplicateNotesAction === "create") {
-			const mdFrontmatter = buildFrontmatterWithSyncDate(newFrontmatter, lastSyncedDate);
-			const newMdContent = wrapMarkdown(mdFrontmatter, newTextWithoutFrontmatter);
-			await ensureParentFolderForFile(plugin.app, noteFilePath);
-			await plugin.app.vault.adapter.write(noteFilePath, newMdContent);
-			await logSync(plugin, `${noteLink} - new file created`);
-		} else {
-			const existingMarkdownFileContent = await plugin.app.vault.adapter.read(noteFilePath);
+                        await logSync(plugin, `${noteLink} - identical (skipped)`, NOTE_LOG_BATCH_OPTIONS);
+                } else if (duplicateNotesAction === "create") {
+                        const mdFrontmatter = buildFrontmatterWithSyncDate(newFrontmatter, lastSyncedDate);
+                        const newMdContent = wrapMarkdown(mdFrontmatter, newTextWithoutFrontmatter);
+                        await ensureParentFolderForFile(plugin.app, noteFilePath);
+                        await plugin.app.vault.adapter.write(noteFilePath, newMdContent);
+                        await logSync(plugin, `${noteLink} - new file created`, NOTE_LOG_BATCH_OPTIONS);
+                } else {
+                        const existingMarkdownFileContent = await plugin.app.vault.adapter.read(noteFilePath);
 			const [existingFrontmatter, existingTextWithoutFrontmatter] = extractFrontmatter(
 				existingMarkdownFileContent
 			);
@@ -287,59 +297,74 @@ export async function processAndSaveNote(
 
 				const mergedMdContent = wrapMarkdown(mdFrontmatter, mergedText);
 
-				if (!hasConflict) {
-					await ensureParentFolderForFile(plugin.app, noteFilePath);
-					await plugin.app.vault.adapter.write(noteFilePath, mergedMdContent);
-					await logSync(plugin, `${noteLink} - merged (no conflict)`);
-				} else {
-					// Write a conflict copy
-					noteFilePath = noteFilePath.replace(/\.md$/, "");
-					noteFilePath = `${noteFilePath}${CONFLICT_FILE_SUFFIX}${lastSyncedDate}.md`;
+                                if (!hasConflict) {
+                                        await ensureParentFolderForFile(plugin.app, noteFilePath);
+                                        await plugin.app.vault.adapter.write(noteFilePath, mergedMdContent);
+                                        await logSync(
+                                                plugin,
+                                                `${noteLink} - merged (no conflict)`,
+                                                NOTE_LOG_BATCH_OPTIONS
+                                        );
+                                } else {
+                                        // Write a conflict copy
+                                        noteFilePath = noteFilePath.replace(/\.md$/, "");
+                                        noteFilePath = `${noteFilePath}${CONFLICT_FILE_SUFFIX}${lastSyncedDate}.md`;
 
-					await ensureParentFolderForFile(plugin.app, noteFilePath);
-					await plugin.app.vault.adapter.write(noteFilePath, mergedMdContent);
-					const conflictLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
-					await logSync(plugin, `${conflictLink} - conflict copy created`);
-				}
-			} else {
-				const mdContentWithSyncDate = wrapMarkdown(
-					mdFrontmatter,
-					newTextWithoutFrontmatter
-				);
+                                        await ensureParentFolderForFile(plugin.app, noteFilePath);
+                                        await plugin.app.vault.adapter.write(noteFilePath, mergedMdContent);
+                                        const conflictLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
+                                        await logSync(
+                                                plugin,
+                                                `${conflictLink} - conflict copy created`,
+                                                NOTE_LOG_BATCH_OPTIONS
+                                        );
+                                }
+                        } else {
+                                const mdContentWithSyncDate = wrapMarkdown(
+                                        mdFrontmatter,
+                                        newTextWithoutFrontmatter
+                                );
 
-				// overwrite path: write to current path
-				await ensureParentFolderForFile(plugin.app, noteFilePath);
-				await plugin.app.vault.adapter.write(noteFilePath, mdContentWithSyncDate);
-				await logSync(plugin, `${noteLink} - ${existedBefore ? "overwritten" : "created"}`);
-			}
-		}
+                                // overwrite path: write to current path
+                                await ensureParentFolderForFile(plugin.app, noteFilePath);
+                                await plugin.app.vault.adapter.write(noteFilePath, mdContentWithSyncDate);
+                                await logSync(
+                                        plugin,
+                                        `${noteLink} - ${existedBefore ? "overwritten" : "created"}`,
+                                        NOTE_LOG_BATCH_OPTIONS
+                                );
+                        }
+                }
 
-		if (normalizedNote.blob_urls && normalizedNote.blob_urls.length > 0) {
-			const { downloaded, skippedIdentical } = await processAttachments(
-				plugin.app,
-				normalizedNote.blob_urls,
-				saveLocation,
-				normalizedNote.blob_names
-			);
-			if (downloaded > 0) {
-				const attachmentWord = downloaded === 1 ? "attachment" : "attachments";
-				const skippedSuffix =
-					skippedIdentical > 0 ? ` (${skippedIdentical} identical skipped)` : "";
-				await logSync(
-					plugin,
-					`${noteLink} - downloaded ${downloaded} ${attachmentWord}${skippedSuffix}`
-				);
-			} else if (skippedIdentical > 0) {
-				const skippedWord = skippedIdentical === 1 ? "attachment" : "attachments";
-				await logSync(
-					plugin,
-					`${noteLink} - attachments up to date (${skippedIdentical} ${skippedWord} identical)`
-				);
-			}
-		}
-	} catch (err: unknown) {
-		const errorMessage = err instanceof Error ? err.message : String(err);
-		await logSync(plugin, `${noteLink} - error: ${errorMessage}`);
-		throw err;
-	}
+                if (normalizedNote.blob_urls && normalizedNote.blob_urls.length > 0) {
+                        const { downloaded, skippedIdentical } = await processAttachments(
+                                plugin.app,
+                                normalizedNote.blob_urls,
+                                saveLocation,
+                                normalizedNote.blob_names
+                        );
+                        if (downloaded > 0) {
+                                const attachmentWord = downloaded === 1 ? "attachment" : "attachments";
+                                const skippedSuffix =
+                                        skippedIdentical > 0 ? ` (${skippedIdentical} identical skipped)` : "";
+                                await logSync(
+                                        plugin,
+                                        `${noteLink} - downloaded ${downloaded} ${attachmentWord}${skippedSuffix}`,
+                                        NOTE_LOG_BATCH_OPTIONS
+                                );
+                        } else if (skippedIdentical > 0) {
+                                const skippedWord = skippedIdentical === 1 ? "attachment" : "attachments";
+                                await logSync(
+                                        plugin,
+                                        `${noteLink} - attachments up to date (${skippedIdentical} ${skippedWord} identical)`,
+                                        NOTE_LOG_BATCH_OPTIONS
+                                );
+                        }
+                }
+        } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : String(err);
+                await flushLogSync(plugin, { batchKey: NOTE_LOG_BATCH_KEY });
+                await logSync(plugin, `${noteLink} - error: ${errorMessage}`);
+                throw err;
+        }
 }

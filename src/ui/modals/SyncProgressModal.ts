@@ -1,17 +1,6 @@
-import { App, Modal as ObsidianModal } from "obsidian";
+import { App, Modal, ProgressBarComponent } from "obsidian";
 import { formatModalSummary } from "@app/sync-status";
 import type { LastSyncSummary } from "@types";
-
-interface ModalInstance {
-	app: App;
-	titleEl: HTMLElement;
-	contentEl: HTMLElement;
-	modalEl: HTMLElement;
-	open(): void;
-	close(): void;
-}
-
-type ModalConstructor = new (app: App) => ModalInstance;
 
 interface CreateElOptions {
 	text?: string;
@@ -44,11 +33,11 @@ const createChild = <K extends keyof HTMLElementTagNameMap>(
 	if (typeof maybeObsidianParent.createEl === "function") {
 		return maybeObsidianParent.createEl(tagName, options);
 	}
-	const element = document.createElement(tagName);
+	const element = parent.createEl(tagName);
 	if (options?.text) {
 		element.textContent = options.text;
 	}
-	parent.appendChild(element);
+	// parent.appendChild(element);
 	return element;
 };
 
@@ -61,29 +50,6 @@ const setElementText = (element: HTMLElement, text: string) => {
 	element.textContent = text;
 };
 
-const ModalFallback: ModalConstructor = class ModalFallbackImpl
-	implements ModalInstance
-{
-	app: App;
-	titleEl: HTMLElement = document.createElement("div");
-	contentEl: HTMLElement = document.createElement("div");
-	modalEl: HTMLElement = document.createElement("div");
-	constructor(app: App) {
-		this.app = app;
-	}
-	open() {}
-	close() {}
-};
-
-const ModalBaseClass =
-	(ObsidianModal as unknown as ModalConstructor | undefined) || ModalFallback;
-
-class BaseModal extends ModalBaseClass {
-	constructor(app: App) {
-		super(app);
-	}
-}
-
 interface SyncProgressModalCallbacks {
 	onTwoWaySync: () => void;
 	onImportOnly: () => void;
@@ -92,9 +58,9 @@ interface SyncProgressModalCallbacks {
 	onClose?: () => void;
 }
 
-export class SyncProgressModal extends BaseModal {
-	private progressWrapEl: HTMLDivElement | null = null;
-	private progressBarEl: HTMLDivElement | null = null;
+export class SyncProgressModal extends Modal {
+	private progressContainerEl: HTMLDivElement | null = null;
+	private progressBar: ProgressBarComponent | null = null;
 	private statusEl: HTMLElement | null = null;
 	private buttons: {
 		twoWay: HTMLButtonElement | null;
@@ -127,10 +93,10 @@ export class SyncProgressModal extends BaseModal {
 		const titleEl = createChild(contentEl, "h2", { text: "Sync progress" });
 		titleEl.classList.add("keepsidian-modal-title");
 
-		this.progressWrapEl = createChild(contentEl, "div");
-		this.progressWrapEl.className = "keepsidian-modal-progress indeterminate";
-		this.progressBarEl = createChild(this.progressWrapEl, "div");
-		this.progressBarEl.className = "keepsidian-modal-progress-bar";
+		this.progressContainerEl = createChild(contentEl, "div");
+		this.progressContainerEl.className = "keepsidian-modal-progress indeterminate";
+		this.progressBar = new ProgressBarComponent(this.progressContainerEl);
+		this.progressBar.setValue(0);
 
 		this.statusEl = createChild(contentEl, "div", {
 			text: "No sync has been run yet.",
@@ -178,6 +144,8 @@ export class SyncProgressModal extends BaseModal {
 			uploadOnly: null,
 			openLog: null,
 		};
+		this.progressBar = null;
+		this.progressContainerEl = null;
 		if (this.callbacks.onClose) {
 			this.callbacks.onClose();
 		}
@@ -216,21 +184,21 @@ export class SyncProgressModal extends BaseModal {
 	}
 
 	private applyState() {
-		if (!this.progressWrapEl || !this.progressBarEl) {
+		if (!this.progressContainerEl || !this.progressBar) {
 			return;
 		}
 		if (this.isSyncing) {
-			this.progressWrapEl.classList.remove("complete", "failed");
+			this.progressContainerEl.classList.remove("complete", "failed");
 			if (typeof this.total === "number" && this.total > 0) {
 				const pct = Math.max(
 					0,
 					Math.min(100, Math.round((this.processed / this.total) * 100))
 				);
-				this.progressWrapEl.classList.remove("indeterminate");
-				this.progressBarEl.style.width = pct + "%";
+				this.progressContainerEl.classList.remove("indeterminate");
+				this.progressBar.setValue(pct);
 			} else {
-				this.progressWrapEl.classList.add("indeterminate");
-				this.progressBarEl.style.width = "";
+				this.progressContainerEl.classList.add("indeterminate");
+				this.progressBar.setValue(0);
 			}
 			const msg =
 				typeof this.total === "number" && this.total > 0
@@ -240,29 +208,29 @@ export class SyncProgressModal extends BaseModal {
 			return;
 		}
 
-		this.progressWrapEl.classList.remove("indeterminate");
+		this.progressContainerEl.classList.remove("indeterminate");
 
 		if (this.summary) {
 			const { success, processedNotes, totalNotes } = this.summary;
-			this.progressWrapEl.classList.toggle("complete", !!success);
-			this.progressWrapEl.classList.toggle("failed", !success);
+			this.progressContainerEl.toggleClass("complete", !!success);
+			this.progressContainerEl.toggleClass("failed", !success);
 			if (typeof totalNotes === "number" && totalNotes > 0) {
 				const pct = Math.max(
 					0,
 					Math.min(100, Math.round((processedNotes / totalNotes) * 100))
 				);
-				this.progressBarEl.style.width = pct + "%";
+				this.progressBar.setValue(pct);
 			} else {
-				this.progressBarEl.style.width = success ? "100%" : "0%";
+				this.progressBar.setValue(success ? 100 : 0);
 			}
 			this.setStatusText(formatModalSummary(this.summary));
 			return;
 		}
 
 		if (this.lastResult) {
-			this.progressWrapEl.classList.toggle("complete", this.lastResult.success);
-			this.progressWrapEl.classList.toggle("failed", !this.lastResult.success);
-			this.progressBarEl.style.width = "100%";
+			this.progressContainerEl.toggleClass("complete", this.lastResult.success);
+			this.progressContainerEl.toggleClass("failed", !this.lastResult.success);
+			this.progressBar.setValue(100);
 			const msg = this.lastResult.success
 				? `Synced ${this.lastResult.processed} notes`
 				: "Sync failed";
@@ -270,8 +238,8 @@ export class SyncProgressModal extends BaseModal {
 			return;
 		}
 
-		this.progressWrapEl.classList.remove("complete", "failed");
-		this.progressBarEl.style.width = "";
+		this.progressContainerEl.classList.remove("complete", "failed");
+		this.progressBar.setValue(0);
 		this.setStatusText("No sync has been run yet.");
 	}
 

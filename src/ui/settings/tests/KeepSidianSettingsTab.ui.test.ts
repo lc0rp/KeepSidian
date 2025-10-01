@@ -284,6 +284,10 @@ jest.mock("obsidian", () => {
 			this.settingEl.classList.add(cls);
 			return this;
 		}
+		setHeading() {
+			this.settingEl.classList.add("setting-heading");
+			return this;
+		}
 		setDisabled(disabled: boolean) {
 			if (disabled) {
 				this.settingEl.classList.add("is-disabled");

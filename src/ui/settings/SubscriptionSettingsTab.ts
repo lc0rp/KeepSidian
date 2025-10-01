@@ -17,8 +17,7 @@ export class SubscriptionSettingsTab {
 
 		containerEl.createEl("h4", { text: "Premium features" });
 
-		const isActive =
-			await this.plugin.subscriptionService.isSubscriptionActive();
+		const isActive = await this.plugin.subscriptionService.isSubscriptionActive();
 
 		if (!isActive) {
 			await this.displayInactiveSubscriber();
@@ -26,11 +25,7 @@ export class SubscriptionSettingsTab {
 			await this.displayActiveSubscriber();
 		}
 
-		SubscriptionSettingsTab.displayPremiumFeatures(
-			containerEl,
-			this.plugin,
-			isActive
-		);
+		SubscriptionSettingsTab.displayPremiumFeatures(containerEl, this.plugin, isActive);
 	}
 
 	static displayPremiumFeatures(
@@ -135,12 +130,10 @@ export class SubscriptionSettingsTab {
 					descSuffix
 			)
 			.addToggle((toggle) =>
-				toggle
-					.setValue(premiumFeatureValues.updateTitle)
-					.onChange(async (value) => {
-						premiumFeatureValues.updateTitle = value;
-						// TODO: Save settings
-					})
+				toggle.setValue(premiumFeatureValues.updateTitle).onChange(async (value) => {
+					premiumFeatureValues.updateTitle = value;
+					// TODO: Save settings
+				})
 			);
 		if (!isActive) titleSetting.setClass("requires-subscription");
 
@@ -149,12 +142,10 @@ export class SubscriptionSettingsTab {
 			.setName("Auto-tags")
 			.setDesc("Generate tags based on note content." + descSuffix)
 			.addToggle((toggle) =>
-				toggle
-					.setValue(premiumFeatureValues.suggestTags)
-					.onChange(async (value) => {
-						premiumFeatureValues.suggestTags = value;
-						// TODO: Save settings
-					})
+				toggle.setValue(premiumFeatureValues.suggestTags).onChange(async (value) => {
+					premiumFeatureValues.suggestTags = value;
+					// TODO: Save settings
+				})
 			);
 		if (!isActive) autoTagSetting.setClass("requires-subscription");
 
@@ -174,10 +165,7 @@ export class SubscriptionSettingsTab {
 
 		const tagPrefixSetting = new Setting(containerEl)
 			.setName("Tag prefix")
-			.setDesc(
-				"Prefix to identify generated tags (leave empty for none)." +
-					descSuffix
-			)
+			.setDesc("Prefix to identify generated tags (leave empty for none)." + descSuffix)
 			.addText((text) =>
 				text
 					.setValue(premiumFeatureValues.tagPrefix)
@@ -192,10 +180,7 @@ export class SubscriptionSettingsTab {
 
 		const limitSetting = new Setting(containerEl)
 			.setName("Limit to existing tags")
-			.setDesc(
-				"Only generate tags that already exist in your vault." +
-					descSuffix
-			)
+			.setDesc("Only generate tags that already exist in your vault." + descSuffix)
 			.addToggle((toggle) =>
 				toggle
 					.setValue(premiumFeatureValues.limitToExistingTags)
@@ -244,16 +229,30 @@ export class SubscriptionSettingsTab {
 				"Get access to premium features below, priority support and early access to new features."
 			)
 			.addButton((button) =>
-				button.setButtonText("Subscribe").onClick(() => {
-					window.open(`${KEEPSIDIAN_SERVER_URL}/subscribe`, "_blank");
+				button.setButtonText("Subscribe").onClick(async () => {
+					const workspace = this.plugin.app.workspace as {
+						getLeaf?: (viewType?: string) => {
+							setViewState: (state: unknown) => Promise<void>;
+						};
+					};
+					const subscribeUrl = `${KEEPSIDIAN_SERVER_URL}/subscribe`;
+					if (workspace?.getLeaf) {
+						const leaf = workspace.getLeaf("window");
+						await leaf.setViewState({
+							type: "webviewer",
+							state: { url: subscribeUrl, navigate: true },
+							active: true,
+						});
+					} else {
+						throw new Error("Unable to open subscription page");
+					}
 				})
 			);
 	}
 
 	private async displayActiveSubscriber(): Promise<void> {
 		const { containerEl } = this;
-		const subscriptionInfo =
-			await this.plugin.subscriptionService.checkSubscription();
+		const subscriptionInfo = await this.plugin.subscriptionService.checkSubscription();
 
 		// General info about premium features
 		new Setting(containerEl)
@@ -274,14 +273,10 @@ export class SubscriptionSettingsTab {
 		// Show subscription details
 		new Setting(containerEl)
 			.setName("✅ Active subscription")
-			.setDesc(
-				"Your subscription is active. You can configure your premium settings below."
-			);
+			.setDesc("Your subscription is active. You can configure your premium settings below.");
 
 		if (subscriptionInfo?.plan_details) {
-			new Setting(containerEl)
-				.setName("Plan")
-				.setDesc(subscriptionInfo.plan_details.plan_id);
+			new Setting(containerEl).setName("Plan").setDesc(subscriptionInfo.plan_details.plan_id);
 		}
 
 		if (subscriptionInfo?.metering_info) {

@@ -4,6 +4,7 @@ import { WebviewTag, ConsoleMessageEvent } from "electron";
 import { Notice } from "obsidian";
 import { KeepSidianSettingsTab } from "ui/settings/KeepSidianSettingsTab";
 import { httpPostJson } from "../../services/http";
+import { HIDDEN_CLASS } from "@app/ui-constants";
 
 declare global {
 	interface Window {
@@ -80,9 +81,7 @@ async function getOAuthToken(
 	const createButtonClickDetectionScript = (buttonText: string[]): string => `
         (function() {
             const button = Array.from(document.querySelectorAll('button')).find(el => 
-                ${buttonText
-					.map((text) => `el.textContent.includes("${text}")`)
-					.join(" || ")}
+                ${buttonText.map((text) => `el.textContent.includes("${text}")`).join(" || ")}
             );
             if (button) {
                 console.log("Found button.");
@@ -117,9 +116,7 @@ async function getOAuthToken(
                 overlay.appendChild(titleElement);
                 overlay.appendChild(messageElement);
             }
-            document.getElementById('oauth-guide-title').textContent = '${sanitizeInput(
-				title
-			)}';
+            document.getElementById('oauth-guide-title').textContent = '${sanitizeInput(title)}';
             document.getElementById('oauth-guide-message').textContent = '${sanitizeInput(
 				message
 			)}';
@@ -213,148 +210,126 @@ async function getOAuthToken(
 
 		(async () => {
 			try {
-			// Support both Electron WebviewTag and simple mocks used in tests
-			const loadUrl = webview.loadURL ? webview.loadURL.bind(webview) : undefined;
-			if (loadUrl) {
-				await loadUrl(OAUTH_URL);
-			} else {
-				webview.src = OAUTH_URL;
-			}
-			webview.show?.();
-			const style = webview.style;
-			if (style) {
-				try {
-					style.width = "0";
-					style.height = "0";
-					style.display = "block";
-				} catch {
-					/* empty */
+				// Support both Electron WebviewTag and simple mocks used in tests
+				const loadUrl = webview.loadURL ? webview.loadURL.bind(webview) : undefined;
+				if (loadUrl) {
+					await loadUrl(OAUTH_URL);
+				} else {
+					webview.src = OAUTH_URL;
 				}
-			}
-
-			let emailEntered = false;
-			let stepTwoDisplayed = false;
-			let devToolsOpened = false;
-
-			const messageHandler = async (event: ConsoleMessageEvent) => {
-				if (event.message === "buttonClicked" && !devToolsOpened) {
-					retrieveTokenWebview.openDevTools();
-					devToolsOpened = true;
-					await retrieveTokenWebview.executeJavaScript(
-						createDevToolsInstructionsScript()
-					);
-					await retrieveTokenWebview.executeJavaScript(
-						getOauthTokenScript()
-					);
-				} else if (event.message === "Token overlay created.") {
-					await retrieveTokenWebview.executeJavaScript(
-						createDevToolsInstructionsScript()
-					);
-				} else if (event.message.startsWith("oauthToken: ")) {
-					const oauthToken = event.message.split("oauthToken: ")[1];
+				webview.show?.();
+				const style = webview.style;
+				if (style) {
 					try {
-						await exchangeOauthToken(
-							settingsTab,
-							plugin,
-							oauthToken
+						style.width = "0";
+						style.height = "0";
+						style.display = "block";
+					} catch {
+						/* empty */
+					}
+				}
+
+				let emailEntered = false;
+				let stepTwoDisplayed = false;
+				let devToolsOpened = false;
+
+				const messageHandler = async (event: ConsoleMessageEvent) => {
+					if (event.message === "buttonClicked" && !devToolsOpened) {
+						retrieveTokenWebview.openDevTools();
+						devToolsOpened = true;
+						await retrieveTokenWebview.executeJavaScript(
+							createDevToolsInstructionsScript()
 						);
-						cleanup();
-						if (webview.closeDevTools) {
-							try {
-								webview.closeDevTools();
-							} catch {
-								/* empty */
-							}
-						}
-						if (webview.hide) {
-							try {
-								webview.hide();
-							} catch {
-								/* empty */
-							}
-						} else {
-							const style = webview.style;
-							if (style) {
+						await retrieveTokenWebview.executeJavaScript(getOauthTokenScript());
+					} else if (event.message === "Token overlay created.") {
+						await retrieveTokenWebview.executeJavaScript(
+							createDevToolsInstructionsScript()
+						);
+					} else if (event.message.startsWith("oauthToken: ")) {
+						const oauthToken = event.message.split("oauthToken: ")[1];
+						try {
+							await exchangeOauthToken(settingsTab, plugin, oauthToken);
+							cleanup();
+							if (webview.closeDevTools) {
 								try {
-									style.display = "none";
+									webview.closeDevTools();
 								} catch {
 									/* empty */
 								}
 							}
+							if (webview.hide) {
+								try {
+									webview.hide();
+								} catch {
+									/* empty */
+								}
+							} else {
+								try {
+									webview.classList.add(HIDDEN_CLASS);
+								} catch {
+									/* empty */
+								}
+							}
+							resolve(oauthToken);
+						} catch (error) {
+							wrappedReject(error as Error);
 						}
-						resolve(oauthToken);
-					} catch (error) {
-						wrappedReject(error as Error);
 					}
-				}
-			};
+				};
 
-			retrieveTokenWebview.addEventListener(
-				"console-message",
-				messageHandler
-			);
+				retrieveTokenWebview.addEventListener("console-message", messageHandler);
 
-			const startTime = Date.now();
-			const timeout = 300000;
+				const startTime = Date.now();
+				const timeout = 300000;
 
-			intervalId = setInterval(async () => {
-				const currentUrl =
-					typeof webview.getURL === "function"
-						? webview.getURL()
-						: "";
-				if (!currentUrl || typeof currentUrl !== "string") {
-					return;
-				}
-				if (
-					!emailEntered &&
-					currentUrl.includes("accounts.google.com")
-				) {
-					await retrieveTokenWebview.executeJavaScript(
-						createOverlayScript(
-							"Step 1 of 3: Login Below.",
-							"Please start by logging in with your Google Keep account below."
-						)
-					);
-					await retrieveTokenWebview.executeJavaScript(
-						enterEmailScript(GOOGLE_EMAIL)
-					);
-					emailEntered = true;
-				}
+				intervalId = setInterval(async () => {
+					const currentUrl = typeof webview.getURL === "function" ? webview.getURL() : "";
+					if (!currentUrl || typeof currentUrl !== "string") {
+						return;
+					}
+					if (!emailEntered && currentUrl.includes("accounts.google.com")) {
+						await retrieveTokenWebview.executeJavaScript(
+							createOverlayScript(
+								"Step 1 of 3: Login Below.",
+								"Please start by logging in with your Google Keep account below."
+							)
+						);
+						await retrieveTokenWebview.executeJavaScript(
+							enterEmailScript(GOOGLE_EMAIL)
+						);
+						emailEntered = true;
+					}
 
-				if (
-					emailEntered &&
-					!stepTwoDisplayed &&
-					currentUrl.includes("embeddedsigninconsent")
-				) {
-					await retrieveTokenWebview.executeJavaScript(
-						createOverlayScript(
-							"Step 2 of 3: Accept Service Terms.",
-							"Great! Next, please review and agree to the terms below."
-						)
-					);
-					await new Promise((resolve) => setTimeout(resolve, 500));
-					await retrieveTokenWebview.executeJavaScript(
-						createButtonClickDetectionScript(["I agree", "Acepto"])
-					);
-					stepTwoDisplayed = true;
-				}
+					if (
+						emailEntered &&
+						!stepTwoDisplayed &&
+						currentUrl.includes("embeddedsigninconsent")
+					) {
+						await retrieveTokenWebview.executeJavaScript(
+							createOverlayScript(
+								"Step 2 of 3: Accept Service Terms.",
+								"Great! Next, please review and agree to the terms below."
+							)
+						);
+						await new Promise((resolve) => setTimeout(resolve, 500));
+						await retrieveTokenWebview.executeJavaScript(
+							createButtonClickDetectionScript(["I agree", "Acepto"])
+						);
+						stepTwoDisplayed = true;
+					}
 
-				if (Date.now() - startTime >= timeout) {
+					if (Date.now() - startTime >= timeout) {
+						wrappedReject(
+							new Error("Timeout: OAuth token retrieval process exceeded 5 minutes.")
+						);
+					}
+				}, 1000);
+
+				timeoutId = setTimeout(() => {
 					wrappedReject(
-						new Error(
-							"Timeout: OAuth token retrieval process exceeded 5 minutes."
-						)
+						new Error("Timeout: OAuth token retrieval process exceeded 5 minutes.")
 					);
-				}
-			}, 1000);
-
-			timeoutId = setTimeout(() => {
-				wrappedReject(
-					new Error(
-						"Timeout: OAuth token retrieval process exceeded 5 minutes."
-					)
-				);
-			}, 300000);
+				}, 300000);
 			} catch (error) {
 				wrappedReject(error as Error);
 			}
@@ -411,19 +386,14 @@ export async function exchangeOauthToken(
 			new Notice("Token exchanged successfully.");
 		} catch (e) {
 			// Preserve legacy error message shape expected by tests
-			if (
-				e instanceof Error &&
-				e.message.startsWith("Server returned status")
-			) {
+			if (e instanceof Error && e.message.startsWith("Server returned status")) {
 				throw e;
 			}
 			throw new Error("Failed to parse server response: " + e);
 		}
 	} catch (error) {
 		logErrorIfNotTest("Error exchanging OAuth token:", error);
-		new Notice(
-			`Failed to exchange OAuth token: ${(error as Error).message}`
-		);
+		new Notice(`Failed to exchange OAuth token: ${(error as Error).message}`);
 		throw error;
 	}
 }

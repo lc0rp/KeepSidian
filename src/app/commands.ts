@@ -30,7 +30,7 @@ export function registerCommands(plugin: KeepSidianPlugin) {
 	});
 
 	plugin.addCommand({
-		id: "open-keepsidian-sync-log",
+		id: "open-sync-log-file",
 		name: "Open sync log file",
 		callback: async () => await plugin.openLatestSyncLog(),
 	});

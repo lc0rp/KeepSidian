@@ -47,11 +47,11 @@ describe("Google Keep Import Functions", () => {
 				keepSidianLastSuccessfulSyncDate: null,
 				frontmatterPascalCaseFixApplied: false,
 			},
-				app: {
-					vault: {
-						getConfig: getVaultConfigMock,
-						setConfig: setVaultConfigMock,
-						adapter: {
+			app: {
+				vault: {
+					getConfig: getVaultConfigMock,
+					setConfig: setVaultConfigMock,
+					adapter: {
 						exists: jest.fn().mockImplementation(() => Promise.resolve(false)),
 						list: jest.fn().mockResolvedValue({ files: [], folders: [] }),
 						write: jest.fn(),
@@ -101,9 +101,7 @@ describe("Google Keep Import Functions", () => {
 
 		it("uses vault config when settings sync date is unavailable", async () => {
 			mockPlugin.settings.keepSidianLastSuccessfulSyncDate = null;
-			getVaultConfigMock.mockReturnValue(
-				"2024-02-02T00:00:00.000Z"
-			);
+			getVaultConfigMock.mockReturnValue("2024-02-02T00:00:00.000Z");
 
 			await importGoogleKeepNotes(mockPlugin);
 
@@ -274,7 +272,14 @@ describe("Google Keep Import Functions", () => {
 
 			expect(compareModule.handleDuplicateNotes).not.toHaveBeenCalled();
 			expect(mockPlugin.app.vault.adapter.write).not.toHaveBeenCalled();
-			expect(logSpy).toHaveBeenCalledWith(mockPlugin, "Skipped note without a title");
+                        expect(logSpy).toHaveBeenCalledWith(
+                                mockPlugin,
+                                "Skipped note without a title",
+                                expect.objectContaining({
+                                        batchKey: "sync:notes",
+                                        batchSize: 50,
+                                })
+                        );
 			logSpy.mockRestore();
 		});
 
@@ -427,10 +432,14 @@ describe("Google Keep Import Functions", () => {
 				mockPlugin.settings.saveLocation,
 				normalizedNoteWithAttachments.blob_names
 			);
-			expect(logSpy).toHaveBeenCalledWith(
-				mockPlugin,
-				expect.stringContaining("downloaded 2 attachments")
-			);
+                        expect(logSpy).toHaveBeenCalledWith(
+                                mockPlugin,
+                                expect.stringContaining("downloaded 2 attachments"),
+                                expect.objectContaining({
+                                        batchKey: "sync:notes",
+                                        batchSize: 50,
+                                })
+                        );
 			processAttachmentsSpy.mockRestore();
 			logSpy.mockRestore();
 		});
@@ -469,14 +478,22 @@ describe("Google Keep Import Functions", () => {
 				mockPlugin.settings.saveLocation,
 				normalizedNoteWithAttachments.blob_names
 			);
-			expect(logSpy).toHaveBeenCalledWith(
-				mockPlugin,
-				expect.stringContaining("identical (skipped)")
-			);
-			expect(logSpy).toHaveBeenCalledWith(
-				mockPlugin,
-				expect.stringContaining("attachments up to date")
-			);
+                        expect(logSpy).toHaveBeenCalledWith(
+                                mockPlugin,
+                                expect.stringContaining("identical (skipped)"),
+                                expect.objectContaining({
+                                        batchKey: "sync:notes",
+                                        batchSize: 50,
+                                })
+                        );
+                        expect(logSpy).toHaveBeenCalledWith(
+                                mockPlugin,
+                                expect.stringContaining("attachments up to date"),
+                                expect.objectContaining({
+                                        batchKey: "sync:notes",
+                                        batchSize: 50,
+                                })
+                        );
 			processAttachmentsSpy.mockRestore();
 			logSpy.mockRestore();
 		});

@@ -106,7 +106,7 @@ export default [
 		},
 	},
 	{
-		files: ["src/**/tests/**/*.ts", "src/**/test-utils/**/*.ts"],
+		files: ["src/**/tests/**/*.ts", "src/**/test-utils/**/*.ts", "**/__mocks__/**/*.ts"],
 		languageOptions: {
 			globals: {
 				...globals.node,
