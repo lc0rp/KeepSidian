@@ -8,6 +8,28 @@ import { SubscriptionService } from 'services/subscription';
 import { DEFAULT_SETTINGS } from '../../../types/keepsidian-plugin-settings';
 import { exchangeOauthToken, initRetrieveToken } from '../../../integrations/google/keepToken';
 
+type CreateElOptions = {
+	text?: string | DocumentFragment;
+	attr?: Record<string, string | number | boolean | null>;
+	cls?: string | string[];
+};
+
+type HTMLElementWithCreateEl = HTMLElement & {
+	createEl(
+		this: HTMLElementWithCreateEl,
+		tag: string,
+		options?: CreateElOptions | string,
+		callback?: (el: HTMLElementWithCreateEl) => void
+	): HTMLElementWithCreateEl;
+	createDiv(
+		this: HTMLElementWithCreateEl,
+		options?: CreateElOptions | string,
+		callback?: (el: HTMLElementWithCreateEl) => void
+	): HTMLElementWithCreateEl;
+};
+
+type CreateElFn = HTMLElementWithCreateEl['createEl'];
+
 type KeepSidianSettingsTabInternals = {
 	addEmailSetting(containerEl: HTMLElement): void;
 	addSyncTokenSetting(containerEl: HTMLElement): void;
@@ -30,6 +52,63 @@ jest.mock('../../../integrations/google/keepToken', () => ({
     exchangeOauthToken: jest.fn(),
     initRetrieveToken: jest.fn(),
 }));
+
+function attachCreateEl(element: HTMLElement, createEl: CreateElFn): HTMLElementWithCreateEl {
+	const elementWithCreate = element as HTMLElementWithCreateEl;
+	elementWithCreate.createEl = createEl;
+	const createDivImpl = function createDiv(
+		this: HTMLElementWithCreateEl,
+		options?: CreateElOptions | string,
+		callback?: (el: HTMLElementWithCreateEl) => void
+	) {
+		return createEl.call(this, 'div', options, callback);
+	};
+	elementWithCreate.createDiv = createDivImpl as unknown as typeof elementWithCreate.createDiv;
+	return elementWithCreate;
+}
+
+const createElImpl = function createEl(
+	this: HTMLElementWithCreateEl,
+	tag: string,
+	opts?: CreateElOptions | string,
+	callback?: (el: HTMLElementWithCreateEl) => void
+): HTMLElementWithCreateEl {
+	const element = attachCreateEl(document.createElement(tag), createElImpl as unknown as CreateElFn);
+	if (typeof opts === 'string') {
+		element.className = opts;
+	} else if (opts && typeof opts === 'object') {
+		const options = opts as CreateElOptions;
+		if (typeof options.text === 'string') {
+			element.textContent = options.text;
+		} else if (options.text instanceof DocumentFragment) {
+			element.appendChild(options.text);
+		}
+		if (options.cls) {
+			const classes = Array.isArray(options.cls)
+				? options.cls
+				: String(options.cls)
+					.split(/\s+/)
+					.filter(Boolean);
+			for (const cls of classes) {
+				element.classList.add(String(cls));
+			}
+		}
+		if (options.attr) {
+			for (const [key, value] of Object.entries(options.attr)) {
+				if (value === null) {
+					element.removeAttribute(key);
+				} else {
+					element.setAttribute(key, String(value));
+				}
+			}
+		}
+	}
+	this.appendChild(element);
+	if (callback) {
+		callback(element);
+	}
+	return element;
+} as unknown as CreateElFn;
 
 // Mock obsidian
 jest.mock('obsidian', () => ({
@@ -93,6 +172,7 @@ describe('KeepSidianSettingsTab', () => {
         plugin.subscriptionService = mockSubscriptionService();
         settingsTab = new KeepSidianSettingsTab(app, plugin);
 	settingsTabInternals = settingsTab as unknown as KeepSidianSettingsTabInternals;
+	attachCreateEl(settingsTab.containerEl, createElImpl);
 
         // Reset the exchangeOauthToken mock
         (exchangeOauthToken as jest.Mock).mockReset();

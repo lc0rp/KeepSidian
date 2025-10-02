@@ -20,6 +20,11 @@ type HTMLElementWithCreateEl = HTMLElement & {
 		options?: CreateElOptions | string,
 		callback?: (el: HTMLElementWithCreateEl) => void
 	): HTMLElementWithCreateEl;
+	createDiv(
+		this: HTMLElementWithCreateEl,
+		options?: CreateElOptions | string,
+		callback?: (el: HTMLElementWithCreateEl) => void
+	): HTMLElementWithCreateEl;
 };
 
 type CreateElFn = HTMLElementWithCreateEl["createEl"];
@@ -205,6 +210,14 @@ function attachCreateEl(
 ): HTMLElementWithCreateEl {
 	const elementWithCreate = element as HTMLElementWithCreateEl;
 	elementWithCreate.createEl = createEl;
+	const createDivImpl = function createDiv(
+		this: HTMLElementWithCreateEl,
+		options?: CreateElOptions | string,
+		callback?: (el: HTMLElementWithCreateEl) => void
+	) {
+		return createEl.call(this, "div", options, callback);
+	};
+	elementWithCreate.createDiv = createDivImpl as unknown as typeof elementWithCreate.createDiv;
 	return elementWithCreate;
 }
 
@@ -236,11 +249,11 @@ jest.mock("obsidian", () => {
 			if (options.cls) {
 				const classes = Array.isArray(options.cls)
 					? options.cls
-					: [options.cls];
+					: String(options.cls)
+						.split(/\s+/)
+						.filter(Boolean);
 				for (const cls of classes) {
-					if (cls) {
-						elementWithCreate.classList.add(String(cls));
-					}
+					elementWithCreate.classList.add(String(cls));
 				}
 			}
 			if (options.attr) {
@@ -449,6 +462,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		) as HTMLButtonElement;
 		expect(retrieveBtn).toBeTruthy();
 		retrieveBtn.click();
+		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(initRetrieveToken).toHaveBeenCalled();
 
 		// Also ensure the GitHub instructions button exists

@@ -19,9 +19,23 @@ describe("Token Management", () => {
 	let plugin: jest.Mocked<KeepSidianPlugin>;
 	let settingsTab: jest.Mocked<KeepSidianSettingsTab>;
 	let retrieveTokenWebview: jest.Mocked<WebviewTag>;
+	let eventHandlers: Record<string, Array<(event: unknown) => void>>;
 
 	beforeEach(() => {
 		jest.clearAllMocks();
+		eventHandlers = {};
+
+		(window as unknown as { require?: jest.Mock }).require = jest
+			.fn()
+			.mockReturnValue({
+				session: {
+					fromPartition: jest.fn().mockReturnValue({
+						cookies: {
+							get: jest.fn().mockResolvedValue([]),
+						},
+					}),
+				},
+			});
 
 		plugin = {
 			settings: {
@@ -34,10 +48,12 @@ describe("Token Management", () => {
 
 		settingsTab = {
 			display: jest.fn(),
+			updateRetrieveTokenInstructions: jest.fn(),
+			updateRetrieveTokenStatus: jest.fn(),
 		} as unknown as jest.Mocked<KeepSidianSettingsTab>;
 
 		retrieveTokenWebview = {
-			loadURL: jest.fn(),
+			loadURL: jest.fn().mockResolvedValue(undefined),
 			show: jest.fn(),
 			hide: jest.fn(),
 			getURL: jest.fn(),
@@ -46,7 +62,30 @@ describe("Token Management", () => {
 			removeEventListener: jest.fn(),
 			openDevTools: jest.fn(),
 			closeDevTools: jest.fn(),
+			isLoading: jest.fn().mockReturnValue(false),
+			src: "",
 		} as unknown as jest.Mocked<WebviewTag>;
+
+		(retrieveTokenWebview.addEventListener as jest.Mock).mockImplementation(
+			(event: string, handler: EventListener) => {
+				if (typeof handler === "function") {
+					(eventHandlers[event] ??= []).push(handler as (event: unknown) => void);
+					if (event === "dom-ready") {
+						handler(new Event("dom-ready"));
+					}
+				}
+			}
+		);
+
+		(retrieveTokenWebview.removeEventListener as jest.Mock).mockImplementation(
+			(event: string, handler: EventListener) => {
+				const handlers = eventHandlers[event];
+				if (!handlers) {
+					return;
+				}
+				eventHandlers[event] = handlers.filter((stored) => stored !== handler);
+			}
+		);
 	});
 
 	describe("exchangeOauthToken", () => {
@@ -112,7 +151,7 @@ describe("Token Management", () => {
 			retrieveTokenWebview.executeJavaScript.mockResolvedValue(undefined);
 
 			// Mock setInterval to immediately invoke the callback
-			jest.spyOn(global, "setInterval").mockImplementation(((
+			const setIntervalSpy = jest.spyOn(global, "setInterval").mockImplementation(((
 				callback: TimerHandler,
 				_ms?: number,
 				...args: unknown[]
@@ -123,24 +162,6 @@ describe("Token Management", () => {
 				return 1 as unknown as ReturnType<typeof setInterval>;
 			}) as typeof setInterval);
 
-			// Mock the 'console-message' event to simulate token retrieval
-			retrieveTokenWebview.addEventListener.mockImplementation(
-				(
-					event: Parameters<WebviewTag["addEventListener"]>[0],
-					handler: Parameters<WebviewTag["addEventListener"]>[1]
-				) => {
-					if (event === "console-message" && typeof handler === "function") {
-						const messageEvent = {
-							message: `oauthToken: ${mockOAuthToken}`,
-							level: 0,
-							line: 1,
-							sourceId: "test",
-						} as unknown as ConsoleMessageEvent;
-						handler(messageEvent);
-					}
-				}
-			);
-
 			// Mock the requestUrl function
 			(obsidian.requestUrl as jest.Mock).mockResolvedValueOnce({
 				status: 200,
@@ -150,17 +171,46 @@ describe("Token Management", () => {
 			});
 
 			// Start the token retrieval process
-			await initRetrieveToken(settingsTab, plugin, retrieveTokenWebview);
+			const initPromise = initRetrieveToken(settingsTab, plugin, retrieveTokenWebview);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			const consoleHandlers = eventHandlers["console-message"] ?? [];
+			for (const handler of consoleHandlers) {
+				handler({
+					message: `oauthToken: ${mockOAuthToken}`,
+				} as ConsoleMessageEvent);
+			}
+			await initPromise;
+			setIntervalSpy.mockRestore();
 
 			// Assertions
-			expect(retrieveTokenWebview.loadURL).toHaveBeenCalled();
+			const loadedWithLoadUrl = retrieveTokenWebview.loadURL.mock.calls.length > 0;
+			const loadedViaSrc =
+				retrieveTokenWebview.loadURL.mock.calls.length === 0 &&
+				(retrieveTokenWebview as unknown as { src?: string }).src ===
+					"https://accounts.google.com/EmbeddedSetup";
+			expect(loadedWithLoadUrl || loadedViaSrc).toBe(true);
 			expect(retrieveTokenWebview.show).toHaveBeenCalled();
 			expect(retrieveTokenWebview.executeJavaScript).toHaveBeenCalled();
+			expect(retrieveTokenWebview.addEventListener).toHaveBeenCalledWith(
+				"console-message",
+				expect.any(Function)
+			);
 		});
 
 		it("should handle errors during token retrieval", async () => {
 			const error = new Error("Failed to retrieve token");
-			retrieveTokenWebview.loadURL.mockRejectedValue(error);
+			(retrieveTokenWebview as unknown as { loadURL?: unknown }).loadURL = undefined;
+			Object.defineProperty(
+				retrieveTokenWebview,
+				"src",
+				{
+					get: () => "",
+					set: () => {
+						throw error;
+					},
+					configurable: true,
+				}
+			);
 
 			await expect(
 				initRetrieveToken(settingsTab, plugin, retrieveTokenWebview)

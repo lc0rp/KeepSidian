@@ -4,10 +4,22 @@ import { PluginSettingTab, App, Setting, Notice, setIcon } from "obsidian";
 import type { IconName } from "obsidian";
 import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
 import { exchangeOauthToken, initRetrieveToken } from "../../integrations/google/keepToken";
+import {
+	endRetrievalWizardSession,
+	logRetrievalWizardEvent,
+	startRetrievalWizardSession,
+} from "@integrations/google/retrievalSessionLogger";
 
 export class KeepSidianSettingsTab extends PluginSettingTab {
 	private retrieveTokenWebView: WebviewTag;
 	private plugin: KeepSidianPlugin;
+	private retrieveTokenGuide?: {
+		container: HTMLElement;
+		titleEl: HTMLElement;
+		messageEl: HTMLElement;
+		listEl: HTMLOListElement;
+		statusEl: HTMLElement;
+	};
 
 	constructor(app: App, plugin: KeepSidianPlugin) {
 		super(app, plugin);
@@ -22,7 +34,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 	async display(): Promise<void> {
 		const { containerEl } = this;
 		containerEl.empty();
-		
+
 		this.addSupportSection(containerEl);
 		this.addEmailSetting(containerEl);
 		this.addSaveLocationSetting(containerEl);
@@ -188,16 +200,96 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 	}
 
 	private async handleRetrieveToken(): Promise<void> {
+		const sessionMetadata = {
+			email: this.plugin.settings.email,
+			pluginVersion: this.plugin.manifest.version,
+		};
+		await startRetrievalWizardSession(this.plugin, sessionMetadata);
+		await logRetrievalWizardEvent("info", "Retrieval wizard button clicked", sessionMetadata);
 		if (!this.plugin.settings.email || !this.isValidEmail(this.plugin.settings.email)) {
+			await logRetrievalWizardEvent("warn", "Retrieval wizard aborted: invalid email", {
+				email: this.plugin.settings.email,
+			});
+			await endRetrievalWizardSession("aborted", { reason: "invalid-email" });
 			new Notice("Please enter a valid email address before retrieving the token.");
 			return;
 		}
 		// Ensure the webview exists if display() wasn't called yet in this lifecycle
 		if (!this.retrieveTokenWebView) {
 			this.createRetrieveTokenWebView(this.containerEl);
+			await logRetrievalWizardEvent("debug", "Created retrieval webview for session");
+		} else {
+			await logRetrievalWizardEvent("debug", "Reusing existing retrieval webview instance");
 		}
+		await logRetrievalWizardEvent("info", "Initializing retrieval wizard workflow");
 		await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView);
+		await logRetrievalWizardEvent("info", "Retrieval wizard workflow completed");
 		this.display();
+		await logRetrievalWizardEvent("debug", "Settings tab refreshed after retrieval wizard");
+	}
+
+	public updateRetrieveTokenInstructions(
+		step: number,
+		title: string,
+		message: string,
+		listItems: string[] = []
+	): void {
+		if (!this.retrieveTokenGuide) {
+			return;
+		}
+		void logRetrievalWizardEvent("debug", "Updating retrieval instructions", {
+			step,
+			title,
+			items: listItems.length,
+		});
+		const headingPrefix = Number.isFinite(step) ? `Step ${step} of 3: ` : "";
+		this.retrieveTokenGuide.titleEl.textContent = `${headingPrefix}${title}`;
+		this.retrieveTokenGuide.messageEl.textContent = message;
+		const { listEl } = this.retrieveTokenGuide;
+		while (listEl.firstChild) {
+			listEl.removeChild(listEl.firstChild);
+		}
+		if (listItems.length > 0) {
+			listEl.removeClass("keepsidian-hidden");
+			for (const item of listItems) {
+				listEl.createEl("li", { text: item });
+			}
+		} else {
+			listEl.addClass("keepsidian-hidden");
+		}
+	}
+
+	public updateRetrieveTokenStatus(
+		message: string,
+		type: "info" | "success" | "warning" | "error" = "info"
+	): void {
+		if (!this.retrieveTokenGuide) {
+			return;
+		}
+		void logRetrievalWizardEvent("debug", "Updating retrieval status", {
+			message,
+			type,
+		});
+		const { statusEl } = this.retrieveTokenGuide;
+		statusEl.empty();
+		if (!message) {
+			return;
+		}
+		statusEl.setText(message);
+		statusEl.removeClass("keepsidian-status-info", "keepsidian-status-success", "keepsidian-status-warning", "keepsidian-status-error");
+		switch (type) {
+			case "success":
+				statusEl.addClass("keepsidian-status-success");
+				break;
+			case "warning":
+				statusEl.addClass("keepsidian-status-warning");
+				break;
+			case "error":
+				statusEl.addClass("keepsidian-status-error");
+				break;
+			default:
+				statusEl.addClass("keepsidian-status-info");
+		}
 	}
 
 	private addSaveLocationSetting(containerEl: HTMLElement): void {
@@ -266,12 +358,41 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 	}
 
 	private createRetrieveTokenWebView(containerEl: HTMLElement): void {
-		this.retrieveTokenWebView = containerEl.createEl("webview" as keyof HTMLElementTagNameMap, {
-			attr: { style: "width: 100%; height: 600px;" },
-		}) as WebviewTag;
-		this.retrieveTokenWebView.src = "https://accounts.google.com/EmbeddedSetup";
+		const wrapper = containerEl.createDiv("keepsidian-retrieve-token-wrapper");
+		const guideContainer = wrapper.createDiv("keepsidian-retrieve-token-guide");
+		const titleEl = guideContainer.createDiv({
+			cls: "keepsidian-retrieve-token-guide__title",
+			text: "Token retrieval",
+		});
+		const messageEl = guideContainer.createEl("p", {
+			cls: "keepsidian-retrieve-token-guide__message",
+		});
+		const listEl = guideContainer.createEl("ol", {
+			cls: "keepsidian-retrieve-token-guide__list keepsidian-hidden",
+		});
+		const statusEl = guideContainer.createDiv("keepsidian-retrieve-token-guide__status");
+		this.retrieveTokenGuide = {
+			container: guideContainer,
+			titleEl,
+			messageEl,
+			listEl,
+			statusEl,
+		};
+
+		const webviewContainer = wrapper.createDiv("keepsidian-retrieve-token-webview");
+		this.retrieveTokenWebView = webviewContainer.createEl(
+			"webview" as keyof HTMLElementTagNameMap,
+			{
+				attr: { style: "width: 100%; height: 600px;" },
+			}
+		) as WebviewTag;
 		this.retrieveTokenWebView.setAttribute("disablewebsecurity", "true");
 		this.retrieveTokenWebView.setAttribute("crossorigin", "anonymous");
+		this.retrieveTokenWebView.setAttribute("disableblinkfeatures", "AutomationControlled");
+		this.retrieveTokenWebView.setAttribute("allowpopups", "");
+		this.retrieveTokenWebView.setAttribute("partition", "persist:keepsidian");
+		// this.retrieveTokenWebView.src = "https://accounts.google.com/EmbeddedSetup";
 		this.retrieveTokenWebView.hide();
+		// this.retrieveTokenWebView.show();
 	}
 }
