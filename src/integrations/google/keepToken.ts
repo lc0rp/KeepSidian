@@ -1,15 +1,23 @@
 import KeepSidianPlugin from "main";
 import { KEEPSIDIAN_SERVER_URL } from "../../config";
 import { WebviewTag, ConsoleMessageEvent } from "electron";
-import type { CookiesGetFilter } from "electron";
+import type {
+	CookiesGetFilter,
+	Cookie,
+	WebRequest,
+	OnHeadersReceivedListenerDetails,
+	HeadersReceivedResponse,
+} from "electron";
+
+type WebRequestWithRemoval = WebRequest & {
+	removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
+	off?: (event: string, listener: (...args: unknown[]) => void) => void;
+};
 import { Notice } from "obsidian";
 import { KeepSidianSettingsTab } from "ui/settings/KeepSidianSettingsTab";
 import { httpPostJson } from "../../services/http";
 import { HIDDEN_CLASS } from "@app/ui-constants";
-import {
-	endRetrievalWizardSession,
-	logRetrievalWizardEvent,
-} from "./retrievalSessionLogger";
+import { endRetrievalWizardSession, logRetrievalWizardEvent } from "./retrievalSessionLogger";
 
 declare global {
 	interface Window {
@@ -97,7 +105,17 @@ type TestableWebview = WebviewTag & {
 	hide?: () => void;
 	closeDevTools?: () => void;
 	getURL?: () => string;
+	isDestroyed?: () => boolean;
 };
+
+class WebviewStateError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "WebviewStateError";
+	}
+}
+
+const webviewUrlErrorLogMap = new WeakMap<WebviewTag, number>();
 
 function isTokenResponse(obj: unknown): obj is TokenResponse {
 	return (
@@ -156,20 +174,304 @@ function waitForWebviewReady(wv: WebviewTag, timeoutMs = 30000) {
 }
 
 async function safeGetUrl(wv: WebviewTag) {
-	// Only call after waitForWebviewReady has resolved:
-	// getWebContentsId() will throw if not attached.
+	// Only call after waitForWebviewReady has resolved.
+	const element = wv as unknown as Element | undefined;
+	const testable = wv as TestableWebview;
+	if (element && element.isConnected === false) {
+		throw new WebviewStateError("OAuth window detached before login finished.");
+	}
+	if (typeof testable.isDestroyed === "function" && testable.isDestroyed()) {
+		throw new WebviewStateError("OAuth window closed before login finished.");
+	}
 	try {
 		if (typeof wv.getURL === "function") {
 			const url = wv.getURL();
 			return typeof url === "string" ? url : "";
 		}
 	} catch (error) {
-		logErrorIfNotTest("Failed to read webview URL", error);
-		logSessionEvent("error", "Failed to read webview URL", {
+		const normalizedError = error instanceof Error ? error : new Error(String(error));
+		const lastLoggedAt = webviewUrlErrorLogMap.get(wv) ?? 0;
+		const now = Date.now();
+		if (now - lastLoggedAt > 2_000) {
+			logErrorIfNotTest("Failed to read webview URL", normalizedError);
+			logSessionEvent("warn", "Failed to read webview URL", {
+				errorMessage: normalizedError.message,
+			});
+			webviewUrlErrorLogMap.set(wv, now);
+		} else {
+			logSessionEvent("debug", "Suppressed repeated webview URL read error", {
+				errorMessage: normalizedError.message,
+			});
+		}
+		throw normalizedError;
+	}
+	return "";
+}
+
+function resolveElectron(): typeof import("electron") | undefined {
+	try {
+		const globalScope = (Function("return this")() as {
+			require?: <T>(module: string) => T;
+			window?: { require?: <T>(module: string) => T };
+		}) ?? {};
+		if (typeof globalScope.require === "function") {
+			return globalScope.require<typeof import("electron")>("electron");
+		}
+		const maybeWindowRequire = globalScope.window?.require;
+		if (typeof maybeWindowRequire === "function") {
+			return maybeWindowRequire<typeof import("electron")>("electron");
+		}
+	} catch (error) {
+		logErrorIfNotTest("Failed to resolve electron module", error);
+		logSessionEvent("error", "Failed to resolve electron module", {
 			errorMessage: error instanceof Error ? error.message : String(error),
 		});
 	}
-	return "";
+	return undefined;
+}
+
+async function attachPartitionCookieWatcher(
+	partition: string | undefined,
+	onToken: (token: string, source: string) => void
+): Promise<RemoveListener | undefined> {
+	if (!partition) {
+		logSessionEvent(
+			"info",
+			"Skipping oauth_token cookie watcher: no partition attribute on webview"
+		);
+		return undefined;
+	}
+	try {
+		const electron = resolveElectron();
+		if (!electron) {
+			logSessionEvent("warn", "Electron module unavailable; cannot watch cookies", { partition });
+			return undefined;
+		}
+		const partitionSession = electron.session?.fromPartition?.(partition);
+		const partitionCookies = (partitionSession as
+			| { cookies?: { on?: unknown; removeListener?: unknown } }
+			| undefined
+		)?.cookies;
+		const partitionHasCookieAPI =
+			typeof partitionCookies?.on === "function" &&
+			typeof partitionCookies?.removeListener === "function";
+		if (!partitionSession) {
+			logSessionEvent("warn", "Partition session unavailable for cookies; considering default session", {
+				partition,
+			});
+		} else if (!partitionHasCookieAPI) {
+			logSessionEvent("warn", "Partition session missing cookie listener APIs; considering default session", {
+				partition,
+				hasCookies: Boolean(partitionCookies),
+				hasOn: typeof partitionCookies?.on,
+				hasRemoveListener: typeof partitionCookies?.removeListener,
+			});
+		}
+		const targetSession = partitionHasCookieAPI
+			? partitionSession
+			: electron.session?.defaultSession;
+		const cookiesModule = targetSession?.cookies;
+		if (!targetSession || !cookiesModule?.on || !cookiesModule.removeListener) {
+			logSessionEvent("warn", "Resolved session missing cookie APIs; skipping watcher", {
+				partition,
+				usedDefault: targetSession === electron.session?.defaultSession,
+				hasSession: Boolean(targetSession),
+				hasOn: Boolean(cookiesModule?.on),
+				hasRemoveListener: Boolean(cookiesModule?.removeListener),
+			});
+			return undefined;
+		}
+		logSessionEvent("debug", "Using session for cookie watcher", {
+			partition,
+			usedDefault: targetSession === electron.session?.defaultSession,
+		});
+		const listener = (_event: unknown, cookie: Cookie, cause: string, removed: boolean) => {
+			try {
+				if (removed) {
+					return;
+				}
+				if (cookie?.name === "oauth_token" && cookie.value) {
+					logSessionEvent("info", "Detected oauth_token cookie via partition watcher", {
+						cause,
+						tokenSample: redactToken(cookie.value),
+					});
+					onToken(cookie.value, "cookies-changed");
+				}
+			} catch (error) {
+				logErrorIfNotTest("Cookie watcher failed", error);
+				logSessionEvent("error", "Cookie watcher failed", {
+					errorMessage: error instanceof Error ? error.message : String(error),
+				});
+			}
+		};
+		cookiesModule.on("changed", listener as unknown as (...args: unknown[]) => void);
+		logSessionEvent("info", "Attached oauth_token cookie watcher", {
+			partition,
+			usedDefault: targetSession === electron.session?.defaultSession,
+		});
+		return () => {
+			try {
+				cookiesModule.removeListener(
+					"changed",
+					listener as unknown as (...args: unknown[]) => void
+				);
+				logSessionEvent("debug", "Removed oauth_token cookie watcher", { partition });
+			} catch (error) {
+				logSessionEvent("warn", "Failed removing oauth_token cookie watcher", {
+					errorMessage: error instanceof Error ? error.message : String(error),
+				});
+			}
+		};
+	} catch (error) {
+		logErrorIfNotTest("Unable to attach oauth_token cookie watcher", error);
+		logSessionEvent("error", "Unable to attach oauth_token cookie watcher", {
+			errorMessage: error instanceof Error ? error.message : String(error),
+			partition,
+		});
+		return undefined;
+	}
+}
+
+function extractOauthTokenFromHeaderValue(value: string): string | undefined {
+	const match = value.match(/oauth_token=([^;]+)/i);
+	return match?.[1] ? decodeURIComponent(match[1]) : undefined;
+}
+
+async function attachWebRequestWatcher(
+	partition: string | undefined,
+	onToken: (token: string, source: string) => void
+): Promise<RemoveListener | undefined> {
+	if (!partition) {
+		logSessionEvent(
+			"info",
+			"Skipping oauth_token webRequest watcher: no partition attribute on webview"
+		);
+		return undefined;
+	}
+	try {
+		const electron = resolveElectron();
+		if (!electron) {
+			logSessionEvent(
+				"warn",
+				"Electron module unavailable; cannot attach webRequest watcher",
+				{
+					partition,
+				}
+			);
+			return undefined;
+		}
+		const partitionSession = electron.session?.fromPartition?.(partition);
+		const partitionWebRequest = (partitionSession as
+			| { webRequest?: { onHeadersReceived?: unknown; removeListener?: unknown; off?: unknown } }
+			| undefined
+		)?.webRequest;
+		const partitionHasWebRequestAPI =
+			typeof partitionWebRequest?.onHeadersReceived === "function";
+		if (!partitionSession) {
+			logSessionEvent("warn", "Partition session unavailable for webRequest; considering default session", {
+				partition,
+			});
+		} else if (!partitionHasWebRequestAPI) {
+			logSessionEvent("warn", "Partition session missing webRequest.onHeadersReceived; considering default session", {
+				partition,
+				hasWebRequest: Boolean(partitionWebRequest),
+				hasOnHeadersReceived: typeof partitionWebRequest?.onHeadersReceived,
+			});
+		}
+		const targetSession = partitionHasWebRequestAPI
+			? partitionSession
+			: electron.session?.defaultSession;
+		const webRequest = targetSession?.webRequest as WebRequestWithRemoval | undefined;
+		if (!targetSession || !webRequest?.onHeadersReceived) {
+			logSessionEvent("warn", "Resolved session missing webRequest APIs; skipping watcher", {
+				partition,
+				usedDefault: targetSession === electron.session?.defaultSession,
+				hasSession: Boolean(targetSession),
+				hasOnHeadersReceived: Boolean(webRequest?.onHeadersReceived),
+			});
+			return undefined;
+		}
+		logSessionEvent("debug", "Using session for webRequest watcher", {
+			partition,
+			usedDefault: targetSession === electron.session?.defaultSession,
+		});
+		const filter = {
+			urls: [
+				"https://accounts.google.com/*",
+				"https://keep.google.com/*",
+				"https://oauthaccountmanager.googleapis.com/*",
+			],
+		};
+		const listener = (
+			details: OnHeadersReceivedListenerDetails,
+			callback: (response: HeadersReceivedResponse) => void
+		) => {
+			try {
+				const headers = details.responseHeaders ?? {};
+				for (const [key, value] of Object.entries(headers)) {
+					if (key.toLowerCase() !== "set-cookie" || !value) {
+						continue;
+					}
+					const values = Array.isArray(value) ? value : [value];
+					for (const entry of values) {
+						const token = extractOauthTokenFromHeaderValue(entry);
+						if (token) {
+							logSessionEvent("info", "Detected oauth_token via webRequest headers", {
+								sourceUrl: details.url,
+								tokenSample: redactToken(token),
+							});
+							onToken(token, "webRequest");
+							return callback({
+								cancel: false,
+								responseHeaders: details.responseHeaders,
+							});
+						}
+					}
+				}
+			} catch (error) {
+				logErrorIfNotTest("webRequest watcher failed", error);
+				logSessionEvent("error", "webRequest watcher failed", {
+					errorMessage: error instanceof Error ? error.message : String(error),
+					sourceUrl: details.url,
+				});
+			} finally {
+				callback({ cancel: false, responseHeaders: details.responseHeaders });
+			}
+		};
+		webRequest.onHeadersReceived(filter, listener);
+		logSessionEvent("info", "Attached oauth_token webRequest watcher", {
+			partition,
+			usedDefault: targetSession === electron.session?.defaultSession,
+		});
+		return () => {
+			try {
+				if (typeof webRequest?.removeListener === "function") {
+					webRequest.removeListener(
+						"headers-received",
+						listener as unknown as (...args: unknown[]) => void
+					);
+				} else if (typeof webRequest?.off === "function") {
+					webRequest.off(
+						"headers-received",
+						listener as unknown as (...args: unknown[]) => void
+					);
+				}
+				logSessionEvent("debug", "Removed oauth_token webRequest watcher", { partition });
+			} catch (error) {
+				logSessionEvent("warn", "Failed removing oauth_token webRequest watcher", {
+					errorMessage: error instanceof Error ? error.message : String(error),
+					partition,
+				});
+			}
+		};
+	} catch (error) {
+		logErrorIfNotTest("Unable to attach oauth_token webRequest watcher", error);
+		logSessionEvent("error", "Unable to attach oauth_token webRequest watcher", {
+			errorMessage: error instanceof Error ? error.message : String(error),
+			partition,
+		});
+		return undefined;
+	}
 }
 
 async function readOauthTokenFromPartition(partition: string): Promise<string | undefined> {
@@ -240,7 +542,8 @@ function wireOAuthHandlers(
 	wv: WebviewTag,
 	redirectUri: string,
 	onCode: (code: string) => void,
-	onError: (err: Error) => void
+	onError: (err: Error) => void,
+	onUrlChange?: (url: string) => void
 ): RemoveListener {
 	const removeListeners: RemoveListener[] = [];
 	logSessionEvent("debug", "Binding OAuth webview handlers", { redirectUri });
@@ -310,6 +613,7 @@ function wireOAuthHandlers(
 	const redirectHandler = (e: { url?: string }) => {
 		if (typeof e?.url === "string") {
 			logSessionEvent("debug", "Navigation event captured", summarizeUrl(e.url));
+			onUrlChange?.(e.url);
 			tryParse(e.url);
 		}
 	};
@@ -330,6 +634,7 @@ function wireOAuthHandlers(
 		const childHandler = (event: { url?: string }) => {
 			if (typeof event?.url === "string") {
 				logSessionEvent("debug", "Popup navigation event", summarizeUrl(event.url));
+				onUrlChange?.(event.url);
 				tryParse(event.url);
 			}
 		};
@@ -373,6 +678,9 @@ async function getOAuthToken(
 	let stepOneDisplayed = false;
 	let autoRetrievalStarted = false;
 	let finished = false;
+	let lastNavigationUrl: string | undefined;
+	let consecutiveUrlReadFailures = 0;
+	let promiseResolved = false;
 	const partitionAttribute = retrieveTokenWebview.getAttribute?.("partition") ?? undefined;
 	logSessionEvent("info", "Starting OAuth token retrieval process", {
 		email: GOOGLE_EMAIL,
@@ -546,28 +854,13 @@ async function getOAuthToken(
 	let finalizeToken: ((token: string) => Promise<void>) | null = null;
 
 	const tryAutomaticRetrievalOnce = async (): Promise<string | undefined> => {
+		logSessionEvent("debug", "Running automatic oauth_token strategies", {
+			finished,
+		});
 		const strategies: Array<{
 			name: string;
 			runner: () => Promise<string | undefined>;
 		}> = [
-			{
-				name: "webview-document-cookie",
-				runner: async () => {
-					try {
-					const token = await executeJavaScriptSafely<string | null>(
-						getOauthTokenScript(),
-						"document-cookie-oauth-token"
-					);
-						return token ?? undefined;
-					} catch (error) {
-						logErrorIfNotTest("In-webview oauth_token read failed", error);
-						logSessionEvent("error", "In-webview oauth_token read failed", {
-							errorMessage: error instanceof Error ? error.message : String(error),
-						});
-						return undefined;
-					}
-				},
-			},
 			{
 				name: "electron-partition-cookie",
 				runner: async () => readOauthTokenFromPartition("persist:keepsidian"),
@@ -612,6 +905,12 @@ async function getOAuthToken(
 			deadlineInMs: 60000,
 		});
 		while (!finished && Date.now() < deadline) {
+			if (promiseResolved) {
+				logSessionEvent("debug", "Stopping automatic polling after promise resolved", {
+					attempt: attemptCount,
+				});
+				break;
+			}
 			attemptCount += 1;
 			logSessionEvent("debug", "Automatic polling iteration", {
 				attempt: attemptCount,
@@ -630,6 +929,12 @@ async function getOAuthToken(
 				});
 				return;
 			}
+			if (promiseResolved) {
+				logSessionEvent("debug", "Breaking automatic polling loop after success", {
+					attempt: attemptCount,
+				});
+				break;
+			}
 			await delay(1500);
 		}
 		if (!finished) {
@@ -642,20 +947,6 @@ async function getOAuthToken(
 			});
 		}
 	};
-
-	const getOauthTokenScript = (): string => `
-        (function() {
-            const cookies = document.cookie.split(';');
-            for (const cookie of cookies) {
-                const [name, value] = cookie.trim().split('=');
-                if (name === 'oauth_token') {
-                    console.log('oauthToken: ' + value);
-                    return value;
-                }
-            }
-            return null;
-        })();
-    `;
 
 	const openDevToolsFlow = async () => {
 		if (finished) {
@@ -722,7 +1013,10 @@ async function getOAuthToken(
 		}
 
 		try {
-	await executeJavaScriptSafely(createDevToolsInstructionsScript(), "inject-devtools-instructions");
+			await executeJavaScriptSafely(
+				createDevToolsInstructionsScript(),
+				"inject-devtools-instructions"
+			);
 		} catch (error) {
 			logErrorIfNotTest("Failed injecting DevTools overlay", error);
 		}
@@ -743,6 +1037,8 @@ async function getOAuthToken(
 		let cleanupCalled = false;
 		let messageHandler: ((event: ConsoleMessageEvent) => Promise<void>) | null = null;
 		let removeOAuthHandlers: RemoveListener | undefined;
+		let removeCookieWatcher: RemoveListener | undefined;
+		let removeWebRequestWatcher: RemoveListener | undefined;
 
 		const cleanup = () => {
 			if (cleanupCalled) {
@@ -754,6 +1050,8 @@ async function getOAuthToken(
 				hasTimeout: Boolean(timeoutId),
 				hasMessageHandler: Boolean(messageHandler),
 				hasOAuthHandlers: Boolean(removeOAuthHandlers),
+				hasCookieWatcher: Boolean(removeCookieWatcher),
+				hasWebRequestWatcher: Boolean(removeWebRequestWatcher),
 			});
 			if (intervalId !== undefined) {
 				clearInterval(intervalId);
@@ -781,11 +1079,104 @@ async function getOAuthToken(
 				}
 				removeOAuthHandlers = undefined;
 			}
+			if (removeCookieWatcher) {
+				try {
+					removeCookieWatcher();
+					logSessionEvent("debug", "Removed oauth_token cookie watcher");
+				} catch (error) {
+					logSessionEvent("warn", "Failed to remove cookie watcher", {
+						errorMessage: error instanceof Error ? error.message : String(error),
+					});
+				}
+				removeCookieWatcher = undefined;
+			}
+			if (removeWebRequestWatcher) {
+				try {
+					removeWebRequestWatcher();
+				} catch (error) {
+					logSessionEvent("warn", "Failed to remove webRequest watcher", {
+						errorMessage: error instanceof Error ? error.message : String(error),
+					});
+				}
+				removeWebRequestWatcher = undefined;
+			}
+		const attemptCloseDevTools = () => {
+			let closed = false;
+			try {
+				if (typeof webview.closeDevTools === "function") {
+					webview.closeDevTools();
+					closed = true;
+				}
+			} catch (error) {
+				logSessionEvent("warn", "Failed to close webview DevTools via element", {
+					errorMessage: error instanceof Error ? error.message : String(error),
+				});
+			}
+			if (!closed) {
+				try {
+					const electron = resolveElectron();
+					const contents = electron?.webContents?.fromId?.(
+						typeof webview.getWebContentsId === "function"
+							? webview.getWebContentsId()
+							: -1
+					);
+					if (contents && typeof contents.closeDevTools === "function") {
+						contents.closeDevTools();
+						closed = true;
+					}
+				} catch (error) {
+					logSessionEvent("warn", "Failed to close webview DevTools via webContents", {
+						errorMessage: error instanceof Error ? error.message : String(error),
+					});
+				}
+			}
+			if (closed) {
+				logSessionEvent("debug", "Closed webview DevTools during cleanup");
+				devToolsOpened = false;
+			}
+		};
+		if (devToolsOpened) {
+			attemptCloseDevTools();
+		}
 			finalizeToken = null;
 			cleanupCalled = true;
 		};
 
+		const handleTokenFromWatcher = async (token: string, source: string) => {
+			if (promiseResolved || finished) {
+				logSessionEvent("debug", "Token watcher fired after completion", {
+					source,
+					tokenSample: redactToken(token),
+					promiseResolved,
+					finished,
+				});
+				return;
+			}
+			try {
+				updateGuideStatus("Retrieved the oauth_token automatically.", "success");
+				if (finalizeToken) {
+					await finalizeToken(token);
+				}
+				logSessionEvent("info", "Handled oauth_token from watcher", {
+					source,
+					tokenSample: redactToken(token),
+				});
+			} catch (error) {
+				logErrorIfNotTest("Failed to process oauth_token from watcher", error);
+				logSessionEvent("error", "Failed to process oauth_token from watcher", {
+					source,
+					errorMessage: error instanceof Error ? error.message : String(error),
+				});
+			}
+		};
+
 		const wrappedReject = (error: Error) => {
+			if (promiseResolved) {
+				logSessionEvent("debug", "Ignoring token retrieval rejection after success", {
+					errorMessage: error.message,
+				});
+				return;
+			}
 			if (!finished) {
 				finished = true;
 			}
@@ -820,6 +1211,7 @@ async function getOAuthToken(
 				void endRetrievalWizardSession("success", {
 					tokenSample: redactToken(oauthToken),
 				});
+				promiseResolved = true;
 				if (webview.closeDevTools) {
 					try {
 						webview.closeDevTools();
@@ -854,6 +1246,41 @@ async function getOAuthToken(
 
 		finalizeToken = finishWithToken;
 
+		void (async () => {
+			logSessionEvent("debug", "Attempting to attach oauth_token cookie watcher", {
+				partition: partitionAttribute,
+			});
+			const cookieWatcherCleanup = await attachPartitionCookieWatcher(
+				partitionAttribute,
+				(token, source) => {
+					void handleTokenFromWatcher(token, source);
+				}
+			);
+			if (cookieWatcherCleanup) {
+				removeCookieWatcher = cookieWatcherCleanup;
+			} else {
+				logSessionEvent("info", "oauth_token cookie watcher inactive", {
+					partition: partitionAttribute,
+				});
+			}
+			logSessionEvent("debug", "Attempting to attach oauth_token webRequest watcher", {
+				partition: partitionAttribute,
+			});
+			const webRequestWatcherCleanup = await attachWebRequestWatcher(
+				partitionAttribute,
+				(token, source) => {
+					void handleTokenFromWatcher(token, source);
+				}
+			);
+			if (webRequestWatcherCleanup) {
+				removeWebRequestWatcher = webRequestWatcherCleanup;
+			} else {
+				logSessionEvent("info", "oauth_token webRequest watcher inactive", {
+					partition: partitionAttribute,
+				});
+			}
+		})();
+
 		const handleOAuthRedirect = async () => {
 			try {
 				logSessionEvent("info", "Handling OAuth redirect");
@@ -872,7 +1299,10 @@ async function getOAuthToken(
 				);
 				if (!autoRetrievalStarted) {
 					autoRetrievalStarted = true;
-					logSessionEvent("info", "Automatic oauth_token polling initiated after consent redirect");
+					logSessionEvent(
+						"info",
+						"Automatic oauth_token polling initiated after consent redirect"
+					);
 					void attemptAutomaticRetrieval();
 				}
 				updateGuideStatus(
@@ -893,6 +1323,10 @@ async function getOAuthToken(
 			},
 			(error) => {
 				wrappedReject(error);
+			},
+			(url) => {
+				lastNavigationUrl = url;
+				consecutiveUrlReadFailures = 0;
 			}
 		);
 
@@ -924,7 +1358,10 @@ async function getOAuthToken(
 							message,
 						});
 						if (message === "buttonClicked") {
-							logSessionEvent("info", "Detected consent button click via console log");
+							logSessionEvent(
+								"info",
+								"Detected consent button click via console log"
+							);
 							updateGuideStatus(
 								"Consent accepted. Finishing Google authorization…",
 								"info"
@@ -948,14 +1385,38 @@ async function getOAuthToken(
 				retrieveTokenWebview.addEventListener("console-message", messageHandler);
 
 				const startTime = Date.now();
-				const timeout = 90000;
+				const timeout = 180000;
 
 				intervalId = setInterval(async () => {
+					if (finished || promiseResolved) {
+						return;
+					}
 					try {
-						const currentUrl = await safeGetUrl(webview);
+						const hadCachedNavigation = Boolean(lastNavigationUrl);
+						const currentUrl = lastNavigationUrl ?? (await safeGetUrl(webview));
+						if (hadCachedNavigation) {
+							lastNavigationUrl = undefined;
+						}
 						if (!currentUrl) {
+							if (promiseResolved) {
+								return;
+							}
+							if (finished) {
+								return;
+							}
+							consecutiveUrlReadFailures += 1;
+							if (consecutiveUrlReadFailures >= 3) {
+								if (!finished) {
+									wrappedReject(
+										new Error(
+											"Unable to determine the OAuth login state. Please reopen the retrieval wizard."
+										)
+									);
+								}
+							}
 							return;
 						}
+						consecutiveUrlReadFailures = 0;
 
 						if (!stepOneDisplayed && currentUrl.includes("accounts.google.com")) {
 							logSessionEvent("info", "Detected Google login page", {
@@ -1004,10 +1465,10 @@ async function getOAuthToken(
 								"info"
 							);
 							await new Promise((resolveDelay) => setTimeout(resolveDelay, 500));
-						await executeJavaScriptSafely(
-							createButtonClickDetectionScript(["I agree", "Acepto"]),
-							"detect-consent-button"
-						);
+							await executeJavaScriptSafely(
+								createButtonClickDetectionScript(["I agree", "Acepto"]),
+								"detect-consent-button"
+							);
 							stepTwoDisplayed = true;
 						}
 
@@ -1015,22 +1476,54 @@ async function getOAuthToken(
 							logSessionEvent("error", "Retrieval interval exceeded timeout", {
 								timeoutMs: timeout,
 							});
-							wrappedReject(
-								new Error(
-									"Timeout: OAuth token retrieval process exceeded 90 seconds."
-								)
-							);
+							if (!finished) {
+								wrappedReject(
+									new Error(
+										"Timeout: OAuth token retrieval process exceeded 180 seconds."
+									)
+								);
+							}
 						}
 					} catch (error) {
-						wrappedReject(error as Error);
+						const normalizedError =
+							error instanceof Error ? error : new Error(String(error));
+						if (promiseResolved) {
+							return;
+						}
+						if (finished) {
+							return;
+						}
+						consecutiveUrlReadFailures += 1;
+						if (normalizedError instanceof WebviewStateError) {
+							updateGuideStatus(
+								"The login window closed before completion. Please reopen the retrieval wizard and try again.",
+								"error"
+							);
+							wrappedReject(normalizedError);
+							return;
+						}
+						if (consecutiveUrlReadFailures >= 3) {
+							if (!finished) {
+								wrappedReject(
+									new Error(
+										"We lost track of the OAuth login window. Please close it and relaunch the retrieval wizard."
+									)
+								);
+							}
+							return;
+						}
+						logSessionEvent("debug", "Retrying after webview URL read error", {
+							attempt: consecutiveUrlReadFailures,
+							errorMessage: normalizedError.message,
+						});
 					}
 				}, 1000);
 
 				timeoutId = setTimeout(() => {
 					wrappedReject(
-						new Error("Timeout: OAuth token retrieval process exceeded 90 seconds.")
+						new Error("Timeout: OAuth token retrieval process exceeded 180 seconds.")
 					);
-				}, 90000);
+				}, 180000);
 			} catch (error) {
 				wrappedReject(error as Error);
 			}
@@ -1111,7 +1604,7 @@ export async function exchangeOauthToken(
 			}
 			logSessionEvent("error", "Failed to parse server response during token exchange", {
 				errorMessage: e instanceof Error ? e.message : String(e),
-		});
+			});
 			throw new Error("Failed to parse server response: " + e);
 		}
 	} catch (error) {

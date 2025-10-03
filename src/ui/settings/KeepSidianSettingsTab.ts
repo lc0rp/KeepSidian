@@ -19,6 +19,8 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		messageEl: HTMLElement;
 		listEl: HTMLOListElement;
 		statusEl: HTMLElement;
+		webviewContainer: HTMLElement;
+		webview: WebviewTag;
 	};
 
 	constructor(app: App, plugin: KeepSidianPlugin) {
@@ -222,6 +224,21 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			await logRetrievalWizardEvent("debug", "Reusing existing retrieval webview instance");
 		}
 		await logRetrievalWizardEvent("info", "Initializing retrieval wizard workflow");
+		if (
+			this.retrieveTokenGuide?.container &&
+			typeof (this.retrieveTokenGuide.container as HTMLElement & { show?: () => void }).show ===
+				"function"
+		) {
+			(this.retrieveTokenGuide.container as HTMLElement & { show: () => void }).show();
+		}
+		if (
+			this.retrieveTokenGuide?.webviewContainer &&
+			typeof (this.retrieveTokenGuide.webviewContainer as HTMLElement & { show?: () => void }).show ===
+				"function"
+		) {
+			(this.retrieveTokenGuide.webviewContainer as HTMLElement & { show: () => void }).show();
+		}
+
 		await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView);
 		await logRetrievalWizardEvent("info", "Retrieval wizard workflow completed");
 		this.display();
@@ -276,7 +293,12 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			return;
 		}
 		statusEl.setText(message);
-		statusEl.removeClass("keepsidian-status-info", "keepsidian-status-success", "keepsidian-status-warning", "keepsidian-status-error");
+		statusEl.removeClass(
+			"keepsidian-status-info",
+			"keepsidian-status-success",
+			"keepsidian-status-warning",
+			"keepsidian-status-error"
+		);
 		switch (type) {
 			case "success":
 				statusEl.addClass("keepsidian-status-success");
@@ -371,13 +393,6 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			cls: "keepsidian-retrieve-token-guide__list keepsidian-hidden",
 		});
 		const statusEl = guideContainer.createDiv("keepsidian-retrieve-token-guide__status");
-		this.retrieveTokenGuide = {
-			container: guideContainer,
-			titleEl,
-			messageEl,
-			listEl,
-			statusEl,
-		};
 
 		const webviewContainer = wrapper.createDiv("keepsidian-retrieve-token-webview");
 		this.retrieveTokenWebView = webviewContainer.createEl(
@@ -392,7 +407,17 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		this.retrieveTokenWebView.setAttribute("allowpopups", "");
 		this.retrieveTokenWebView.setAttribute("partition", "persist:keepsidian");
 		// this.retrieveTokenWebView.src = "https://accounts.google.com/EmbeddedSetup";
-		this.retrieveTokenWebView.hide();
-		// this.retrieveTokenWebView.show();
+		webviewContainer.hide();
+		guideContainer.hide();
+
+		this.retrieveTokenGuide = {
+			container: guideContainer,
+			titleEl,
+			messageEl,
+			listEl,
+			statusEl,
+			webviewContainer,
+			webview: this.retrieveTokenWebView,
+		};
 	}
 }
