@@ -15,6 +15,48 @@ If your plugin does not need CSS, delete this file.
 	padding: 8px;
 }
 
+
+.keepsidian-link-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: var(--input-height);
+	padding: 0 var(--size-4-2, 12px);
+	border-radius: var(--input-radius);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--interactive-normal);
+	box-shadow: var(--input-shadow, none);
+	color: var(--text-normal);
+	text-decoration: none;
+	font-size: var(--font-ui-small);
+	font-weight: 500;
+	white-space: nowrap;
+	cursor: var(--cursor, pointer);
+	transition:
+		background 0.2s ease,
+		color 0.2s ease,
+		border-color 0.2s ease,
+		box-shadow 0.2s ease;
+}
+
+.keepsidian-link-button:hover {
+	background: var(--interactive-hover);
+	border-color: var(--background-modifier-border-hover, var(--background-modifier-border));
+	box-shadow: var(--input-shadow-hover, var(--input-shadow, none));
+	text-decoration: none;
+}
+
+.keepsidian-link-button:active {
+	background: var(--interactive-active);
+	border-color: var(--background-modifier-border-active, var(--background-modifier-border));
+	box-shadow: var(--input-shadow-active, var(--input-shadow, none));
+}
+
+.keepsidian-link-button:focus-visible {
+	outline: var(--focus-width, 2px) solid var(--color-accent);
+	outline-offset: 2px;
+}
+
 .setting-item.subscription-active .setting-item-control {
 	color: var(--text-success);
 	font-weight: bold;

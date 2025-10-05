@@ -277,20 +277,50 @@ jest.mock("obsidian", () => {
 
 	class Setting {
 		settingEl: HTMLElementWithCreateEl;
+		private infoEl: HTMLElementWithCreateEl;
+		private nameEl?: HTMLElementWithCreateEl;
+		private descEl?: HTMLElementWithCreateEl;
+		controlEl: HTMLElementWithCreateEl;
 		constructor(containerEl: HTMLElement) {
 			attachCreateEl(containerEl, typedCreateEl);
 			this.settingEl = attachCreateEl(
 				document.createElement("div"),
 				typedCreateEl
 			);
+			this.settingEl.classList.add("setting-item");
+			this.infoEl = attachCreateEl(
+				document.createElement("div"),
+				typedCreateEl
+			);
+			this.infoEl.classList.add("setting-item-info");
+			this.settingEl.appendChild(this.infoEl);
+			this.controlEl = attachCreateEl(
+				document.createElement("div"),
+				typedCreateEl
+			);
+			this.controlEl.classList.add("setting-item-control");
+			this.settingEl.appendChild(this.controlEl);
 			containerEl.appendChild(this.settingEl);
 		}
 		setName(name: string) {
-			this.settingEl.createEl("div", { text: name });
+			if (!this.nameEl) {
+				this.nameEl = this.infoEl.createEl("div", { cls: "setting-item-name" });
+			}
+			this.nameEl.textContent = name;
 			return this;
 		}
-		setDesc(desc: string) {
-			this.settingEl.createEl("div", { text: String(desc) });
+		setDesc(desc: string | DocumentFragment) {
+			if (!this.descEl) {
+				this.descEl = this.infoEl.createEl("div", { cls: "setting-item-description" });
+			}
+			if (this.descEl) {
+				this.descEl.textContent = "";
+				if (typeof desc === "string") {
+					this.descEl.textContent = desc;
+				} else {
+					this.descEl.appendChild(desc);
+				}
+			}
 			return this;
 		}
 		setClass(cls: string) {
@@ -311,7 +341,7 @@ jest.mock("obsidian", () => {
 		addText(cb: (text: MockTextComponent) => void) {
 			const inputEl = document.createElement("input");
 			inputEl.type = "text";
-			this.settingEl.appendChild(inputEl);
+			this.controlEl.appendChild(inputEl);
 			const textComponent = createMockTextComponent(
 				inputEl,
 				typedCreateEl
@@ -323,7 +353,7 @@ jest.mock("obsidian", () => {
 		addToggle(cb: (toggle: MockToggleComponent) => void) {
 			const inputEl = document.createElement("input");
 			inputEl.type = "checkbox";
-			this.settingEl.appendChild(inputEl);
+			this.controlEl.appendChild(inputEl);
 			const toggleComponent = createMockToggleComponent(inputEl);
 			cb(toggleComponent);
 			return this;
@@ -331,7 +361,7 @@ jest.mock("obsidian", () => {
 
 		addButton(cb: (button: MockButtonComponent) => void) {
 			const buttonEl = document.createElement("button");
-			this.settingEl.appendChild(buttonEl);
+			this.controlEl.appendChild(buttonEl);
 			const buttonComponent = createMockButtonComponent(
 				buttonEl
 			);
@@ -341,7 +371,7 @@ jest.mock("obsidian", () => {
 
 		addExtraButton(cb: (extra: MockExtraButtonComponent) => void) {
 			const buttonEl = document.createElement("button");
-			this.settingEl.appendChild(buttonEl);
+			this.controlEl.appendChild(buttonEl);
 			const extraComponent = createMockExtraButtonComponent(buttonEl);
 			cb(extraComponent);
 			return this;
@@ -350,7 +380,7 @@ jest.mock("obsidian", () => {
 		addSlider(cb: (slider: MockSliderComponent) => void) {
 			const inputEl = document.createElement("input");
 			inputEl.type = "range";
-			this.settingEl.appendChild(inputEl);
+			this.controlEl.appendChild(inputEl);
 			const sliderComponent = createMockSliderComponent(
 				inputEl,
 				typedCreateEl
@@ -449,28 +479,34 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		expect(plugin.settings.token).toBe("new-token");
 	});
 
-	test("retrieve token button calls flow with valid email and github open button exists", async () => {
-		plugin.settings.email = "test@example.com";
+	test(
+		"retrieve token button calls flow with valid email and github instructions link exists",
+		async () => {
+			plugin.settings.email = "test@example.com";
 
-		const container = tab.containerEl;
-		await tabInternals.addSyncTokenSetting(container);
+			const container = tab.containerEl;
+			await tabInternals.addSyncTokenSetting(container);
 
-		const retrieveBtn = Array.from(
-			container.querySelectorAll("button")
-		).find(
-			(b) => b.textContent === "Retrieval wizard"
-		) as HTMLButtonElement;
-		expect(retrieveBtn).toBeTruthy();
-		retrieveBtn.click();
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(initRetrieveToken).toHaveBeenCalled();
+			const retrieveBtn = Array.from(
+				container.querySelectorAll("button")
+			).find(
+				(b) => b.textContent === "Retrieval wizard"
+			) as HTMLButtonElement;
+			expect(retrieveBtn).toBeTruthy();
+			retrieveBtn.click();
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(initRetrieveToken).toHaveBeenCalled();
 
-		// Also ensure the GitHub instructions button exists
-		const githubBtn = Array.from(container.querySelectorAll("button")).find(
-			(b) => b.textContent === "Github KIM instructions"
-		);
-		expect(githubBtn).toBeTruthy();
-	});
+			// Also ensure the GitHub instructions link exists
+			const githubLink = container.querySelector(
+				"a[data-keepsidian-link=\"github-instructions\"]"
+			) as HTMLAnchorElement | null;
+			expect(githubLink).not.toBeNull();
+			expect(githubLink?.getAttribute("href")).toBe(
+				"https://github.com/djsudduth/keep-it-markdown"
+			);
+		}
+	);
 
 	test("save location onChange persists value", async () => {
 		const container = tab.containerEl;

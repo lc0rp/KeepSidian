@@ -223,32 +223,25 @@ export class SubscriptionSettingsTab {
 			}
 		});
 
-		new Setting(containerEl)
-			.setName("Subscribe now for $4.99/month or $49.99/year")
-			.setDesc(
-				"Get access to premium features below, priority support and early access to new features."
-			)
-			.addButton((button) =>
-				button.setButtonText("Subscribe").onClick(async () => {
-					const workspace = this.plugin.app.workspace as {
-						getLeaf?: (viewType?: string) => {
-							setViewState: (state: unknown) => Promise<void>;
-						};
-					};
-					const subscribeUrl = `${KEEPSIDIAN_SERVER_URL}/subscribe`;
-					if (workspace?.getLeaf) {
-						const leaf = workspace.getLeaf("window");
-						await leaf.setViewState({
-							type: "webviewer",
-							state: { url: subscribeUrl, navigate: true },
-							active: true,
-						});
-					} else {
-						throw new Error("Unable to open subscription page");
-					}
-				})
-			);
-	}
+                const subscribeSetting = new Setting(containerEl)
+                        .setName("Subscribe now for $4.99/month or $49.99/year")
+                        .setDesc(
+                                "Get access to the features below, priority support and early access to new features."
+                        );
+
+                const subscribeUrl = `${KEEPSIDIAN_SERVER_URL}/subscribe`;
+                const subscribeLink = subscribeSetting.controlEl.createEl("a", {
+                        text: "Subscribe",
+                        attr: {
+                                href: subscribeUrl,
+                                target: "_blank",
+                                rel: "noopener noreferrer",
+                                "data-keepsidian-link": "subscribe",
+                        },
+                });
+                subscribeLink.classList.add("keepsidian-link-button");
+                subscribeLink.setAttribute("role", "button");
+        }
 
 	private async displayActiveSubscriber(): Promise<void> {
 		const { containerEl } = this;

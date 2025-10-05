@@ -50,3 +50,6 @@ logs/retrieval-session-20251003-013842-131.log
 logs/retrieval-session-20251003-020203-039.log
 logs/retrieval-session-20251003-020948-291.log
 logs/retrieval-session-20251003-021647-823.log
+# BMAD (local only)
+.bmad-core/
+.bmad-*/

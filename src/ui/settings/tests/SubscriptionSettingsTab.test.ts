@@ -39,98 +39,377 @@ if (typeof HTMLElement.prototype.createSpan !== "function") {
 	};
 }
 
-// Mock the Setting class
-jest.mock("obsidian", () => ({
-	...jest.requireActual("obsidian"),
-	Setting: jest.fn().mockImplementation(function (containerEl) {
-		const settingEl = document.createElement("div");
-		containerEl.appendChild(settingEl);
+type CreateElOptions = {
+	text?: string | DocumentFragment;
+	attr?: Record<string, string | number | boolean | null>;
+	cls?: string | string[];
+};
 
-		this.setName = jest.fn().mockImplementation(function (name) {
-			const nameEl = document.createElement("div");
-			nameEl.textContent = name;
-			settingEl.appendChild(nameEl);
+type HTMLElementWithCreateEl = HTMLElement & {
+	createEl(
+		this: HTMLElementWithCreateEl,
+		tag: string,
+		options?: CreateElOptions | string,
+		callback?: (el: HTMLElementWithCreateEl) => void
+	): HTMLElementWithCreateEl;
+	createDiv(
+		this: HTMLElementWithCreateEl,
+		options?: CreateElOptions | string,
+		callback?: (el: HTMLElementWithCreateEl) => void
+	): HTMLElementWithCreateEl;
+};
+
+type CreateElFn = HTMLElementWithCreateEl["createEl"];
+
+type ChangeHandler<T> = (value: T) => void;
+
+interface MockTextComponent {
+	inputEl: HTMLInputElement;
+	setPlaceholder: jest.Mock<MockTextComponent, [string]>;
+	setValue: jest.Mock<MockTextComponent, [string]>;
+	onChange: jest.Mock<MockTextComponent, [ChangeHandler<string>]>;
+}
+
+interface MockToggleComponent {
+	setValue: jest.Mock<MockToggleComponent, [boolean]>;
+	onChange: jest.Mock<MockToggleComponent, [ChangeHandler<boolean>]>;
+}
+
+interface MockButtonComponent {
+	setButtonText: jest.Mock<MockButtonComponent, [string]>;
+	setCta: jest.Mock<MockButtonComponent, []>;
+	onClick: jest.Mock<MockButtonComponent, [() => void]>;
+}
+
+interface MockExtraButtonComponent {
+	setIcon: jest.Mock<MockExtraButtonComponent, [string]>;
+	setTooltip: jest.Mock<MockExtraButtonComponent, [string]>;
+	onClick: jest.Mock<MockExtraButtonComponent, [() => void]>;
+}
+
+interface MockSliderComponent {
+	setLimits: jest.Mock<MockSliderComponent, [number, number, number?]>;
+	setValue: jest.Mock<MockSliderComponent, [number]>;
+	setDynamicTooltip: jest.Mock<MockSliderComponent, [boolean?]>;
+	onChange: jest.Mock<MockSliderComponent, [ChangeHandler<number>]>;
+}
+
+const createMockTextComponent = (
+	inputEl: HTMLInputElement,
+	createEl: CreateElFn
+): MockTextComponent => {
+	const component: MockTextComponent = {
+		inputEl,
+		setPlaceholder: jest.fn(),
+		setValue: jest.fn(),
+		onChange: jest.fn(),
+	};
+
+	component.setPlaceholder.mockImplementation(() => component);
+	component.setValue.mockImplementation((value) => {
+		inputEl.value = value;
+		return component;
+	});
+	component.onChange.mockImplementation((handler) => {
+		inputEl.addEventListener("input", () => handler(inputEl.value));
+		return component;
+	});
+
+	const parentElement = inputEl.parentElement;
+	if (parentElement) {
+		attachCreateEl(parentElement, createEl);
+	}
+
+	return component;
+};
+
+const createMockToggleComponent = (
+	inputEl: HTMLInputElement
+): MockToggleComponent => {
+	const component: MockToggleComponent = {
+		setValue: jest.fn(),
+		onChange: jest.fn(),
+	};
+
+	component.setValue.mockImplementation((value) => {
+		inputEl.checked = value;
+		return component;
+	});
+	component.onChange.mockImplementation((handler) => {
+		inputEl.addEventListener("change", () => handler(inputEl.checked));
+		return component;
+	});
+
+	return component;
+};
+
+const createMockButtonComponent = (
+	buttonEl: HTMLButtonElement
+): MockButtonComponent => {
+	const component: MockButtonComponent = {
+		setButtonText: jest.fn(),
+		setCta: jest.fn(),
+		onClick: jest.fn(),
+	};
+
+	component.setButtonText.mockImplementation((text) => {
+		buttonEl.textContent = text;
+		return component;
+	});
+	component.setCta.mockImplementation(() => component);
+	component.onClick.mockImplementation((handler) => {
+		buttonEl.addEventListener("click", handler);
+		return component;
+	});
+
+	return component;
+};
+
+const createMockExtraButtonComponent = (
+	buttonEl: HTMLButtonElement
+): MockExtraButtonComponent => {
+	const component: MockExtraButtonComponent = {
+		setIcon: jest.fn(),
+		setTooltip: jest.fn(),
+		onClick: jest.fn(),
+	};
+
+	component.setIcon.mockImplementation(() => component);
+	component.setTooltip.mockImplementation((tooltip) => {
+		buttonEl.setAttribute("aria-label", tooltip);
+		buttonEl.setAttribute("title", tooltip);
+		return component;
+	});
+	component.onClick.mockImplementation((handler) => {
+		buttonEl.addEventListener("click", handler);
+		return component;
+	});
+
+	return component;
+};
+
+const createMockSliderComponent = (
+	inputEl: HTMLInputElement,
+	createEl: CreateElFn
+): MockSliderComponent => {
+	const component: MockSliderComponent = {
+		setLimits: jest.fn(),
+		setValue: jest.fn(),
+		setDynamicTooltip: jest.fn(),
+		onChange: jest.fn(),
+	};
+
+	component.setLimits.mockImplementation(() => component);
+	component.setValue.mockImplementation((value) => {
+		inputEl.value = String(value);
+		return component;
+	});
+	component.setDynamicTooltip.mockImplementation(() => component);
+	component.onChange.mockImplementation((handler) => {
+		inputEl.addEventListener("input", () => handler(Number(inputEl.value)));
+		return component;
+	});
+
+	const parentElement = inputEl.parentElement;
+	if (parentElement) {
+		attachCreateEl(parentElement, createEl);
+	}
+
+	return component;
+};
+
+function attachCreateEl(
+	element: HTMLElement,
+	createEl: CreateElFn
+): HTMLElementWithCreateEl {
+	const elementWithCreate = element as HTMLElementWithCreateEl;
+	elementWithCreate.createEl = createEl;
+	const createDivImpl = function createDiv(
+		this: HTMLElementWithCreateEl,
+		options?: CreateElOptions | string,
+		callback?: (el: HTMLElementWithCreateEl) => void
+	) {
+		return createEl.call(this, "div", options, callback);
+	};
+	elementWithCreate.createDiv = createDivImpl as unknown as typeof elementWithCreate.createDiv;
+	return elementWithCreate;
+}
+
+function applyOptions(
+	element: HTMLElementWithCreateEl,
+	opts?: CreateElOptions | string
+): void {
+	if (!opts) {
+		return;
+	}
+	if (typeof opts === "string") {
+		element.className = opts;
+		return;
+	}
+	const { text, attr, cls } = opts;
+	if (typeof text === "string") {
+		element.textContent = text;
+	} else if (text instanceof DocumentFragment) {
+		element.appendChild(text);
+	}
+	if (cls) {
+		const classes = Array.isArray(cls)
+			? cls
+			: String(cls)
+				.split(/\s+/)
+				.filter(Boolean);
+		for (const clsName of classes) {
+			element.classList.add(String(clsName));
+		}
+	}
+	if (attr) {
+		for (const [key, value] of Object.entries(attr)) {
+			if (value === null) {
+				element.removeAttribute(key);
+			} else {
+				element.setAttribute(key, String(value));
+			}
+		}
+	}
+}
+
+function createElImpl(
+	this: HTMLElementWithCreateEl,
+	tag: string,
+	opts?: CreateElOptions | string,
+	callback?: (el: HTMLElementWithCreateEl) => void
+): HTMLElementWithCreateEl {
+	const element = attachCreateEl(document.createElement(tag), createElImpl as unknown as CreateElFn);
+	applyOptions(element, opts);
+	this.appendChild(element);
+	if (callback) {
+		callback(element);
+	}
+	return element;
+}
+
+const typedCreateEl = createElImpl as unknown as CreateElFn;
+
+// Mock the Setting class with controlEl support
+jest.mock("obsidian", () => {
+	const actual = jest.requireActual("obsidian");
+
+	class Setting {
+		settingEl: HTMLElementWithCreateEl;
+		private infoEl: HTMLElementWithCreateEl;
+		private nameEl?: HTMLElementWithCreateEl;
+		private descEl?: HTMLElementWithCreateEl;
+		controlEl: HTMLElementWithCreateEl;
+
+		constructor(containerEl: HTMLElement) {
+			attachCreateEl(containerEl, typedCreateEl);
+			this.settingEl = attachCreateEl(
+				document.createElement("div"),
+				typedCreateEl
+			);
+			this.settingEl.classList.add("setting-item");
+			this.infoEl = attachCreateEl(
+				document.createElement("div"),
+				typedCreateEl
+			);
+			this.infoEl.classList.add("setting-item-info");
+			this.settingEl.appendChild(this.infoEl);
+			this.controlEl = attachCreateEl(
+				document.createElement("div"),
+				typedCreateEl
+			);
+			this.controlEl.classList.add("setting-item-control");
+			this.settingEl.appendChild(this.controlEl);
+			containerEl.appendChild(this.settingEl);
+		}
+
+		setName(name: string) {
+			if (!this.nameEl) {
+				this.nameEl = this.infoEl.createEl("div", { cls: "setting-item-name" });
+			}
+			this.nameEl.textContent = name;
 			return this;
-		});
+		}
 
-		this.setDesc = jest.fn().mockImplementation(function (desc) {
-			const descEl = document.createElement("div");
-			descEl.textContent = desc;
-			settingEl.appendChild(descEl);
+		setDesc(desc: string | DocumentFragment) {
+			if (!this.descEl) {
+				this.descEl = this.infoEl.createEl("div", { cls: "setting-item-description" });
+			}
+			this.descEl.textContent = "";
+			if (typeof desc === "string") {
+				this.descEl.textContent = desc;
+			} else {
+				this.descEl.appendChild(desc);
+			}
 			return this;
-		});
+		}
 
-		this.addToggle = jest.fn().mockImplementation(function (cb) {
-			cb({
-				setValue: jest.fn().mockReturnThis(),
-				onChange: jest.fn().mockReturnThis(),
-			});
+		setClass(cls: string) {
+			this.settingEl.classList.add(cls);
 			return this;
-		});
+		}
 
-		this.addSlider = jest.fn().mockImplementation(function (cb) {
-			cb({
-				setValue: jest.fn().mockReturnThis(),
-				onChange: jest.fn().mockReturnThis(),
-				setLimits: jest.fn().mockReturnThis(),
-				setDynamicTooltip: jest.fn().mockReturnThis(),
-			});
+		setHeading() {
+			this.settingEl.classList.add("setting-heading");
 			return this;
-		});
+		}
 
-		this.addText = jest.fn().mockImplementation(function (cb) {
-			cb({
-				setValue: jest.fn().mockReturnThis(),
-				onChange: jest.fn().mockReturnThis(),
-				setPlaceholder: jest.fn().mockReturnThis(),
-			});
+		setDisabled(disabled: boolean) {
+			if (disabled) {
+				this.settingEl.classList.add("is-disabled");
+			}
 			return this;
-		});
+		}
 
-		this.addButton = jest.fn().mockImplementation(function (cb) {
+		addText(cb: (text: MockTextComponent) => void) {
+			const inputEl = document.createElement("input");
+			inputEl.type = "text";
+			this.controlEl.appendChild(inputEl);
+			const component = createMockTextComponent(inputEl, typedCreateEl);
+			cb(component);
+			return this;
+		}
+
+		addToggle(cb: (toggle: MockToggleComponent) => void) {
+			const inputEl = document.createElement("input");
+			inputEl.type = "checkbox";
+			this.controlEl.appendChild(inputEl);
+			const component = createMockToggleComponent(inputEl);
+			cb(component);
+			return this;
+		}
+
+		addButton(cb: (button: MockButtonComponent) => void) {
 			const buttonEl = document.createElement("button");
-			settingEl.appendChild(buttonEl);
-
-			const button = {
-				setButtonText: jest.fn().mockImplementation(function (text) {
-					buttonEl.textContent = text;
-					return this;
-				}),
-				onClick: jest.fn().mockImplementation(function (clickHandler) {
-					buttonEl.addEventListener("click", clickHandler);
-					return this;
-				}),
-			};
-			cb(button);
+			this.controlEl.appendChild(buttonEl);
+			const component = createMockButtonComponent(buttonEl);
+			cb(component);
 			return this;
-		});
+		}
 
-		this.addExtraButton = jest.fn().mockImplementation(function (cb) {
-			cb({
-				setIcon: jest.fn().mockReturnThis(),
-				setTooltip: jest.fn().mockReturnThis(),
-				onClick: jest.fn().mockReturnThis(),
-			});
+		addExtraButton(cb: (extra: MockExtraButtonComponent) => void) {
+			const buttonEl = document.createElement("button");
+			this.controlEl.appendChild(buttonEl);
+			const component = createMockExtraButtonComponent(buttonEl);
+			cb(component);
 			return this;
-		});
+		}
 
-		this.setClass = jest.fn().mockImplementation(function (className) {
-			settingEl.classList.add(className);
+		addSlider(cb: (slider: MockSliderComponent) => void) {
+			const inputEl = document.createElement("input");
+			inputEl.type = "range";
+			this.controlEl.appendChild(inputEl);
+			const component = createMockSliderComponent(inputEl, typedCreateEl);
+			cb(component);
 			return this;
-		});
+		}
+	}
 
-		this.setDisabled = jest.fn().mockReturnThis();
-
-		this.setValue = jest.fn().mockImplementation(function (value) {
-			settingEl.textContent = value;
-			return this;
-		});
-
-		this.onChange = jest.fn().mockReturnThis();
-
-		return this;
-	}),
-}));
+	return {
+		...actual,
+		Setting,
+	};
+});
 
 const mockSubscriptionService = () => {
 	return {
@@ -162,7 +441,7 @@ describe("SubscriptionSettingsTab", () => {
 	};
 
 	beforeEach(() => {
-		jest.resetModules();
+		jest.clearAllMocks();
 		app = new App();
 		plugin = new KeepSidianPlugin(app, TEST_MANIFEST);
 		plugin.settings = {
@@ -286,40 +565,24 @@ describe("SubscriptionSettingsTab", () => {
 			).toHaveBeenCalled();
 		});
 
-		it("should handle subscribe button click for inactive users", async () => {
+		it("should render subscribe link for inactive users", async () => {
 			(
 				plugin.subscriptionService.isSubscriptionActive as jest.Mock
 			).mockResolvedValue(false);
 
-			const setViewState = jest.fn().mockResolvedValue(undefined);
-			const mockGetLeaf = jest
-				.fn()
-				.mockReturnValue({ setViewState });
-
-			const appWithWorkspace = plugin.app as unknown as {
-				workspace?: unknown;
-			};
-			appWithWorkspace.workspace = { getLeaf: mockGetLeaf };
-
-			const windowOpenSpy = jest.spyOn(window, "open");
-
 			await subscriptionTab.display();
 
-			// Find and simulate click on subscribe button
-			const subscribeButton = containerEl.querySelector("button");
-			subscribeButton?.click();
-
-			expect(mockGetLeaf).toHaveBeenCalledWith("window");
-			expect(setViewState).toHaveBeenCalledWith({
-				type: "webviewer",
-				state: {
-					url: "https://keepsidian.com/subscribe",
-					navigate: true,
-				},
-				active: true,
-			});
-			expect(windowOpenSpy).not.toHaveBeenCalled();
-			windowOpenSpy.mockRestore();
+			const subscribeLink = containerEl.querySelector(
+				'a[data-keepsidian-link="subscribe"]'
+			) as HTMLAnchorElement | null;
+			expect(subscribeLink).not.toBeNull();
+			expect(subscribeLink?.getAttribute("href")).toBe(
+				"https://keepsidian.com/subscribe"
+			);
+			expect(subscribeLink?.getAttribute("target")).toBe("_blank");
+			expect(subscribeLink?.getAttribute("rel")).toBe(
+				"noopener noreferrer"
+			);
 		});
 	});
 });

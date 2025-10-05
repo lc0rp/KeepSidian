@@ -5,9 +5,9 @@ import type { IconName } from "obsidian";
 import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
 import { exchangeOauthToken, initRetrieveToken } from "../../integrations/google/keepToken";
 import {
-	endRetrievalWizardSession,
-	logRetrievalWizardEvent,
-	startRetrievalWizardSession,
+        endRetrievalWizardSession,
+        logRetrievalWizardEvent,
+        startRetrievalWizardSession,
 } from "@integrations/google/retrievalSessionLogger";
 
 export class KeepSidianSettingsTab extends PluginSettingTab {
@@ -166,30 +166,30 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 				});
 			});
 
-		new Setting(containerEl)
-			.setName("Retrieve your sync token")
-			.setDesc(
-				'Get your token automatically using our "Retrieval wizard" or manually using the "Github KIM instructions".'
-			)
-			.addButton((button) =>
+                const retrievalSetting = new Setting(containerEl)
+                        .setName("Retrieve your sync token")
+                        .setDesc(
+                                'Get your token automatically using our "Retrieval wizard" or manually using the "Github KIM instructions".'
+                        )
+                        .addButton((button) =>
 				button
 					.setButtonText("Retrieval wizard")
 					.onClick(this.handleRetrieveToken.bind(this))
-			)
-			.addButton((button) =>
-				button.setButtonText("Github KIM instructions").onClick(async () => {
-					const leaf = this.app.workspace.getLeaf("window");
-					await leaf.setViewState({
-						type: "webviewer",
-						state: {
-							url: "https://github.com/djsudduth/keep-it-markdown",
-							navigate: true,
-						},
-						active: true,
-					});
-				})
-			);
-	}
+                        );
+
+                const githubInstructionsUrl = "https://github.com/djsudduth/keep-it-markdown";
+                const githubInstructionsLink = retrievalSetting.controlEl.createEl("a", {
+                        text: "Github KIM instructions",
+                        attr: {
+                                href: githubInstructionsUrl,
+                                target: "_blank",
+                                rel: "noopener noreferrer",
+                                "data-keepsidian-link": "github-instructions",
+                        },
+                });
+                githubInstructionsLink.classList.add("keepsidian-link-button");
+                githubInstructionsLink.setAttribute("role", "button");
+        }
 
 	private async handleTokenPaste(event: ClipboardEvent): Promise<void> {
 		const pastedText = event.clipboardData?.getData("text");

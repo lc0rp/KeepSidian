@@ -324,20 +324,46 @@ class MockSliderComponent {
 
 export class Setting {
 	private settingEl: EnhancedElement<"div">;
+	private infoEl: EnhancedElement<"div">;
+	private nameEl?: EnhancedElement<"div">;
+	private descEl?: EnhancedElement<"div">;
+	controlEl: EnhancedElement<"div">;
 
 	constructor(containerEl: HTMLElement) {
 		const enhancedContainer = enhanceElement(containerEl);
 		this.settingEl = enhanceElement(document.createElement("div"));
+		this.settingEl.classList.add("setting-item");
+		this.infoEl = enhanceElement(document.createElement("div"));
+		this.infoEl.classList.add("setting-item-info");
+		this.controlEl = enhanceElement(document.createElement("div"));
+		this.controlEl.classList.add("setting-item-control");
+		this.settingEl.appendChild(this.infoEl);
+		this.settingEl.appendChild(this.controlEl);
 		enhancedContainer.appendChild(this.settingEl);
 	}
 
 	setName(name: string): this {
-		this.settingEl.createEl("div", { text: name });
+		if (!this.nameEl) {
+			this.nameEl = enhanceElement(document.createElement("div"));
+			this.nameEl.classList.add("setting-item-name");
+			this.infoEl.appendChild(this.nameEl);
+		}
+		this.nameEl.textContent = name;
 		return this;
 	}
 
-	setDesc(description: string): this {
-		this.settingEl.createEl("div", { text: description });
+	setDesc(description: string | DocumentFragment): this {
+		if (!this.descEl) {
+			this.descEl = enhanceElement(document.createElement("div"));
+			this.descEl.classList.add("setting-item-description");
+			this.infoEl.appendChild(this.descEl);
+		}
+		this.descEl.empty?.();
+		if (typeof description === "string") {
+			this.descEl.textContent = description;
+		} else {
+			this.descEl.appendChild(description);
+		}
 		return this;
 	}
 
@@ -361,7 +387,7 @@ export class Setting {
 	addText(callback: (text: MockTextComponent) => void): this {
 		const inputEl = document.createElement("input");
 		inputEl.type = "text";
-		this.settingEl.appendChild(inputEl);
+		this.controlEl.appendChild(inputEl);
 		callback(new MockTextComponent(inputEl));
 		return this;
 	}
@@ -369,21 +395,21 @@ export class Setting {
 	addToggle(callback: (toggle: MockToggleComponent) => void): this {
 		const inputEl = document.createElement("input");
 		inputEl.type = "checkbox";
-		this.settingEl.appendChild(inputEl);
+		this.controlEl.appendChild(inputEl);
 		callback(new MockToggleComponent(inputEl));
 		return this;
 	}
 
 	addButton(callback: (button: MockButtonComponent) => void): this {
 		const buttonEl = document.createElement("button");
-		this.settingEl.appendChild(buttonEl);
+		this.controlEl.appendChild(buttonEl);
 		callback(new MockButtonComponent(buttonEl));
 		return this;
 	}
 
 	addExtraButton(callback: (button: MockExtraButtonComponent) => void): this {
 		const buttonEl = document.createElement("button");
-		this.settingEl.appendChild(buttonEl);
+		this.controlEl.appendChild(buttonEl);
 		callback(new MockExtraButtonComponent(buttonEl));
 		return this;
 	}
@@ -391,7 +417,7 @@ export class Setting {
 	addSlider(callback: (slider: MockSliderComponent) => void): this {
 		const inputEl = document.createElement("input");
 		inputEl.type = "range";
-		this.settingEl.appendChild(inputEl);
+		this.controlEl.appendChild(inputEl);
 		callback(new MockSliderComponent(inputEl));
 		return this;
 	}
