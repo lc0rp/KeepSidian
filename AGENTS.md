@@ -1,1 +1,0 @@
-/Users/luke/Documents/dev/KeepSidian/KeepSidianDev/plugin/AGENTS.md
