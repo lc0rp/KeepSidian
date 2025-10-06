@@ -148,22 +148,22 @@ export class Plugin {
 }
 
 class NoticeInstance {
-	message: string;
+	message: string | DocumentFragment;
 	timeout?: number;
 
-	constructor(message: string, timeout?: number) {
+	constructor(message: string | DocumentFragment, timeout?: number) {
 		this.message = message;
 		this.timeout = timeout;
 	}
 
-	setMessage(message: string): void {
+	setMessage(message: string | DocumentFragment): void {
 		this.message = message;
 	}
 
 	hide(): void {}
 }
 
-export const Notice = jest.fn<NoticeInstance, [string, number | undefined]>((message, timeout) =>
+export const Notice = jest.fn<NoticeInstance, [string | DocumentFragment, number | undefined]>((message, timeout) =>
 	new NoticeInstance(message, timeout)
 );
 
@@ -185,6 +185,72 @@ export class PluginSettingTab {
 
 export function setIcon(element: HTMLElement, icon: string): void {
 	element.setAttribute("data-icon", icon);
+}
+
+export class MenuItem {
+	title: string | DocumentFragment = "";
+	icon: string | null = null;
+	disabled = false;
+	isLabel = false;
+	onClickHandler: ((evt: MouseEvent | KeyboardEvent) => any) | null = null;
+
+	setTitle(title: string | DocumentFragment): this {
+		this.title = title;
+		return this;
+	}
+
+	setIcon(icon: string | null): this {
+		this.icon = icon;
+		return this;
+	}
+
+	setChecked(): this {
+		return this;
+	}
+
+	setDisabled(disabled: boolean): this {
+		this.disabled = disabled;
+		return this;
+	}
+
+	setIsLabel(isLabel: boolean): this {
+		this.isLabel = isLabel;
+		return this;
+	}
+
+	onClick(callback: (evt: MouseEvent | KeyboardEvent) => any): this {
+		this.onClickHandler = callback;
+		return this;
+	}
+
+	setSection(): this {
+		return this;
+	}
+}
+
+export class Menu {
+	static instances: Menu[] = [];
+	items: MenuItem[] = [];
+	separators = 0;
+
+	constructor() {
+		Menu.instances.push(this);
+	}
+
+	addItem(callback: (item: MenuItem) => void): this {
+		const item = new MenuItem();
+		this.items.push(item);
+		callback(item);
+		return this;
+	}
+
+	addSeparator(): this {
+		this.separators += 1;
+		return this;
+	}
+
+	showAtMouseEvent(): void {}
+	showAtPosition(): void {}
 }
 
 export let normalizePath = (path: string): string => {

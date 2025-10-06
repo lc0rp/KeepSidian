@@ -13,6 +13,7 @@ import { DEFAULT_SETTINGS } from "../../types/keepsidian-plugin-settings";
 import { SubscriptionService } from "../../services/subscription";
 import { NoteImportOptionsModal } from "../../ui/modals/NoteImportOptionsModal";
 import { KeepSidianSettingsTab } from "../../ui/settings/KeepSidianSettingsTab";
+import { registerCommands } from "../../app/commands";
 
 describe("KeepSidianPlugin", () => {
 	let plugin: KeepSidianPlugin;
@@ -625,6 +626,108 @@ describe("KeepSidianPlugin", () => {
 			expect(plugin.settings.twoWaySyncBackupAcknowledged).toBe(true);
 			expect(plugin.settings.twoWaySyncEnabled).toBe(false);
 			expect(plugin.settings.twoWaySyncAutoSyncEnabled).toBe(false);
+		});
+	});
+
+	describe("two-way safeguards", () => {
+		beforeEach(async () => {
+			await plugin.onload();
+		});
+
+		it("returns gating reasons when safeguards are incomplete", async () => {
+			const result = await plugin.requireTwoWaySafeguards();
+			expect(result.allowed).toBe(false);
+			expect(result.reasons).toContain(
+				"Confirm vault backups in KeepSidian settings before enabling uploads."
+			);
+		});
+
+		it("allows uploads when safeguards and subscription requirements are met", async () => {
+			plugin.settings.twoWaySyncBackupAcknowledged = true;
+			plugin.settings.twoWaySyncEnabled = true;
+			const subscriptionSpy = jest
+				.spyOn(plugin.subscriptionService, "isSubscriptionActive")
+				.mockResolvedValue(true);
+
+			const result = await plugin.requireTwoWaySafeguards();
+			expect(subscriptionSpy).toHaveBeenCalled();
+			expect(result.allowed).toBe(true);
+			subscriptionSpy.mockRestore();
+		});
+
+		it("prevents two-way command execution when safeguards fail", async () => {
+			registerCommands(plugin);
+			const addCommandMock = plugin.addCommand as jest.Mock;
+			const command = addCommandMock.mock.calls.find(
+				([options]) => options.id === "two-way-sync-google-keep"
+			)?.[0];
+			expect(command).toBeDefined();
+			const gateNotice = jest
+				.spyOn(plugin, "showTwoWaySafeguardNotice")
+				.mockImplementation(() => {});
+			const syncSpy = jest
+				.spyOn(plugin, "performTwoWaySync")
+				.mockResolvedValue(undefined);
+
+			await command.callback();
+
+			expect(syncSpy).not.toHaveBeenCalled();
+			expect(gateNotice).toHaveBeenCalled();
+			syncSpy.mockRestore();
+			gateNotice.mockRestore();
+		});
+
+		it("prevents upload command execution when safeguards fail", async () => {
+			registerCommands(plugin);
+			const addCommandMock = plugin.addCommand as jest.Mock;
+			const command = addCommandMock.mock.calls.find(
+				([options]) => options.id === "push-google-keep-notes"
+			)?.[0];
+			expect(command).toBeDefined();
+			const gateNotice = jest
+				.spyOn(plugin, "showTwoWaySafeguardNotice")
+				.mockImplementation(() => {});
+			const pushSpy = jest
+				.spyOn(plugin, "pushNotes")
+				.mockResolvedValue(undefined);
+
+			await command.callback();
+
+			expect(pushSpy).not.toHaveBeenCalled();
+			expect(gateNotice).toHaveBeenCalled();
+			pushSpy.mockRestore();
+			gateNotice.mockRestore();
+		});
+
+		it("executes commands when safeguards pass", async () => {
+			plugin.settings.twoWaySyncBackupAcknowledged = true;
+			plugin.settings.twoWaySyncEnabled = true;
+			const subscriptionSpy = jest
+				.spyOn(plugin.subscriptionService, "isSubscriptionActive")
+				.mockResolvedValue(true);
+			registerCommands(plugin);
+			const addCommandMock = plugin.addCommand as jest.Mock;
+			const twoWayCommand = addCommandMock.mock.calls.find(
+				([options]) => options.id === "two-way-sync-google-keep"
+			)?.[0];
+			const pushCommand = addCommandMock.mock.calls.find(
+				([options]) => options.id === "push-google-keep-notes"
+			)?.[0];
+			const syncSpy = jest
+				.spyOn(plugin, "performTwoWaySync")
+				.mockResolvedValue(undefined);
+			const pushSpy = jest
+				.spyOn(plugin, "pushNotes")
+				.mockResolvedValue(undefined);
+
+			await twoWayCommand.callback();
+			await pushCommand.callback();
+
+			expect(syncSpy).toHaveBeenCalled();
+			expect(pushSpy).toHaveBeenCalled();
+			syncSpy.mockRestore();
+			pushSpy.mockRestore();
+			subscriptionSpy.mockRestore();
 		});
 	});
 });

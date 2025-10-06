@@ -22,6 +22,24 @@ type NoticeWithControls = Notice & {
 	hide?: () => void;
 };
 
+function createMenuTitleWithHint(
+	label: string,
+	hint?: string
+): string | DocumentFragment {
+	if (!hint) {
+		return label;
+	}
+	const fragment = document.createDocumentFragment();
+	const labelEl = document.createElement("span");
+	labelEl.textContent = label;
+	fragment.appendChild(labelEl);
+	const hintEl = document.createElement("span");
+	hintEl.classList.add("keepsidian-menu-hint");
+	hintEl.textContent = ` — ${hint}`;
+	fragment.appendChild(hintEl);
+	return fragment;
+}
+
 function hasSetText(element: HTMLElement | null): element is StatusBarItemElement & {
 	setText: (text: string) => void;
 } {
@@ -85,6 +103,8 @@ function ensureStatusBarElements(plugin: KeepSidianPlugin) {
 function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 	const menu = new Menu();
 	const syncing = plugin.isSyncInProgress();
+	const gateSnapshot = plugin.getTwoWayGateSnapshot();
+	const gateHint = gateSnapshot.allowed ? undefined : gateSnapshot.reasons[0];
 
 	menu.addItem((item) => {
 		item.setTitle("KEEPSIDIAN").setDisabled(true);
@@ -92,11 +112,23 @@ function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 	menu.addSeparator();
 
 	menu.addItem((item) => {
-		item.setTitle("Two-way sync")
+		item
+			.setTitle(createMenuTitleWithHint("Two-way sync", gateHint))
 			.setDisabled(syncing)
-			.onClick(() => {
-				plugin.performTwoWaySync();
+			.onClick(async () => {
+				if (plugin.isSyncInProgress()) {
+					return;
+				}
+				const gate = await plugin.requireTwoWaySafeguards();
+				if (!gate.allowed) {
+					plugin.showTwoWaySafeguardNotice(gate);
+					return;
+				}
+				await plugin.performTwoWaySync();
 			});
+		if (!gateSnapshot.allowed) {
+			item.setIcon("lock");
+		}
 	});
 
 	menu.addItem((item) => {
@@ -108,12 +140,35 @@ function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 	});
 
 	menu.addItem((item) => {
-		item.setTitle("Upload to Google Keep")
+		item
+			.setTitle(createMenuTitleWithHint("Upload to Google Keep", gateHint))
 			.setDisabled(syncing)
-			.onClick(() => {
-				plugin.pushNotes();
+			.onClick(async () => {
+				if (plugin.isSyncInProgress()) {
+					return;
+				}
+				const gate = await plugin.requireTwoWaySafeguards();
+				if (!gate.allowed) {
+					plugin.showTwoWaySafeguardNotice(gate);
+					return;
+				}
+				await plugin.pushNotes();
 			});
+		if (!gateSnapshot.allowed) {
+			item.setIcon("lock");
+		}
 	});
+
+	if (!gateSnapshot.allowed) {
+		menu.addItem((item) => {
+			item
+				.setTitle("Open beta settings…")
+				.setIcon("settings")
+				.onClick(() => {
+					plugin.openTwoWaySettings();
+				});
+		});
+	}
 
 	menu.addItem((item) => {
 		item.setTitle("Open sync log file").onClick(() => {

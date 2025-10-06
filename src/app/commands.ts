@@ -4,8 +4,13 @@ export function registerRibbonIcon(plugin: KeepSidianPlugin) {
 	plugin.addRibbonIcon(
 		"folder-sync",
 		"KeepSidian: Perform two-way sync",
-		(_evt: MouseEvent) => {
-			plugin.performTwoWaySync();
+		async (_evt: MouseEvent) => {
+			const gate = await plugin.requireTwoWaySafeguards();
+			if (!gate.allowed) {
+				plugin.showTwoWaySafeguardNotice(gate);
+				return;
+			}
+			await plugin.performTwoWaySync();
 		}
 	);
 }
@@ -14,7 +19,14 @@ export function registerCommands(plugin: KeepSidianPlugin) {
 	plugin.addCommand({
 		id: "two-way-sync-google-keep",
 		name: "Perform two-way sync",
-		callback: async () => await plugin.performTwoWaySync(),
+		callback: async () => {
+			const gate = await plugin.requireTwoWaySafeguards();
+			if (!gate.allowed) {
+				plugin.showTwoWaySafeguardNotice(gate);
+				return;
+			}
+			await plugin.performTwoWaySync();
+		},
 	});
 
 	plugin.addCommand({
@@ -26,7 +38,14 @@ export function registerCommands(plugin: KeepSidianPlugin) {
 	plugin.addCommand({
 		id: "push-google-keep-notes",
 		name: "Upload notes to Google Keep",
-		callback: async () => await plugin.pushNotes(),
+		callback: async () => {
+			const gate = await plugin.requireTwoWaySafeguards();
+			if (!gate.allowed) {
+				plugin.showTwoWaySafeguardNotice(gate);
+				return;
+			}
+			await plugin.pushNotes();
+		},
 	});
 
 	plugin.addCommand({

@@ -1,0 +1,39 @@
+schema: 1
+story: "1.2"
+story_title: "Command & UI Safety Gates"
+gate: PASS
+status_reason: "Modal now distinguishes sync-in-progress vs safeguard blocks, giving accurate guidance across commands, status bar, and modal UI."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-10-06T17:37:36Z"
+quality_score: 100
+expires: "2025-10-20T17:37:36Z"
+
+top_issues: []
+
+waiver:
+    active: false
+
+recommendations:
+    immediate: []
+    future: []
+
+evidence:
+    tests_reviewed: 11
+    risks_identified: 0
+    trace:
+        ac_covered: [1, 2, 3, 4, 5]
+        ac_gaps: []
+
+nfr_validation:
+    security:
+        status: PASS
+        notes: "Client-only gating; no new attack surface."
+    performance:
+        status: PASS
+        notes: "Gating checks reuse in-memory settings and cached subscription info."
+    reliability:
+        status: PASS
+        notes: "Sync-in-progress path now surfaces accurate messaging, preventing confusion-driven retries."
+    maintainability:
+        status: PASS
+        notes: "Code structure remains modular and test-backed."
