@@ -93,6 +93,12 @@ export default class KeepSidianPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		if (!this.settings.twoWaySyncBackupAcknowledged) {
+			this.settings.twoWaySyncEnabled = false;
+			this.settings.twoWaySyncAutoSyncEnabled = false;
+		} else if (!this.settings.twoWaySyncEnabled) {
+			this.settings.twoWaySyncAutoSyncEnabled = false;
+		}
 		this.lastSyncSummary = this.settings.lastSyncSummary ?? null;
 		this.lastSyncLogPath = this.settings.lastSyncLogPath ?? null;
 	}

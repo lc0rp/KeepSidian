@@ -595,4 +595,36 @@ describe("KeepSidianPlugin", () => {
 			expect(plugin.saveData).toHaveBeenCalledWith(testSettings);
 		});
 	});
+
+	describe("loadSettings safeguards", () => {
+		it("forces beta toggles off when backups are not acknowledged", async () => {
+			plugin.loadData = jest.fn().mockResolvedValue({
+				...DEFAULT_SETTINGS,
+				twoWaySyncBackupAcknowledged: false,
+				twoWaySyncEnabled: true,
+				twoWaySyncAutoSyncEnabled: true,
+			});
+
+			await plugin.loadSettings();
+
+			expect(plugin.settings.twoWaySyncBackupAcknowledged).toBe(false);
+			expect(plugin.settings.twoWaySyncEnabled).toBe(false);
+			expect(plugin.settings.twoWaySyncAutoSyncEnabled).toBe(false);
+		});
+
+		it("disables auto two-way when manual two-way is off", async () => {
+			plugin.loadData = jest.fn().mockResolvedValue({
+				...DEFAULT_SETTINGS,
+				twoWaySyncBackupAcknowledged: true,
+				twoWaySyncEnabled: false,
+				twoWaySyncAutoSyncEnabled: true,
+			});
+
+			await plugin.loadSettings();
+
+			expect(plugin.settings.twoWaySyncBackupAcknowledged).toBe(true);
+			expect(plugin.settings.twoWaySyncEnabled).toBe(false);
+			expect(plugin.settings.twoWaySyncAutoSyncEnabled).toBe(false);
+		});
+	});
 });

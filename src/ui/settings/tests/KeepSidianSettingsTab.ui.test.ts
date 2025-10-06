@@ -334,7 +334,15 @@ jest.mock("obsidian", () => {
 		setDisabled(disabled: boolean) {
 			if (disabled) {
 				this.settingEl.classList.add("is-disabled");
+			} else {
+				this.settingEl.classList.remove("is-disabled");
 			}
+			const actionableEls = this.controlEl.querySelectorAll(
+				"input, button, select"
+			) as NodeListOf<HTMLElement & { disabled?: boolean }>;
+			actionableEls.forEach((element) => {
+				element.disabled = disabled;
+			});
 			return this;
 		}
 
@@ -448,6 +456,27 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		tab = new KeepSidianSettingsTab(app, plugin);
 		tabInternals = getSettingsTabInternals(tab);
 	});
+
+	const waitForAsync = async () => {
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	};
+
+	const findSettingByLabel = (
+		container: HTMLElement,
+		label: string
+	): HTMLElementWithCreateEl | null => {
+		const items = Array.from(
+			container.querySelectorAll(".setting-item")
+		) as HTMLElementWithCreateEl[];
+		return (
+			items.find((item) => {
+				const nameEl = item.querySelector(
+					".setting-item-name"
+				) as HTMLElement | null;
+				return nameEl?.textContent === label;
+			}) ?? null
+		);
+	};
 
 	test("token field show/hide toggle and onChange save", async () => {
 		const container = tab.containerEl;
@@ -565,5 +594,273 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 			".requires-subscription"
 		);
 		expect(disabledSetting).toBeTruthy();
+	});
+
+	test("two-way sync beta toggles default to safe disabled state", async () => {
+		const container = tab.containerEl;
+		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
+		await tabInternals.addAutoSyncSettings(container);
+
+		const manualSetting = findSettingByLabel(
+			container,
+			"Enable two-way sync (beta)"
+		);
+		const autoSetting = findSettingByLabel(
+			container,
+			"Enable two-way sync for auto sync"
+		);
+
+		expect(manualSetting?.classList.contains("is-disabled")).toBe(true);
+		expect(autoSetting?.classList.contains("is-disabled")).toBe(true);
+
+		const manualDesc = manualSetting?.querySelector(
+			".setting-item-description"
+		)?.textContent;
+		expect(manualDesc).toContain("Confirm backups above");
+		const autoDesc = autoSetting?.querySelector(
+			".setting-item-description"
+		)?.textContent;
+		expect(autoDesc).toContain("confirm backups");
+	});
+
+	test("acknowledging backups unlocks manual two-way toggle", async () => {
+		const container = tab.containerEl;
+		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
+		await tabInternals.addAutoSyncSettings(container);
+
+		const backupSetting = findSettingByLabel(
+			container,
+			"Confirm vault backups"
+		);
+		const manualSetting = findSettingByLabel(
+			container,
+			"Enable two-way sync (beta)"
+		);
+
+		const backupToggle = backupSetting?.querySelector(
+			'input[type="checkbox"]'
+		) as HTMLInputElement | undefined;
+		expect(backupToggle).toBeDefined();
+		if (!backupToggle) {
+			throw new Error("Backup toggle not found");
+		}
+		backupToggle.checked = true;
+		backupToggle.dispatchEvent(new Event("change"));
+		await waitForAsync();
+
+		expect(plugin.settings.twoWaySyncBackupAcknowledged).toBe(true);
+		expect(manualSetting?.classList.contains("is-disabled")).toBe(false);
+	});
+
+	test("renders backup guidance button", async () => {
+		const container = tab.containerEl;
+		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
+		await tabInternals.addAutoSyncSettings(container);
+
+		const backupLink = container.querySelector(
+			'a[data-keepsidian-link="obsidian-backup-guide"]'
+		) as HTMLAnchorElement | null;
+		expect(backupLink).not.toBeNull();
+		expect(backupLink?.textContent).toBe("Open backup guide");
+		expect(backupLink?.getAttribute("target")).toBe("_blank");
+		expect(backupLink?.classList.contains("keepsidian-link-button")).toBe(true);
+	});
+
+	test("manual opt-in and prerequisites enable auto two-way toggle", async () => {
+		const container = tab.containerEl;
+		plugin.settings.autoSyncEnabled = true;
+		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
+		await tabInternals.addAutoSyncSettings(container);
+
+		const backupSetting = findSettingByLabel(
+			container,
+			"Confirm vault backups"
+		);
+		const manualSetting = findSettingByLabel(
+			container,
+			"Enable two-way sync (beta)"
+		);
+		const autoSetting = findSettingByLabel(
+			container,
+			"Enable two-way sync for auto sync"
+		);
+
+		const backupToggle = backupSetting?.querySelector(
+			'input[type="checkbox"]'
+		) as HTMLInputElement | undefined;
+		const manualToggle = manualSetting?.querySelector(
+			'input[type="checkbox"]'
+		) as HTMLInputElement | undefined;
+		const autoToggle = autoSetting?.querySelector(
+			'input[type="checkbox"]'
+		) as HTMLInputElement | undefined;
+
+		if (!backupToggle || !manualToggle || !autoToggle) {
+			throw new Error("Two-way toggle inputs missing");
+		}
+
+		backupToggle.checked = true;
+		backupToggle.dispatchEvent(new Event("change"));
+		await waitForAsync();
+
+		expect(autoSetting?.classList.contains("is-disabled")).toBe(true);
+		const autoDescBefore = autoSetting?.querySelector(
+			".setting-item-description"
+		)?.textContent;
+		expect(autoDescBefore).toContain("enable two-way sync above");
+
+		manualToggle.checked = true;
+		manualToggle.dispatchEvent(new Event("change"));
+		await waitForAsync();
+
+		expect(plugin.settings.twoWaySyncEnabled).toBe(true);
+		expect(autoSetting?.classList.contains("is-disabled")).toBe(false);
+
+		autoToggle.checked = true;
+		autoToggle.dispatchEvent(new Event("change"));
+		await waitForAsync();
+
+		expect(plugin.settings.twoWaySyncAutoSyncEnabled).toBe(true);
+		const autoDescAfter = autoSetting?.querySelector(
+			".setting-item-description"
+		)?.textContent;
+		expect(autoDescAfter).toContain(
+			"Auto sync will run uploads and downloads together"
+		);
+	});
+
+	test("auto sync toggle refreshes auto two-way prerequisites", async () => {
+		const container = tab.containerEl;
+		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
+		plugin.settings.twoWaySyncBackupAcknowledged = true;
+		plugin.settings.twoWaySyncEnabled = true;
+		plugin.settings.twoWaySyncAutoSyncEnabled = true;
+
+		await tabInternals.addAutoSyncSettings(container);
+
+		const autoSyncSetting = findSettingByLabel(
+			container,
+			"Enable auto sync"
+		);
+		const autoSetting = findSettingByLabel(
+			container,
+			"Enable two-way sync for auto sync"
+		);
+		if (!autoSyncSetting || !autoSetting) {
+			throw new Error("Auto sync settings not rendered");
+		}
+		const autoSyncToggle = autoSyncSetting.querySelector(
+			'input[type="checkbox"]'
+		) as HTMLInputElement | undefined;
+		const autoToggle = autoSetting.querySelector(
+			'input[type="checkbox"]'
+		) as HTMLInputElement | undefined;
+
+		if (!autoSyncToggle || !autoToggle) {
+			throw new Error("Auto sync prerequisites inputs missing");
+		}
+
+		const autoDescBefore = autoSetting.querySelector(
+			".setting-item-description"
+		)?.textContent;
+		expect(autoSetting.classList.contains("is-disabled")).toBe(true);
+		expect(autoDescBefore).toContain("turn on auto sync");
+
+		autoSyncToggle.checked = true;
+		autoSyncToggle.dispatchEvent(new Event("change"));
+		await waitForAsync();
+
+		expect(plugin.settings.autoSyncEnabled).toBe(true);
+		expect(autoSetting.classList.contains("is-disabled")).toBe(false);
+		expect(autoToggle.checked).toBe(true);
+		const autoDescAfterEnable = autoSetting.querySelector(
+			".setting-item-description"
+		)?.textContent;
+		expect(autoDescAfterEnable).toContain(
+			"Auto sync will run uploads and downloads together"
+		);
+
+		autoSyncToggle.checked = false;
+		autoSyncToggle.dispatchEvent(new Event("change"));
+		await waitForAsync();
+
+		expect(plugin.settings.autoSyncEnabled).toBe(false);
+		const autoDescAfterDisable = autoSetting.querySelector(
+			".setting-item-description"
+		)?.textContent;
+		expect(autoDescAfterDisable).toContain("turn on auto sync");
+		expect(autoSetting.classList.contains("is-disabled")).toBe(true);
+	});
+
+	test("disabling backups resets two-way selections", async () => {
+		const container = tab.containerEl;
+		plugin.settings.autoSyncEnabled = true;
+		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
+		await tabInternals.addAutoSyncSettings(container);
+
+		const backupSetting = findSettingByLabel(
+			container,
+			"Confirm vault backups"
+		);
+		const manualSetting = findSettingByLabel(
+			container,
+			"Enable two-way sync (beta)"
+		);
+		const autoSetting = findSettingByLabel(
+			container,
+			"Enable two-way sync for auto sync"
+		);
+
+		const backupToggle = backupSetting?.querySelector(
+			'input[type="checkbox"]'
+		) as HTMLInputElement | undefined;
+		const manualToggle = manualSetting?.querySelector(
+			'input[type="checkbox"]'
+		) as HTMLInputElement | undefined;
+		const autoToggle = autoSetting?.querySelector(
+			'input[type="checkbox"]'
+		) as HTMLInputElement | undefined;
+
+		if (!backupToggle || !manualToggle || !autoToggle) {
+			throw new Error("Two-way toggle inputs missing");
+		}
+
+		backupToggle.checked = true;
+		backupToggle.dispatchEvent(new Event("change"));
+		manualToggle.checked = true;
+		manualToggle.dispatchEvent(new Event("change"));
+		autoToggle.checked = true;
+		autoToggle.dispatchEvent(new Event("change"));
+		await waitForAsync();
+
+		expect(plugin.settings.twoWaySyncAutoSyncEnabled).toBe(true);
+
+		backupToggle.checked = false;
+		backupToggle.dispatchEvent(new Event("change"));
+		await waitForAsync();
+
+		expect(plugin.settings.twoWaySyncBackupAcknowledged).toBe(false);
+		expect(plugin.settings.twoWaySyncEnabled).toBe(false);
+		expect(plugin.settings.twoWaySyncAutoSyncEnabled).toBe(false);
+		expect(manualSetting?.classList.contains("is-disabled")).toBe(true);
+		expect(autoSetting?.classList.contains("is-disabled")).toBe(true);
+		expect(autoToggle.checked).toBe(false);
+	});
+
+	test("non-premium users see locked auto two-way toggle", async () => {
+		const container = tab.containerEl;
+		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(false);
+		await tabInternals.addAutoSyncSettings(container);
+
+		const autoSetting = findSettingByLabel(
+			container,
+			"Enable two-way sync for auto sync"
+		);
+		expect(autoSetting).not.toBeNull();
+		expect(autoSetting?.classList.contains("requires-subscription")).toBe(true);
+		const autoDesc = autoSetting?.querySelector(
+			".setting-item-description"
+		)?.textContent;
+		expect(autoDesc).toContain("upgrade to KeepSidian Premium");
 	});
 });
