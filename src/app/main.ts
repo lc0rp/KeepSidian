@@ -56,6 +56,7 @@ export default class KeepSidianPlugin extends Plugin {
 	private autoSyncInterval?: ReturnType<typeof setInterval>;
 	private isSyncing = false;
 	private subscriptionActive: boolean | null = null;
+	private lastAutoSyncGateReasons: string[] | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -65,6 +66,7 @@ export default class KeepSidianPlugin extends Plugin {
 			() => this.settings.subscriptionCache,
 			async (cache) => {
 				this.settings.subscriptionCache = cache;
+				this.refreshAutoSyncSafeguards();
 				await this.saveSettings();
 			}
 		);
@@ -227,6 +229,70 @@ export default class KeepSidianPlugin extends Plugin {
 			this.openTwoWaySettings();
 			notice.hide();
 		});
+	}
+
+	private autoSyncGateReasonsChanged(reasons: string[]): boolean {
+		if (!this.lastAutoSyncGateReasons) {
+			return true;
+		}
+		if (this.lastAutoSyncGateReasons.length !== reasons.length) {
+			return true;
+		}
+		return this.lastAutoSyncGateReasons.some((reason, index) => reason !== reasons[index]);
+	}
+
+	private resetAutoSyncGateState() {
+		this.lastAutoSyncGateReasons = null;
+	}
+
+	private async runAutoSyncTick(): Promise<void> {
+		try {
+			try {
+				const subscriptionActive = await this.subscriptionService.isSubscriptionActive(true);
+				this.subscriptionActive = subscriptionActive;
+			} catch {
+				// Notices are surfaced by SubscriptionService on failure; keep cached state.
+			}
+
+			const gate = await this.requireTwoWaySafeguards({ requireAutoSync: true });
+			if (gate.allowed) {
+				await this.performTwoWaySync();
+				return;
+			}
+
+			await this.handleAutoSyncGate(gate.reasons);
+		} catch (error: unknown) {
+			const message = getErrorMessage(error);
+			await logSync(
+				this,
+				`Auto sync upgrade check failed - ${message}`
+			);
+		}
+	}
+
+	private async handleAutoSyncGate(reasons: string[]): Promise<void> {
+		if (reasons.length === 0) {
+			return;
+		}
+
+		const reasonsChanged = this.autoSyncGateReasonsChanged(reasons);
+		if (reasonsChanged) {
+			this.lastAutoSyncGateReasons = [...reasons];
+			this.showTwoWaySafeguardNotice({ allowed: false, reasons });
+		}
+
+		const formattedReasons = reasons.join("; ");
+		await logSync(
+			this,
+			`Auto sync skipped uploads. Resolve in beta settings: ${formattedReasons}`
+		);
+
+		await this.importNotes(true);
+	}
+
+	refreshAutoSyncSafeguards() {
+		this.normalizeTwoWaySettings();
+		this.resetAutoSyncGateState();
 	}
 
 	openTwoWaySettings() {
@@ -607,6 +673,7 @@ export default class KeepSidianPlugin extends Plugin {
 					`Two-way sync ended - success. Imported ${importProcessed} note(s), pushed ${pushed} note(s).`
 				);
 				finishSyncUI(this, true);
+				this.resetAutoSyncGateState();
 			} catch (error: unknown) {
 				finishSyncUI(this, false);
 				const errorMessage = getErrorMessage(error);
@@ -627,12 +694,17 @@ export default class KeepSidianPlugin extends Plugin {
 	}
 
 	startAutoSync() {
+		this.refreshAutoSyncSafeguards();
 		this.stopAutoSync();
 		const intervalMs = this.settings.autoSyncIntervalHours * 60 * 60 * 1000;
-		const intervalId = setInterval(() => {
-			if (!this.isSyncing) {
-				this.importNotes(true);
+		const runner = async () => {
+			if (this.isSyncing) {
+				return;
 			}
+			await this.runAutoSyncTick();
+		};
+		const intervalId = setInterval(() => {
+			void runner();
 		}, intervalMs);
 		this.autoSyncInterval = intervalId;
 		if (typeof this.registerInterval === "function" && typeof intervalId === "number") {

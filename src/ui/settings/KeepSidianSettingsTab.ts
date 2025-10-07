@@ -348,13 +348,14 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.autoSyncEnabled).onChange(async (value) => {
 					this.plugin.settings.autoSyncEnabled = value;
+					this.plugin.refreshAutoSyncSafeguards();
 					await this.plugin.saveSettings();
+					updateTwoWaySettingsState?.();
 					if (value) {
 						this.plugin.startAutoSync();
 					} else {
 						this.plugin.stopAutoSync();
 					}
-					updateTwoWaySettingsState?.();
 				})
 			);
 
@@ -485,14 +486,15 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 						if (suppressTwoWayUpdates) {
 							return;
 						}
-						this.plugin.settings.twoWaySyncBackupAcknowledged = value;
-						if (!value) {
-							this.plugin.settings.twoWaySyncEnabled = false;
-							this.plugin.settings.twoWaySyncAutoSyncEnabled = false;
-						}
-						await this.plugin.saveSettings();
-						updateTwoWaySettingsState();
-					});
+					this.plugin.settings.twoWaySyncBackupAcknowledged = value;
+					if (!value) {
+						this.plugin.settings.twoWaySyncEnabled = false;
+						this.plugin.settings.twoWaySyncAutoSyncEnabled = false;
+					}
+					this.plugin.refreshAutoSyncSafeguards();
+					await this.plugin.saveSettings();
+					updateTwoWaySettingsState();
+				});
 			});
 
 		manualTwoWaySetting = new Setting(containerEl)
@@ -509,13 +511,14 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 							updateTwoWaySettingsState();
 							return;
 						}
-						this.plugin.settings.twoWaySyncEnabled = value;
-						if (!value) {
-							this.plugin.settings.twoWaySyncAutoSyncEnabled = false;
-						}
-						await this.plugin.saveSettings();
-						updateTwoWaySettingsState();
-					});
+					this.plugin.settings.twoWaySyncEnabled = value;
+					if (!value) {
+						this.plugin.settings.twoWaySyncAutoSyncEnabled = false;
+					}
+					this.plugin.refreshAutoSyncSafeguards();
+					await this.plugin.saveSettings();
+					updateTwoWaySettingsState();
+				});
 			});
 
 		autoTwoWaySetting = new Setting(containerEl)
@@ -537,10 +540,11 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 							updateTwoWaySettingsState();
 							return;
 						}
-						this.plugin.settings.twoWaySyncAutoSyncEnabled = value;
-						await this.plugin.saveSettings();
-						updateTwoWaySettingsState();
-					});
+					this.plugin.settings.twoWaySyncAutoSyncEnabled = value;
+					this.plugin.refreshAutoSyncSafeguards();
+					await this.plugin.saveSettings();
+					updateTwoWaySettingsState();
+				});
 			});
 
 		if (!isSubscribed) {
