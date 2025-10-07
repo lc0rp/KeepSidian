@@ -1,7 +1,13 @@
 import { WebviewTag } from "electron";
 import KeepSidianPlugin from "main";
-import { PluginSettingTab, App, Setting, Notice, setIcon } from "obsidian";
-import type { IconName } from "obsidian";
+import {
+	PluginSettingTab,
+	App,
+	Setting,
+	Notice,
+	setIcon,
+} from "obsidian";
+import type { IconName, ToggleComponent, ExtraButtonComponent } from "obsidian";
 import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
 import { exchangeOauthToken, initRetrieveToken } from "../../integrations/google/keepToken";
 import {
@@ -334,13 +340,17 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 	private async addAutoSyncSettings(containerEl: HTMLElement): Promise<void> {
 		new Setting(containerEl).setName("Auto sync").setHeading();
 
+		let updateTwoWaySettingsState: () => void = () => {};
+
 		new Setting(containerEl)
 			.setName("Enable auto sync")
 			.setDesc("Automatically sync your notes at regular intervals.")
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.autoSyncEnabled).onChange(async (value) => {
 					this.plugin.settings.autoSyncEnabled = value;
+					this.plugin.refreshAutoSyncSafeguards();
 					await this.plugin.saveSettings();
+					updateTwoWaySettingsState?.();
 					if (value) {
 						this.plugin.startAutoSync();
 					} else {
@@ -377,6 +387,175 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			intervalSetting.setDisabled(true);
 			intervalSetting.setClass("requires-subscription");
 		}
+
+		new Setting(containerEl)
+			.setName("Two-way sync (beta)")
+			.setHeading();
+
+		let suppressTwoWayUpdates = false;
+		let backupToggle: ToggleComponent | undefined;
+		let manualTwoWayToggle: ToggleComponent | undefined;
+		let autoTwoWayToggle: ToggleComponent | undefined;
+		let manualTwoWaySetting!: Setting;
+		let autoTwoWaySetting!: Setting;
+
+		const formatRequirementList = (items: string[]): string => {
+			if (items.length === 1) {
+				return items[0];
+			}
+			const last = items[items.length - 1];
+			return `${items.slice(0, -1).join(", ")}, and ${last}`;
+		};
+
+		updateTwoWaySettingsState = () => {
+			suppressTwoWayUpdates = true;
+			const { settings } = this.plugin;
+			const backupAcknowledged = settings.twoWaySyncBackupAcknowledged;
+			const manualTwoWayEnabled = settings.twoWaySyncEnabled;
+			const autoTwoWayEnabled = settings.twoWaySyncAutoSyncEnabled;
+			const autoSyncActive = settings.autoSyncEnabled;
+
+			backupToggle?.setValue(backupAcknowledged);
+			manualTwoWayToggle?.setValue(manualTwoWayEnabled);
+			autoTwoWayToggle?.setValue(autoTwoWayEnabled);
+
+			const manualDesc = backupAcknowledged
+				? "Unlock manual uploads and merges while beta is active."
+				: "Confirm backups above to unlock manual uploads and merges.";
+			manualTwoWaySetting.setDesc(manualDesc);
+			manualTwoWaySetting.setDisabled(!backupAcknowledged);
+
+			const requirements: string[] = [];
+			if (!backupAcknowledged) {
+				requirements.push("confirm backups above");
+			}
+			if (backupAcknowledged && !manualTwoWayEnabled) {
+				requirements.push("enable two-way sync above");
+			}
+			if (!isSubscribed) {
+				requirements.push("upgrade to KeepSidian Premium");
+			}
+			if (
+				backupAcknowledged &&
+				manualTwoWayEnabled &&
+				isSubscribed &&
+				!autoSyncActive
+			) {
+				requirements.push("turn on auto sync");
+			}
+
+			const autoDesc = requirements.length
+				? `Requires you to ${formatRequirementList(requirements)} before this runs automatically.`
+				: "Auto sync will run uploads and downloads together when enabled.";
+			autoTwoWaySetting.setDesc(autoDesc);
+			autoTwoWaySetting.setDisabled(requirements.length > 0);
+			suppressTwoWayUpdates = false;
+		};
+
+		// eslint-disable-next-line obsidianmd/hardcoded-config-path
+		const backupGuideUrl = "https://help.obsidian.md/Advanced+topics/Sync#Backups";
+
+		const backupGuideSetting = new Setting(containerEl)
+			.setName("Vault backup guidance")
+			.setDesc(
+				"Review Obsidian's backup documentation before enabling uploads."
+			);
+
+		const backupGuideLink = backupGuideSetting.controlEl.createEl("a", {
+			text: "Open backup guide",
+			attr: {
+				href: backupGuideUrl,
+				target: "_blank",
+				rel: "noopener noreferrer",
+				"data-keepsidian-link": "obsidian-backup-guide",
+			},
+		});
+		backupGuideLink.classList.add("keepsidian-link-button");
+		backupGuideLink.setAttribute("role", "button");
+
+		new Setting(containerEl)
+			.setName("Confirm vault backups")
+			.setDesc(
+				"Confirm you captured a full vault backup before enabling uploads. Downloads stay safe until you opt in."
+			)
+			.addToggle((toggle) => {
+				backupToggle = toggle;
+				toggle
+					.setValue(this.plugin.settings.twoWaySyncBackupAcknowledged)
+					.onChange(async (value) => {
+						if (suppressTwoWayUpdates) {
+							return;
+						}
+					this.plugin.settings.twoWaySyncBackupAcknowledged = value;
+					if (!value) {
+						this.plugin.settings.twoWaySyncEnabled = false;
+						this.plugin.settings.twoWaySyncAutoSyncEnabled = false;
+					}
+					this.plugin.refreshAutoSyncSafeguards();
+					await this.plugin.saveSettings();
+					updateTwoWaySettingsState();
+				});
+			});
+
+		manualTwoWaySetting = new Setting(containerEl)
+			.setName("Enable two-way sync (beta)")
+			.addToggle((toggle) => {
+				manualTwoWayToggle = toggle;
+				toggle
+					.setValue(this.plugin.settings.twoWaySyncEnabled)
+					.onChange(async (value) => {
+						if (suppressTwoWayUpdates) {
+							return;
+						}
+						if (!this.plugin.settings.twoWaySyncBackupAcknowledged) {
+							updateTwoWaySettingsState();
+							return;
+						}
+					this.plugin.settings.twoWaySyncEnabled = value;
+					if (!value) {
+						this.plugin.settings.twoWaySyncAutoSyncEnabled = false;
+					}
+					this.plugin.refreshAutoSyncSafeguards();
+					await this.plugin.saveSettings();
+					updateTwoWaySettingsState();
+				});
+			});
+
+		autoTwoWaySetting = new Setting(containerEl)
+			.setName("Enable two-way sync for auto sync")
+			.addToggle((toggle) => {
+				autoTwoWayToggle = toggle;
+				toggle
+					.setValue(this.plugin.settings.twoWaySyncAutoSyncEnabled)
+					.onChange(async (value) => {
+						if (suppressTwoWayUpdates) {
+							return;
+						}
+						const prerequisitesMet =
+							this.plugin.settings.twoWaySyncBackupAcknowledged &&
+							this.plugin.settings.twoWaySyncEnabled &&
+							isSubscribed &&
+							this.plugin.settings.autoSyncEnabled;
+						if (!prerequisitesMet) {
+							updateTwoWaySettingsState();
+							return;
+						}
+					this.plugin.settings.twoWaySyncAutoSyncEnabled = value;
+					this.plugin.refreshAutoSyncSafeguards();
+					await this.plugin.saveSettings();
+					updateTwoWaySettingsState();
+				});
+			});
+
+		if (!isSubscribed) {
+			autoTwoWaySetting.addExtraButton((button: ExtraButtonComponent) => {
+				button.setIcon("lock");
+				button.setTooltip("Requires KeepSidian Premium");
+			});
+			autoTwoWaySetting.setClass("requires-subscription");
+		}
+
+		updateTwoWaySettingsState();
 	}
 
 	private createRetrieveTokenWebView(containerEl: HTMLElement): void {

@@ -4,11 +4,18 @@
 > For Android app questions, please see
 > [👉 this thread](https://forum.obsidian.md/t/app-keepsidian/101491/15).
 
-Sync Google Keep notes to Obsidian.
+Two-way sync between Google Keep and Obsidian.
 
-As a regular user of both Google Keep and Obsidian, I set out to make it easier to exchange data between both apps.
+As a regular user of both Google Keep and Obsidian, I set out to make it easier to
+exchange data between both apps.
 
-This plugin is only supports one-way download for now, from Google Keep to Obsidian.
+This plugin supports syncing between Google Keep and Obsidian, on-demand or
+automatically on a schedule.
+- Versions 1.1.1 and below: Only downloading supported
+- Versions 1.1.2+: Two-way sync supported
+
+Note: Two-way sync was introduced in version 1.1.2.
+
 Please share your feedback in the
 [issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
 
@@ -29,15 +36,21 @@ credentials or notes in any way.
 KeepSidian now ships with three commands that share the same progress UI and log
 output:
 
-- **Import Google Keep Notes** downloads notes from Google Keep into the
-  configured vault folder.
-- **Push Notes to Google Keep** scans the sync folder for Markdown files whose
+- **Perform two-way sync** (v1.1.2+) executes a download first and then runs the upload
+  command so that newly downloaded notes are merged back to Google Keep without
+  re-running the workflows manually.
+
+- **Download notes from Google Keep** downloads notes from Google Keep into the
+  configured vault folder. It remembers the last successful sync date and only
+  downloads notes that have been updated since then.
+
+- **Upload notes to Google Keep** (v1.1.2+) scans the sync folder for Markdown files whose
   `KeepSidianLastSyncedDate` is older than the file's modified timestamp,
   bundles any attachments in the `media/` folder that have been updated since
   the last push, and sends the payload to Google Keep.
-- **Perform Two-Way Sync** executes an import first and then runs the push
-  command so that newly downloaded notes are merged back to Google Keep without
-  re-running the workflows manually.
+  > **Note**: that attachments and media files are not currently supported.
+
+- **Open sync log file** opens the most recent log file in a new pane.
 
 When a sync is running you'll see a persistent toast and a status bar indicator
 showing progress. Hovering over the status bar shows a tooltip identifying it as
@@ -53,7 +66,10 @@ rotated daily.
 ## Auto sync (v1.0.7+)
 
 In plugin settings, you can enable automatic syncing on a 24 hour schedule by
-default. Subscribers can customize the interval in hours.
+default. Subscribers can customize the interval in hours. If two-way sync is enabled,
+subscribers can also choose to run a two-way sync whenever auto-syncing.
+
+When auto-sync is enabled, a status bar indicator is shown in the bottom right
 
 Notes about save location and logging:
 
@@ -84,6 +100,10 @@ v1.0.14 subscriber features:
 v1.1.0 subscriber features:
 
 - Granular auto-sync interval below the default 24 hours.
+
+v1.1.2 subscriber features:
+
+- Two-way sync during auto-sync.
 
 ### Future roadmap
 

@@ -50,12 +50,21 @@ const setElementText = (element: HTMLElement, text: string) => {
 	element.textContent = text;
 };
 
-interface SyncProgressModalCallbacks {
-	onTwoWaySync: () => void;
-	onImportOnly: () => void;
-	onUploadOnly: () => void;
-	onOpenSyncLog: () => void;
+interface TwoWayGateState {
+	allowed: boolean;
+	reasons: string[];
+}
+
+interface SyncProgressModalOptions {
+	onTwoWaySync: () => void | Promise<void>;
+	onImportOnly: () => void | Promise<void>;
+	onUploadOnly: () => void | Promise<void>;
+	onOpenSyncLog: () => void | Promise<void>;
 	onClose?: () => void;
+	getTwoWayGate: () => TwoWayGateState;
+	requireTwoWayGate: () => Promise<TwoWayGateState>;
+	showTwoWayGateNotice: (result: TwoWayGateState) => void;
+	openTwoWaySettings: () => void;
 }
 
 export class SyncProgressModal extends Modal {
@@ -73,16 +82,17 @@ export class SyncProgressModal extends Modal {
 		uploadOnly: null,
 		openLog: null,
 	};
-	private callbacks: SyncProgressModalCallbacks;
+	private gateMessageEl: HTMLDivElement | null = null;
+	private options: SyncProgressModalOptions;
 	private isSyncing = false;
 	private processed = 0;
 	private total: number | undefined;
 	private lastResult: { success: boolean; processed: number } | null = null;
 	private summary: LastSyncSummary | null = null;
 
-	constructor(app: App, callbacks: SyncProgressModalCallbacks) {
+	constructor(app: App, options: SyncProgressModalOptions) {
 		super(app);
-		this.callbacks = callbacks;
+		this.options = options;
 	}
 
 	onOpen() {
@@ -107,26 +117,37 @@ export class SyncProgressModal extends Modal {
 		const actionsEl = createChild(contentEl, "div");
 		actionsEl.classList.add("keepsidian-modal-actions");
 
-		this.buttons.twoWay = this.createActionButton(
-			actionsEl,
-			"Two-way sync",
-			this.callbacks.onTwoWaySync
-		);
+		this.buttons.twoWay = this.createActionButton(actionsEl, "Two-way sync", async () => {
+			const gate = await this.options.requireTwoWayGate();
+			if (!gate.allowed) {
+				this.options.showTwoWayGateNotice(gate);
+				return;
+			}
+			await this.options.onTwoWaySync();
+		});
 		this.buttons.importOnly = this.createActionButton(
 			actionsEl,
 			"Download from Google Keep",
-			this.callbacks.onImportOnly
+			async () => {
+				await this.options.onImportOnly();
+			}
 		);
-		this.buttons.uploadOnly = this.createActionButton(
-			actionsEl,
-			"Upload to Google Keep",
-			this.callbacks.onUploadOnly
-		);
-		this.buttons.openLog = this.createActionButton(
-			actionsEl,
-			"Open sync log",
-			this.callbacks.onOpenSyncLog
-		);
+		this.buttons.uploadOnly = this.createActionButton(actionsEl, "Upload to Google Keep", async () => {
+			const gate = await this.options.requireTwoWayGate();
+			if (!gate.allowed) {
+				this.options.showTwoWayGateNotice(gate);
+				return;
+			}
+			await this.options.onUploadOnly();
+		});
+		this.buttons.openLog = this.createActionButton(actionsEl, "Open sync log", async () => {
+			await this.options.onOpenSyncLog();
+		});
+
+		this.gateMessageEl = createChild(contentEl, "div");
+		this.gateMessageEl.classList.add("keepsidian-modal-gate-message");
+		this.gateMessageEl.setAttribute("aria-live", "polite");
+		this.gateMessageEl.hidden = true;
 
 		const closeButton = createChild(contentEl, "button", { text: "Close" });
 		closeButton.classList.add("mod-cta");
@@ -146,8 +167,9 @@ export class SyncProgressModal extends Modal {
 		};
 		this.progressBar = null;
 		this.progressContainerEl = null;
-		if (this.callbacks.onClose) {
-			this.callbacks.onClose();
+		this.gateMessageEl = null;
+		if (this.options.onClose) {
+			this.options.onClose();
 		}
 	}
 
@@ -244,30 +266,102 @@ export class SyncProgressModal extends Modal {
 	}
 
 	private updateActionStates() {
-		const disable = this.isSyncing;
+		const gate = this.options.getTwoWayGate();
+		const uploadsBlockedByGate = !gate.allowed;
+		const disableUploads = this.isSyncing || uploadsBlockedByGate;
+		const tooltip = (() => {
+			if (this.isSyncing && !uploadsBlockedByGate) {
+				return "Sync in progress—please wait before starting another sync.";
+			}
+			if (uploadsBlockedByGate) {
+				return gate.reasons.length
+					? gate.reasons.join(" • ")
+					: "Complete beta safeguards in settings.";
+			}
+			return null;
+		})();
 		if (this.buttons.twoWay) {
-			this.buttons.twoWay.disabled = disable;
+			this.buttons.twoWay.disabled = disableUploads;
+			if (disableUploads) {
+				this.buttons.twoWay.setAttribute("aria-disabled", "true");
+				if (tooltip) {
+					this.buttons.twoWay.title = tooltip;
+				} else {
+					this.buttons.twoWay.removeAttribute("title");
+				}
+			} else {
+				this.buttons.twoWay.removeAttribute("aria-disabled");
+				this.buttons.twoWay.removeAttribute("title");
+			}
 		}
 		if (this.buttons.importOnly) {
-			this.buttons.importOnly.disabled = disable;
+			this.buttons.importOnly.disabled = this.isSyncing;
 		}
 		if (this.buttons.uploadOnly) {
-			this.buttons.uploadOnly.disabled = disable;
+			this.buttons.uploadOnly.disabled = disableUploads;
+			if (disableUploads) {
+				this.buttons.uploadOnly.setAttribute("aria-disabled", "true");
+				if (tooltip) {
+					this.buttons.uploadOnly.title = tooltip;
+				} else {
+					this.buttons.uploadOnly.removeAttribute("title");
+				}
+			} else {
+				this.buttons.uploadOnly.removeAttribute("aria-disabled");
+				this.buttons.uploadOnly.removeAttribute("title");
+			}
 		}
 		if (this.buttons.openLog) {
 			this.buttons.openLog.disabled = false;
 		}
+		this.updateGateMessage(gate);
 	}
 
 	private createActionButton(
 		container: HTMLElement,
 		label: string,
-		onClick: () => void
+		onClick: () => void | Promise<void>
 	): HTMLButtonElement {
 		const button = createChild(container, "button", { text: label });
 		button.type = "button";
 		button.classList.add("keepsidian-modal-action");
-		button.addEventListener("click", () => onClick());
+		button.addEventListener("click", () => {
+			void onClick();
+		});
 		return button;
+	}
+
+	private updateGateMessage(gate: TwoWayGateState) {
+		if (!this.gateMessageEl) {
+			return;
+		}
+		clearElement(this.gateMessageEl);
+		if (gate.allowed) {
+			this.gateMessageEl.hidden = true;
+			return;
+		}
+		this.gateMessageEl.hidden = false;
+		const heading = createChild(this.gateMessageEl, "div", {
+			text: "Uploads are locked until you complete the beta safeguards:",
+		});
+		heading.classList.add("keepsidian-modal-gate-heading");
+		const list = createChild(this.gateMessageEl, "ul");
+		for (const reason of gate.reasons) {
+			createChild(list, "li", { text: reason });
+		}
+		const note = createChild(this.gateMessageEl, "p", {
+			text: "Downloads remain available while safeguards are incomplete.",
+		});
+		note.classList.add("keepsidian-modal-gate-note");
+		const actions = createChild(this.gateMessageEl, "div");
+		actions.classList.add("keepsidian-modal-gate-actions");
+		const openSettings = createChild(actions, "button", {
+			text: "Open beta settings",
+		});
+		openSettings.type = "button";
+		openSettings.classList.add("keepsidian-modal-gate-button");
+		openSettings.addEventListener("click", () => {
+			this.options.openTwoWaySettings();
+		});
 	}
 }

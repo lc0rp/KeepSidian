@@ -34,22 +34,12 @@ data.json
 # Local settings shared with other repos
 # Use ln -s /path/to/shared/file file to include here
 AGENTS.md
-docs/tmp/*
-logs/retrieval-session-20251002-212156-538.log
-logs/retrieval-session-20251002-213316-955.log
-logs/retrieval-session-20251002-213812-297.log
-logs/retrieval-session-20251002-213942-270.log
-logs/retrieval-session-20251002-214328-431.log
-logs/retrieval-session-20251002-223648-286.log
-logs/retrieval-session-20251002-225231-432.log
-logs/retrieval-session-20251003-012040-282.log
-logs/retrieval-session-20251003-012419-664.log
-logs/retrieval-session-20251003-012822-564.log
-logs/retrieval-session-20251003-013514-141.log
-logs/retrieval-session-20251003-013842-131.log
-logs/retrieval-session-20251003-020203-039.log
-logs/retrieval-session-20251003-020948-291.log
-logs/retrieval-session-20251003-021647-823.log
-# BMAD (local only)
-.bmad-core/
-.bmad-*/
+docs
+logs/
+# BMAD tests (local only)
+bmad
+.bmad-*
+.gemini
+.github/chatmodes
+.claude
+dev-plugin

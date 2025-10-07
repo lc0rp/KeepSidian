@@ -132,11 +132,11 @@ const mockSubscriptionService = () => {
     } as unknown as SubscriptionService;
 };
 
-describe('KeepSidianSettingsTab', () => {
-    let app: App;
-    let plugin: KeepSidianPlugin;
-    let settingsTab: KeepSidianSettingsTab;
-    let settingsTabInternals: KeepSidianSettingsTabInternals;
+	describe('KeepSidianSettingsTab', () => {
+	    let app: App;
+	    let plugin: KeepSidianPlugin;
+	    let settingsTab: KeepSidianSettingsTab;
+	    let settingsTabInternals: KeepSidianSettingsTabInternals;
 
     const TEST_MANIFEST = {
         id: 'keepsidian',
@@ -147,11 +147,11 @@ describe('KeepSidianSettingsTab', () => {
         description: 'Import Google Keep notes.',
     };
 
-    beforeEach(() => {
-        jest.resetModules();
-        app = new App();
-        plugin = new KeepSidianPlugin(app, TEST_MANIFEST);
-        plugin.settings = {
+	    beforeEach(() => {
+	        jest.resetModules();
+	        app = new App();
+	        plugin = new KeepSidianPlugin(app, TEST_MANIFEST);
+	        plugin.settings = {
             ...DEFAULT_SETTINGS,
             email: '',
             token: '',
@@ -171,11 +171,17 @@ describe('KeepSidianSettingsTab', () => {
         };
         plugin.subscriptionService = mockSubscriptionService();
         settingsTab = new KeepSidianSettingsTab(app, plugin);
-	settingsTabInternals = settingsTab as unknown as KeepSidianSettingsTabInternals;
-	attachCreateEl(settingsTab.containerEl, createElImpl);
+        settingsTabInternals = settingsTab as unknown as KeepSidianSettingsTabInternals;
+        attachCreateEl(settingsTab.containerEl, createElImpl);
 
         // Reset the exchangeOauthToken mock
         (exchangeOauthToken as jest.Mock).mockReset();
+    });
+
+    test('two-way sync defaults stay disabled for safety', () => {
+        expect(DEFAULT_SETTINGS.twoWaySyncBackupAcknowledged).toBe(false);
+        expect(DEFAULT_SETTINGS.twoWaySyncEnabled).toBe(false);
+        expect(DEFAULT_SETTINGS.twoWaySyncAutoSyncEnabled).toBe(false);
     });
 
     test('should instantiate correctly', () => {

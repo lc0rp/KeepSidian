@@ -28,6 +28,16 @@ function getErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
+interface TwoWayGateOptions {
+	requirePremium?: boolean;
+	requireAutoSync?: boolean;
+}
+
+interface TwoWayGateResult {
+	allowed: boolean;
+	reasons: string[];
+}
+
 export default class KeepSidianPlugin extends Plugin {
 	settings: KeepSidianPluginSettings;
 	subscriptionService: SubscriptionService;
@@ -45,6 +55,8 @@ export default class KeepSidianPlugin extends Plugin {
 	currentSyncMode: SyncMode | null = null;
 	private autoSyncInterval?: ReturnType<typeof setInterval>;
 	private isSyncing = false;
+	private subscriptionActive: boolean | null = null;
+	private lastAutoSyncGateReasons: string[] | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -54,6 +66,7 @@ export default class KeepSidianPlugin extends Plugin {
 			() => this.settings.subscriptionCache,
 			async (cache) => {
 				this.settings.subscriptionCache = cache;
+				this.refreshAutoSyncSafeguards();
 				await this.saveSettings();
 			}
 		);
@@ -93,8 +106,212 @@ export default class KeepSidianPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.normalizeTwoWaySettings();
 		this.lastSyncSummary = this.settings.lastSyncSummary ?? null;
 		this.lastSyncLogPath = this.settings.lastSyncLogPath ?? null;
+	}
+
+	private normalizeTwoWaySettings() {
+		if (!this.settings.twoWaySyncBackupAcknowledged) {
+			if (this.settings.twoWaySyncEnabled) {
+				this.settings.twoWaySyncEnabled = false;
+			}
+			if (this.settings.twoWaySyncAutoSyncEnabled) {
+				this.settings.twoWaySyncAutoSyncEnabled = false;
+			}
+		} else if (!this.settings.twoWaySyncEnabled && this.settings.twoWaySyncAutoSyncEnabled) {
+			this.settings.twoWaySyncAutoSyncEnabled = false;
+		}
+	}
+
+	private getCachedSubscriptionActive(): boolean | null {
+		const cachedInfo = this.settings.subscriptionCache?.info ?? null;
+		if (!cachedInfo) {
+			return null;
+		}
+		return cachedInfo.subscription_status === "active";
+	}
+
+	private computeTwoWayGate(
+		options: TwoWayGateOptions = {},
+		subscriptionOverride: boolean | null = null
+	): TwoWayGateResult {
+		const reasons: string[] = [];
+		const requirePremium = options.requirePremium ?? true;
+		const requireAutoSync = options.requireAutoSync ?? false;
+		const backupAcknowledged = this.settings.twoWaySyncBackupAcknowledged;
+		const manualEnabled = this.settings.twoWaySyncEnabled;
+		const autoUploadsEnabled = this.settings.twoWaySyncAutoSyncEnabled;
+		const autoSyncEnabled = this.settings.autoSyncEnabled;
+
+		if (!backupAcknowledged) {
+			reasons.push(
+				"Confirm vault backups in KeepSidian settings before enabling uploads."
+			);
+		}
+		if (backupAcknowledged && !manualEnabled) {
+			reasons.push(
+				"Enable two-way sync (beta) in KeepSidian settings to use uploads."
+			);
+		}
+
+		const subscriptionActive =
+			subscriptionOverride ?? this.subscriptionActive ?? this.getCachedSubscriptionActive();
+		if (requirePremium && subscriptionActive === false) {
+			reasons.push("KeepSidian Premium membership is required for uploads.");
+		}
+
+		if (requireAutoSync) {
+			if (!autoSyncEnabled) {
+				reasons.push("Turn on auto sync to run two-way sync automatically.");
+			}
+			if (!autoUploadsEnabled) {
+				reasons.push(
+					"Enable auto two-way sync in settings to include uploads in auto sync."
+				);
+			}
+		}
+
+		return {
+			allowed: reasons.length === 0,
+			reasons,
+		};
+	}
+
+	getTwoWayGateSnapshot(options?: TwoWayGateOptions): TwoWayGateResult {
+		this.normalizeTwoWaySettings();
+		return this.computeTwoWayGate(options);
+	}
+
+	async requireTwoWaySafeguards(options?: TwoWayGateOptions): Promise<TwoWayGateResult> {
+		this.normalizeTwoWaySettings();
+		const requirePremium = options?.requirePremium ?? true;
+		let subscriptionActive: boolean | null = this.subscriptionActive;
+		try {
+			if (requirePremium || subscriptionActive === null) {
+				subscriptionActive = await this.subscriptionService.isSubscriptionActive();
+				this.subscriptionActive = subscriptionActive;
+			}
+		} catch {
+			// Subscription checks surface Notices internally; fall back to cached state.
+		}
+		return this.computeTwoWayGate(options, subscriptionActive);
+	}
+
+	showTwoWaySafeguardNotice(result: TwoWayGateResult) {
+		if (result.allowed) {
+			return;
+		}
+		const fragment = document.createDocumentFragment();
+		const heading = document.createElement("div");
+		heading.textContent = "KeepSidian uploads are locked until you:";
+		heading.classList.add("keepsidian-notice-heading");
+		fragment.appendChild(heading);
+		const list = document.createElement("ul");
+		list.classList.add("keepsidian-notice-list");
+		for (const reason of result.reasons) {
+			const item = document.createElement("li");
+			item.textContent = reason;
+			list.appendChild(item);
+		}
+		fragment.appendChild(list);
+		const actions = document.createElement("div");
+		actions.classList.add("keepsidian-notice-actions");
+		const settingsButton = document.createElement("button");
+		settingsButton.type = "button";
+		settingsButton.classList.add("keepsidian-notice-button");
+		settingsButton.textContent = "Open beta settings";
+		settingsButton.setAttribute("aria-label", "Open beta settings");
+		actions.appendChild(settingsButton);
+		fragment.appendChild(actions);
+		const notice = new Notice(fragment, 10000);
+		settingsButton.addEventListener("click", () => {
+			this.openTwoWaySettings();
+			notice.hide();
+		});
+	}
+
+	private autoSyncGateReasonsChanged(reasons: string[]): boolean {
+		if (!this.lastAutoSyncGateReasons) {
+			return true;
+		}
+		if (this.lastAutoSyncGateReasons.length !== reasons.length) {
+			return true;
+		}
+		return this.lastAutoSyncGateReasons.some((reason, index) => reason !== reasons[index]);
+	}
+
+	private resetAutoSyncGateState() {
+		this.lastAutoSyncGateReasons = null;
+	}
+
+	private async runAutoSyncTick(): Promise<void> {
+		try {
+			try {
+				const subscriptionActive = await this.subscriptionService.isSubscriptionActive(true);
+				this.subscriptionActive = subscriptionActive;
+			} catch {
+				// Notices are surfaced by SubscriptionService on failure; keep cached state.
+			}
+
+			const gate = await this.requireTwoWaySafeguards({ requireAutoSync: true });
+			if (gate.allowed) {
+				await this.performTwoWaySync();
+				return;
+			}
+
+			await this.handleAutoSyncGate(gate.reasons);
+		} catch (error: unknown) {
+			const message = getErrorMessage(error);
+			await logSync(
+				this,
+				`Auto sync upgrade check failed - ${message}`
+			);
+		}
+	}
+
+	private async handleAutoSyncGate(reasons: string[]): Promise<void> {
+		if (reasons.length === 0) {
+			return;
+		}
+
+		const reasonsChanged = this.autoSyncGateReasonsChanged(reasons);
+		if (reasonsChanged) {
+			this.lastAutoSyncGateReasons = [...reasons];
+			this.showTwoWaySafeguardNotice({ allowed: false, reasons });
+		}
+
+		const formattedReasons = reasons.join("; ");
+		await logSync(
+			this,
+			`Auto sync skipped uploads. Resolve in beta settings: ${formattedReasons}`
+		);
+
+		await this.importNotes(true);
+	}
+
+	refreshAutoSyncSafeguards() {
+		this.normalizeTwoWaySettings();
+		this.resetAutoSyncGateState();
+	}
+
+	openTwoWaySettings() {
+		const pluginId = this.manifest?.id ?? "keepsidian";
+		const settingManager = (this.app as unknown as {
+			setting?: {
+				open: () => void;
+				openTabById?: (id: string) => void;
+				openSettingTab?: (id: string) => void;
+			};
+		}).setting;
+		if (settingManager?.open) {
+			settingManager.open();
+		}
+		if (settingManager?.openTabById) {
+			settingManager.openTabById(pluginId);
+		} else if (settingManager?.openSettingTab) {
+			settingManager.openSettingTab(pluginId);
+		}
 	}
 
 	async saveSettings() {
@@ -114,6 +331,10 @@ export default class KeepSidianPlugin extends Plugin {
 				onImportOnly: () => this.importNotes(),
 				onUploadOnly: () => this.pushNotes(),
 				onOpenSyncLog: () => this.openLatestSyncLog(),
+				getTwoWayGate: () => this.getTwoWayGateSnapshot(),
+				requireTwoWayGate: () => this.requireTwoWaySafeguards(),
+				showTwoWayGateNotice: (result) => this.showTwoWaySafeguardNotice(result),
+				openTwoWaySettings: () => this.openTwoWaySettings(),
 				onClose: () => {
 					this.progressModal = null;
 				},
@@ -256,6 +477,7 @@ export default class KeepSidianPlugin extends Plugin {
 		this.isSyncing = true;
 		try {
 			const isSubscriptionActive = await this.subscriptionService.isSubscriptionActive();
+			this.subscriptionActive = isSubscriptionActive;
 
 			if (!auto && isSubscriptionActive) {
 				await this.showImportOptionsModal();
@@ -451,6 +673,7 @@ export default class KeepSidianPlugin extends Plugin {
 					`Two-way sync ended - success. Imported ${importProcessed} note(s), pushed ${pushed} note(s).`
 				);
 				finishSyncUI(this, true);
+				this.resetAutoSyncGateState();
 			} catch (error: unknown) {
 				finishSyncUI(this, false);
 				const errorMessage = getErrorMessage(error);
@@ -471,12 +694,17 @@ export default class KeepSidianPlugin extends Plugin {
 	}
 
 	startAutoSync() {
+		this.refreshAutoSyncSafeguards();
 		this.stopAutoSync();
 		const intervalMs = this.settings.autoSyncIntervalHours * 60 * 60 * 1000;
-		const intervalId = setInterval(() => {
-			if (!this.isSyncing) {
-				this.importNotes(true);
+		const runner = async () => {
+			if (this.isSyncing) {
+				return;
 			}
+			await this.runAutoSyncTick();
+		};
+		const intervalId = setInterval(() => {
+			void runner();
 		}, intervalMs);
 		this.autoSyncInterval = intervalId;
 		if (typeof this.registerInterval === "function" && typeof intervalId === "number") {
