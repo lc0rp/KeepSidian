@@ -53,9 +53,7 @@ function createElImpl(
 			element.appendChild(options.text);
 		}
 		if (options.cls) {
-			const classes = Array.isArray(options.cls)
-				? options.cls
-				: [options.cls];
+			const classes = Array.isArray(options.cls) ? options.cls : [options.cls];
 			for (const cls of classes) {
 				if (cls) {
 					element.classList.add(String(cls));
@@ -135,7 +133,11 @@ class ExtraButtonComponentMock implements MockExtraButtonComponent {
 jest.mock("../../settings/SubscriptionSettingsTab", () => ({
 	SubscriptionSettingsTab: {
 		displayPremiumFeaturesServer: jest.fn(
-			(contentEl: HTMLElement, _plugin: KeepSidianPlugin, premium: PremiumFeatureSettings) => {
+			(
+				contentEl: HTMLElement,
+				_plugin: KeepSidianPlugin,
+				premium: PremiumFeatureSettings
+			) => {
 				// Simulate that UI mutates some premium values prior to submit
 				premium.includeNotesTerms = ["foo"];
 			}
@@ -208,7 +210,7 @@ jest.mock("obsidian", () => {
 			this.containerEl = attachCreateEl(document.createElement("div"));
 		}
 
-	display() {}
+		display() {}
 	}
 
 	class MockApp extends actual.App {}
@@ -239,24 +241,18 @@ describe("NoteImportOptionsModal", () => {
 		const onSubmit = jest.fn();
 		const modal = new NoteImportOptionsModal(app, plugin, onSubmit);
 		// Spy on close to ensure it is called
-		const closeSpy = jest
-			.spyOn(modal, "close")
-			.mockImplementation(() => {});
+		const closeSpy = jest.spyOn(modal, "close").mockImplementation(() => {});
 
 		await modal.onOpen();
 
 		expect(modal.contentEl.textContent).toContain("Import Options");
-		const { SubscriptionSettingsTab } = await import(
-			"../../settings/SubscriptionSettingsTab"
-		);
-		expect(
-			SubscriptionSettingsTab.displayPremiumFeaturesServer
-		).toHaveBeenCalled();
+		const { SubscriptionSettingsTab } = await import("../../settings/SubscriptionSettingsTab");
+		expect(SubscriptionSettingsTab.displayPremiumFeatures).toHaveBeenCalled();
 
 		// Click the Import button
-		const importBtn = Array.from(
-			modal.contentEl.querySelectorAll("button")
-		).find((b) => b.textContent === "Import") as HTMLButtonElement;
+		const importBtn = Array.from(modal.contentEl.querySelectorAll("button")).find(
+			(b) => b.textContent === "Import"
+		) as HTMLButtonElement;
 		expect(importBtn).toBeTruthy();
 		importBtn.click();
 
@@ -268,14 +264,12 @@ describe("NoteImportOptionsModal", () => {
 
 	test("cancel button closes modal", async () => {
 		const modal = new NoteImportOptionsModal(app, plugin, jest.fn());
-		const closeSpy = jest
-			.spyOn(modal, "close")
-			.mockImplementation(() => {});
+		const closeSpy = jest.spyOn(modal, "close").mockImplementation(() => {});
 		await modal.onOpen();
 
-		const cancelBtn = Array.from(
-			modal.contentEl.querySelectorAll("button")
-		).find((b) => b.textContent === "Cancel") as HTMLButtonElement;
+		const cancelBtn = Array.from(modal.contentEl.querySelectorAll("button")).find(
+			(b) => b.textContent === "Cancel"
+		) as HTMLButtonElement;
 		expect(cancelBtn).toBeTruthy();
 		cancelBtn.click();
 		expect(closeSpy).toHaveBeenCalled();

@@ -34,7 +34,7 @@ export class NoteImportOptionsModal extends Modal {
 		const premiumFeatureValues = {
 			...this.plugin.settings.premiumFeatures,
 		};
-		SubscriptionSettingsTab.displayPremiumFeaturesServer(
+		SubscriptionSettingsTab.displayPremiumFeatures(
 			contentEl,
 			this.plugin,
 			premiumFeatureValues,
@@ -48,9 +48,7 @@ export class NoteImportOptionsModal extends Modal {
 					.setButtonText("Import")
 					.setCta()
 					.onClick(() => {
-						this.onSubmit(
-							premiumFeatureValues as NoteImportOptions
-						);
+						this.onSubmit(premiumFeatureValues as NoteImportOptions);
 						this.close();
 					})
 			)

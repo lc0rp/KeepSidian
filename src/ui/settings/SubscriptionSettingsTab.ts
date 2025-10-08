@@ -1,6 +1,5 @@
 import { Setting } from "obsidian";
 import KeepSidianPlugin from "main";
-import { PremiumFeatureSettings } from "types/subscription";
 import { KEEPSIDIAN_SERVER_URL } from "../../config";
 
 export class SubscriptionSettingsTab {
@@ -15,7 +14,7 @@ export class SubscriptionSettingsTab {
 	async display(): Promise<void> {
 		const { containerEl } = this;
 
-		containerEl.createEl("h4", { text: "Premium features" });
+		new Setting(containerEl).setName("Exclusive features for project supporters").setHeading();
 
 		const isActive = await this.plugin.subscriptionService.isSubscriptionActive();
 
@@ -33,60 +32,8 @@ export class SubscriptionSettingsTab {
 		plugin: KeepSidianPlugin,
 		isActive: boolean
 	): void {
-		this.displayPremiumFeaturesLocal(
-			containerEl,
-			plugin,
-			plugin.settings.premiumFeatures,
-			isActive
-		);
-		this.displayPremiumFeaturesServer(
-			containerEl,
-			plugin,
-			plugin.settings.premiumFeatures,
-			isActive
-		);
-	}
-
-	static displayPremiumFeaturesLocal(
-		containerEl: HTMLElement,
-		plugin: KeepSidianPlugin,
-		premiumFeatureValues: PremiumFeatureSettings,
-		isActive: boolean
-	): void {
-		// 3.1 Auto Sync
-		// TODO: Implement auto sync
-		/* new Setting(containerEl)
-            .setName('Auto Sync')
-            .setDesc('Automatically sync your notes at regular intervals')
-            .addToggle(toggle => toggle
-                .setValue(premiumFeatureValues.autoSync)
-                .onChange(async (value) => {
-                    premiumFeatureValues.autoSync = value;
-                    // TODO: Save settings
-                }));
-
-        new Setting(containerEl)
-            .setName('Sync Interval')
-            .setDesc('How often to sync (in minutes)')
-            .addSlider(slider => slider
-                .setLimits(5, 120, 5)
-                .setValue(premiumFeatureValues.syncIntervalMinutes)
-                .setDynamicTooltip()
-                .onChange(async (value) => {
-                    premiumFeatureValues.syncIntervalMinutes = value;
-                    // TODO: Save settings
-                }))
-            .setDisabled(!premiumFeatureValues.autoSync); */
-	}
-
-	static displayPremiumFeaturesServer(
-		containerEl: HTMLElement,
-		plugin: KeepSidianPlugin,
-		premiumFeatureValues: PremiumFeatureSettings,
-		isActive: boolean
-	): void {
-		const descSuffix = isActive ? "" : " (requires a subscription)";
-
+		const descSuffix = isActive ? "" : " (Available to project supporters)";
+		const premiumFeatureValues = plugin.settings.premiumFeatures;
 		// 3.2 Filter Notes
 		const includeSetting = new Setting(containerEl)
 			.setName("Only include notes containing")
@@ -100,7 +47,6 @@ export class SubscriptionSettingsTab {
 							.split(",")
 							.map((k) => k.trim())
 							.filter((k) => k);
-						// TODO: Save settings
 					})
 			);
 		if (!isActive) includeSetting.setClass("requires-subscription");
@@ -117,7 +63,6 @@ export class SubscriptionSettingsTab {
 							.split(",")
 							.map((k) => k.trim())
 							.filter((k) => k);
-						// TODO: Save settings
 					})
 			);
 		if (!isActive) excludeSetting.setClass("requires-subscription");
@@ -132,7 +77,6 @@ export class SubscriptionSettingsTab {
 			.addToggle((toggle) =>
 				toggle.setValue(premiumFeatureValues.updateTitle).onChange(async (value) => {
 					premiumFeatureValues.updateTitle = value;
-					// TODO: Save settings
 				})
 			);
 		if (!isActive) titleSetting.setClass("requires-subscription");
@@ -144,7 +88,6 @@ export class SubscriptionSettingsTab {
 			.addToggle((toggle) =>
 				toggle.setValue(premiumFeatureValues.suggestTags).onChange(async (value) => {
 					premiumFeatureValues.suggestTags = value;
-					// TODO: Save settings
 				})
 			);
 		if (!isActive) autoTagSetting.setClass("requires-subscription");
@@ -172,7 +115,6 @@ export class SubscriptionSettingsTab {
 					.setPlaceholder("auto-")
 					.onChange(async (value) => {
 						premiumFeatureValues.tagPrefix = value;
-						// TODO: Save settings
 					})
 			)
 			.setDisabled(!premiumFeatureValues.suggestTags);
@@ -186,7 +128,6 @@ export class SubscriptionSettingsTab {
 					.setValue(premiumFeatureValues.limitToExistingTags)
 					.onChange(async (value) => {
 						premiumFeatureValues.limitToExistingTags = value;
-						// TODO: Save settings
 					})
 			)
 			.setDisabled(!premiumFeatureValues.suggestTags);
@@ -196,7 +137,7 @@ export class SubscriptionSettingsTab {
 	private async displayInactiveSubscriber(): Promise<void> {
 		const { containerEl } = this;
 
-		containerEl.createEl("h5", { text: "Why subscribe?" });
+		containerEl.createEl("em", { text: "Support development and unlock advanced features" });
 
 		const benefitsList = containerEl.createEl("ul", {
 			attr: { style: "font-size: 0.9em" },
@@ -206,7 +147,7 @@ export class SubscriptionSettingsTab {
 			"Auto-tags: Instant tag generation & management.",
 			"Advanced filters: Sync only what you need.",
 			"Priority support: Your questions answered first.",
-			"Two-way sync: Keep notes updated, Coming soon.",
+			"Two-way background sync: Keep notes updated everywhere, quietly.",
 			"Early access: First to get new features.",
 			"And more!",
 		].forEach((benefit) => {
@@ -223,25 +164,25 @@ export class SubscriptionSettingsTab {
 			}
 		});
 
-                const subscribeSetting = new Setting(containerEl)
-                        .setName("Subscribe now for $4.99/month or $49.99/year")
-                        .setDesc(
-                                "Get access to the features below, priority support and early access to new features."
-                        );
+		const subscribeSetting = new Setting(containerEl)
+			.setName("Support KeepSidian monthly or annually")
+			.setDesc(
+				"Support the development of KeepSidian and get access to the features below, priority support and early access to new features."
+			);
 
-                const subscribeUrl = `${KEEPSIDIAN_SERVER_URL}/subscribe`;
-                const subscribeLink = subscribeSetting.controlEl.createEl("a", {
-                        text: "Subscribe",
-                        attr: {
-                                href: subscribeUrl,
-                                target: "_blank",
-                                rel: "noopener noreferrer",
-                                "data-keepsidian-link": "subscribe",
-                        },
-                });
-                subscribeLink.classList.add("keepsidian-link-button");
-                subscribeLink.setAttribute("role", "button");
-        }
+		const subscribeUrl = `${KEEPSIDIAN_SERVER_URL}/subscribe`;
+		const subscribeLink = subscribeSetting.controlEl.createEl("a", {
+			text: "🌎 Support this project",
+			attr: {
+				href: subscribeUrl,
+				target: "_blank",
+				rel: "noopener noreferrer",
+				"data-keepsidian-link": "subscribe",
+			},
+		});
+		subscribeLink.classList.add("keepsidian-link-button");
+		subscribeLink.setAttribute("role", "button");
+	}
 
 	private async displayActiveSubscriber(): Promise<void> {
 		const { containerEl } = this;

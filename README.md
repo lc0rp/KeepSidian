@@ -64,65 +64,51 @@ Each sync activitiy is recorded in a time stamped activity log file under
 `_KeepSidianLogs/` in the target directory as Markdown list items. This file is
 rotated daily.
 
-## Auto sync (v1.0.7+)
+## Background sync (v1.0.7+)
 
-In plugin settings, you can enable automatic syncing on a 24 hour schedule by
-default. Subscribers can customize the interval in hours. If two-way sync is enabled,
-subscribers can also choose to run a two-way sync whenever auto-syncing.
+You can enable background syncing on a 24 hour schedule by
+default. Project supporters can customize the interval in hours.
+Project supporters can also choose to run a two-way sync whenever background syncing.
 
-When auto-sync is enabled, a status bar indicator is shown in the bottom right
+When background-sync is enabled, a status bar indicator is shown in the bottom right.
 
-Notes about save location and logging:
+## Supporting the project
 
-- If the save location and log files cannot be created (e.g., permissions or
-  invalid name), an error is shown and the sync does not start.
+I intend to make KeepSidian useful to all users. However, some features that may incur additional processing, third party costs or developer time shall be released to users who choose to support KeepSidian development. Supporters can choose to back the project here: [🌎 Support KeepSidian](https://keepsidian.lc0rp.com/subscribe).
 
-## Features
+### Exclusive supporter features
 
-> **Please rank the upcoming features here!**
->
-> 1. [KeepSidian wishlist](https://umh39lhux3j.typeform.com/to/NKbRukRg) - Google keep features.
->
-> 2. [Google Calendar features](https://umh39lhux3j.typeform.com/to/WuDedfWN)
-> (coming soon): I'd love to hear what you want for this feature.
-
-### Subscriber features
-
-I intend to make most features available to all users, however, some features
-may incur additional processing, third party costs or developer time. Those
-shall be released to subscribers.
-
-v1.0.14 subscriber features:
+v1.0.14:
 
 - Advanced filters
 - Auto-tagging
 - Contextual title generation
 
-v1.1.0 subscriber features:
+v1.1.0:
 
-- Granular auto-sync interval below the default 24 hours.
+- Granular background sync interval below the default 24 hours.
 
-v1.1.2 subscriber features:
+v1.1.2:
 
-- Two-way sync during auto-sync.
+- Two-way background sync
 
-### Future roadmap
+## Future roadmap
 
-If more people find this project useful, I may expand the functionality to
-include the following features. I'll endevour to atures that can increase cost
-significantly will be made available to
+Some upcoming features that I plan to work on include:
 
 - Daily sync (Shipped in v1.1.0)
 - Realtime sync
 - Archiving
 - Downloading Archived Notes
 - Unlimited notes (Shipped in v1.0.14)
-- 2-way sync
-- Advanced filters (Shipped in v1.0.14 to Subscribers)
-- Auto-tagging (Shipped in v1.0.14 to Subscribers)
-- Contextual title generation (Shipped in v1.0.14 to Subscribers)
+- 2-way sync (Shipped in v1.1.2)
+- Advanced filters (Shipped in v1.0.14 to supporters)
+- Auto-tagging (Shipped in v1.0.14 to supporters)
+- Contextual title generation (Shipped in v1.0.14 to supporters)
 
-> **Me again! Please rank the upcoming features here!**
+> **What would you like to see next?**
+>
+> Please rank the upcoming features here or add your own!
 >
 > 1. [KeepSidian wishlist](https://umh39lhux3j.typeform.com/to/NKbRukRg) - Google
 > keep features.
