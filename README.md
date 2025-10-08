@@ -1,20 +1,21 @@
-# KeepSidian
+# KeepSidian - Two-way sync for Google Keep and Obsidian
+
+[![License](https://img.shields.io/github/license/lc0rp/KeepSidian?style=flat-square)](LICENSE)
+[![Issues](https://img.shields.io/github/issues/lc0rp/KeepSidian?style=flat-square)](https://github.com/lc0rp/KeepSidian/issues)
+[![Release](https://img.shields.io/github/v/release/lc0rp/KeepSidian?style=flat-square)](https://github.com/lc0rp/KeepSidian/releases)
+[![Downloads](https://img.shields.io/github/downloads/lc0rp/KeepSidian/total?style=flat-square)](https://github.com/lc0rp/KeepSidian/releases)
 
 > ⚠️ **Note**: Not affiliated with the Android app Capsidian (Formerly "Keepsidian").
 > For Android app questions, please see
 > [👉 this thread](https://forum.obsidian.md/t/app-keepsidian/101491/15).
-
-Two-way sync between Google Keep and Obsidian.
 
 As a regular user of both Google Keep and Obsidian, I set out to make it easier to
 exchange data between both apps.
 
 This plugin supports syncing between Google Keep and Obsidian, on-demand or
 automatically on a schedule.
+- Versions 1.1.2+: Introducing two-way sync!
 - Versions 1.1.1 and below: Only downloading supported
-- Versions 1.1.2+: Two-way sync supported
-
-Note: Two-way sync was introduced in version 1.1.2.
 
 Please share your feedback in the
 [issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
