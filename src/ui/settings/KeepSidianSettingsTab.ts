@@ -1,7 +1,7 @@
 import { WebviewTag } from "electron";
 import KeepSidianPlugin from "main";
 import { PluginSettingTab, App, Setting, Notice, setIcon } from "obsidian";
-import type { IconName, ToggleComponent, ExtraButtonComponent } from "obsidian";
+import type { IconName, ToggleComponent } from "obsidian";
 import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
 import { exchangeOauthToken, initRetrieveToken } from "../../integrations/google/keepToken";
 import {

@@ -74,7 +74,7 @@ When background-sync is enabled, a status bar indicator is shown in the bottom r
 
 ## Supporting the project
 
-I intend to make KeepSidian useful to all users. However, some features that may incur additional processing, third party costs or developer time shall be released to users who choose to support KeepSidian development. Supporters can choose to back the project here: [🌎 Support KeepSidian](https://keepsidian.lc0rp.com/subscribe).
+KeepSidian is useful for all users. However, some advanced features that may incur additional processing, third party costs or developer time shall be released to users who choose to support KeepSidian development. Anyone can choose to support the project here: [🌎 Support KeepSidian](https://keepsidianserver-v2-162887264002.us-central1.run.app/subscribe).
 
 ### Exclusive supporter features
 
@@ -131,7 +131,7 @@ few other options outlined below.
 - **Option 3**: Clone this repository in your
   {obsidian vault path}/.obsidian/plugins
 
-After installation, go to "Settings > Community Plugins > KeepSidian" in Obsidian.
+After installation, go to "Settings > Community Plugins > KeepSidian" in Obsidian to configure the plugin.
 
 ### Configure
 
