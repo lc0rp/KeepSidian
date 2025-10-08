@@ -77,9 +77,7 @@ type KeepSidianSettingsTabInternals = {
 	addAutoSyncSettings(containerEl: HTMLElement): Promise<void>;
 };
 
-const getSettingsTabInternals = (
-	instance: KeepSidianSettingsTab
-): KeepSidianSettingsTabInternals =>
+const getSettingsTabInternals = (instance: KeepSidianSettingsTab): KeepSidianSettingsTabInternals =>
 	instance as unknown as KeepSidianSettingsTabInternals;
 
 const createMockTextComponent = (
@@ -111,9 +109,7 @@ const createMockTextComponent = (
 	return component;
 };
 
-const createMockToggleComponent = (
-	inputEl: HTMLInputElement
-): MockToggleComponent => {
+const createMockToggleComponent = (inputEl: HTMLInputElement): MockToggleComponent => {
 	const component: MockToggleComponent = {
 		setValue: jest.fn(),
 		onChange: jest.fn(),
@@ -131,9 +127,7 @@ const createMockToggleComponent = (
 	return component;
 };
 
-const createMockButtonComponent = (
-	buttonEl: HTMLButtonElement
-): MockButtonComponent => {
+const createMockButtonComponent = (buttonEl: HTMLButtonElement): MockButtonComponent => {
 	const component: MockButtonComponent = {
 		setButtonText: jest.fn(),
 		setCta: jest.fn(),
@@ -153,9 +147,7 @@ const createMockButtonComponent = (
 	return component;
 };
 
-const createMockExtraButtonComponent = (
-	buttonEl: HTMLButtonElement
-): MockExtraButtonComponent => {
+const createMockExtraButtonComponent = (buttonEl: HTMLButtonElement): MockExtraButtonComponent => {
 	const component: MockExtraButtonComponent = {
 		setIcon: jest.fn(),
 		setTooltip: jest.fn(),
@@ -190,9 +182,7 @@ const createMockSliderComponent = (
 	});
 	component.setDynamicTooltip.mockImplementation(() => component);
 	component.onChange.mockImplementation((handler) => {
-		inputEl.addEventListener("input", () =>
-			handler(Number(inputEl.value))
-		);
+		inputEl.addEventListener("input", () => handler(Number(inputEl.value)));
 		return component;
 	});
 
@@ -204,10 +194,7 @@ const createMockSliderComponent = (
 	return component;
 };
 
-function attachCreateEl(
-	element: HTMLElement,
-	createEl: CreateElFn
-): HTMLElementWithCreateEl {
+function attachCreateEl(element: HTMLElement, createEl: CreateElFn): HTMLElementWithCreateEl {
 	const elementWithCreate = element as HTMLElementWithCreateEl;
 	elementWithCreate.createEl = createEl;
 	const createDivImpl = function createDiv(
@@ -233,10 +220,7 @@ jest.mock("obsidian", () => {
 		callback?: (el: HTMLElementWithCreateEl) => void
 	): HTMLElementWithCreateEl {
 		const element = document.createElement(tag);
-		const elementWithCreate = attachCreateEl(
-			element,
-			typedCreateEl
-		);
+		const elementWithCreate = attachCreateEl(element, typedCreateEl);
 		if (typeof opts === "string") {
 			elementWithCreate.className = opts;
 		} else if (opts && typeof opts === "object") {
@@ -249,9 +233,7 @@ jest.mock("obsidian", () => {
 			if (options.cls) {
 				const classes = Array.isArray(options.cls)
 					? options.cls
-					: String(options.cls)
-						.split(/\s+/)
-						.filter(Boolean);
+					: String(options.cls).split(/\s+/).filter(Boolean);
 				for (const cls of classes) {
 					elementWithCreate.classList.add(String(cls));
 				}
@@ -283,21 +265,12 @@ jest.mock("obsidian", () => {
 		controlEl: HTMLElementWithCreateEl;
 		constructor(containerEl: HTMLElement) {
 			attachCreateEl(containerEl, typedCreateEl);
-			this.settingEl = attachCreateEl(
-				document.createElement("div"),
-				typedCreateEl
-			);
+			this.settingEl = attachCreateEl(document.createElement("div"), typedCreateEl);
 			this.settingEl.classList.add("setting-item");
-			this.infoEl = attachCreateEl(
-				document.createElement("div"),
-				typedCreateEl
-			);
+			this.infoEl = attachCreateEl(document.createElement("div"), typedCreateEl);
 			this.infoEl.classList.add("setting-item-info");
 			this.settingEl.appendChild(this.infoEl);
-			this.controlEl = attachCreateEl(
-				document.createElement("div"),
-				typedCreateEl
-			);
+			this.controlEl = attachCreateEl(document.createElement("div"), typedCreateEl);
 			this.controlEl.classList.add("setting-item-control");
 			this.settingEl.appendChild(this.controlEl);
 			containerEl.appendChild(this.settingEl);
@@ -350,10 +323,7 @@ jest.mock("obsidian", () => {
 			const inputEl = document.createElement("input");
 			inputEl.type = "text";
 			this.controlEl.appendChild(inputEl);
-			const textComponent = createMockTextComponent(
-				inputEl,
-				typedCreateEl
-			);
+			const textComponent = createMockTextComponent(inputEl, typedCreateEl);
 			cb(textComponent);
 			return this;
 		}
@@ -370,9 +340,7 @@ jest.mock("obsidian", () => {
 		addButton(cb: (button: MockButtonComponent) => void) {
 			const buttonEl = document.createElement("button");
 			this.controlEl.appendChild(buttonEl);
-			const buttonComponent = createMockButtonComponent(
-				buttonEl
-			);
+			const buttonComponent = createMockButtonComponent(buttonEl);
 			cb(buttonComponent);
 			return this;
 		}
@@ -389,10 +357,7 @@ jest.mock("obsidian", () => {
 			const inputEl = document.createElement("input");
 			inputEl.type = "range";
 			this.controlEl.appendChild(inputEl);
-			const sliderComponent = createMockSliderComponent(
-				inputEl,
-				typedCreateEl
-			);
+			const sliderComponent = createMockSliderComponent(inputEl, typedCreateEl);
 			cb(sliderComponent);
 			return this;
 		}
@@ -443,8 +408,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		plugin.stopAutoSync = jest.fn();
 		// Mock subscription service
 		subscriptionServiceMock = {
-			isSubscriptionActive:
-				jest.fn<Promise<boolean>, [boolean?]>().mockResolvedValue(true),
+			isSubscriptionActive: jest.fn<Promise<boolean>, [boolean?]>().mockResolvedValue(true),
 			getEmail: jest.fn<string | undefined, []>(),
 			getCache: jest.fn<unknown, []>(),
 			setCache: jest.fn<Promise<void>, [unknown]>().mockResolvedValue(undefined),
@@ -470,9 +434,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		) as HTMLElementWithCreateEl[];
 		return (
 			items.find((item) => {
-				const nameEl = item.querySelector(
-					".setting-item-name"
-				) as HTMLElement | null;
+				const nameEl = item.querySelector(".setting-item-name") as HTMLElement | null;
 				return nameEl?.textContent === label;
 			}) ?? null
 		);
@@ -508,34 +470,29 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		expect(plugin.settings.token).toBe("new-token");
 	});
 
-	test(
-		"retrieve token button calls flow with valid email and github instructions link exists",
-		async () => {
-			plugin.settings.email = "test@example.com";
+	test("retrieve token button calls flow with valid email and github instructions link exists", async () => {
+		plugin.settings.email = "test@example.com";
 
-			const container = tab.containerEl;
-			await tabInternals.addSyncTokenSetting(container);
+		const container = tab.containerEl;
+		await tabInternals.addSyncTokenSetting(container);
 
-			const retrieveBtn = Array.from(
-				container.querySelectorAll("button")
-			).find(
-				(b) => b.textContent === "Retrieval wizard"
-			) as HTMLButtonElement;
-			expect(retrieveBtn).toBeTruthy();
-			retrieveBtn.click();
-			await new Promise((resolve) => setTimeout(resolve, 0));
-			expect(initRetrieveToken).toHaveBeenCalled();
+		const retrieveBtn = Array.from(container.querySelectorAll("button")).find(
+			(b) => b.textContent === "Retrieval wizard"
+		) as HTMLButtonElement;
+		expect(retrieveBtn).toBeTruthy();
+		retrieveBtn.click();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(initRetrieveToken).toHaveBeenCalled();
 
-			// Also ensure the GitHub instructions link exists
-			const githubLink = container.querySelector(
-				"a[data-keepsidian-link=\"github-instructions\"]"
-			) as HTMLAnchorElement | null;
-			expect(githubLink).not.toBeNull();
-			expect(githubLink?.getAttribute("href")).toBe(
-				"https://github.com/djsudduth/keep-it-markdown"
-			);
-		}
-	);
+		// Also ensure the GitHub instructions link exists
+		const githubLink = container.querySelector(
+			'a[data-keepsidian-link="github-instructions"]'
+		) as HTMLAnchorElement | null;
+		expect(githubLink).not.toBeNull();
+		expect(githubLink?.getAttribute("href")).toBe(
+			"https://github.com/djsudduth/keep-it-markdown"
+		);
+	});
 
 	test("save location onChange persists value", async () => {
 		const container = tab.containerEl;
@@ -549,9 +506,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 	test("auto sync toggle starts and stops appropriately", async () => {
 		const container = tab.containerEl;
 		await tabInternals.addAutoSyncSettings(container);
-		const checkbox = container.querySelector(
-			'input[type="checkbox"]'
-		) as HTMLInputElement;
+		const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
 
 		// Enable
 		checkbox.checked = true;
@@ -571,9 +526,9 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
 		const container = tab.containerEl;
 		await tabInternals.addAutoSyncSettings(container);
-		const textInputs = Array.from(
-			container.querySelectorAll("input")
-		).filter((i) => i.type === "text") as HTMLInputElement[];
+		const textInputs = Array.from(container.querySelectorAll("input")).filter(
+			(i) => i.type === "text"
+		) as HTMLInputElement[];
 		const intervalInput = textInputs[textInputs.length - 1];
 
 		plugin.settings.autoSyncEnabled = true;
@@ -590,9 +545,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		containerWithCreate.appendChild(secondaryContainer);
 		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(false);
 		await tabInternals.addAutoSyncSettings(secondaryContainer);
-		const disabledSetting = secondaryContainer.querySelector(
-			".requires-subscription"
-		);
+		const disabledSetting = secondaryContainer.querySelector(".requires-subscription");
 		expect(disabledSetting).toBeTruthy();
 	});
 
@@ -601,26 +554,16 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
 		await tabInternals.addAutoSyncSettings(container);
 
-		const manualSetting = findSettingByLabel(
-			container,
-			"Enable two-way sync (beta)"
-		);
-		const autoSetting = findSettingByLabel(
-			container,
-			"Enable two-way sync for auto sync"
-		);
+		const manualSetting = findSettingByLabel(container, "Enable two-way sync");
+		const autoSetting = findSettingByLabel(container, "Enable two-way background sync");
 
 		expect(manualSetting?.classList.contains("is-disabled")).toBe(true);
 		expect(autoSetting?.classList.contains("is-disabled")).toBe(true);
 
-		const manualDesc = manualSetting?.querySelector(
-			".setting-item-description"
-		)?.textContent;
-		expect(manualDesc).toContain("Confirm backups above");
-		const autoDesc = autoSetting?.querySelector(
-			".setting-item-description"
-		)?.textContent;
-		expect(autoDesc).toContain("confirm backups");
+		const manualDesc = manualSetting?.querySelector(".setting-item-description")?.textContent;
+		expect(manualDesc).toContain("Please opt-in above to activate");
+		const autoDesc = autoSetting?.querySelector(".setting-item-description")?.textContent;
+		expect(autoDesc).toContain("requires opt-in above");
 	});
 
 	test("acknowledging backups unlocks manual two-way toggle", async () => {
@@ -628,18 +571,12 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
 		await tabInternals.addAutoSyncSettings(container);
 
-		const backupSetting = findSettingByLabel(
-			container,
-			"Confirm vault backups"
-		);
-		const manualSetting = findSettingByLabel(
-			container,
-			"Enable two-way sync (beta)"
-		);
+		const backupSetting = findSettingByLabel(container, "Confirm opt in");
+		const manualSetting = findSettingByLabel(container, "Enable two-way sync");
 
-		const backupToggle = backupSetting?.querySelector(
-			'input[type="checkbox"]'
-		) as HTMLInputElement | undefined;
+		const backupToggle = backupSetting?.querySelector('input[type="checkbox"]') as
+			| HTMLInputElement
+			| undefined;
 		expect(backupToggle).toBeDefined();
 		if (!backupToggle) {
 			throw new Error("Backup toggle not found");
@@ -661,7 +598,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 			'a[data-keepsidian-link="obsidian-backup-guide"]'
 		) as HTMLAnchorElement | null;
 		expect(backupLink).not.toBeNull();
-		expect(backupLink?.textContent).toBe("Open backup guide");
+		expect(backupLink?.textContent).toBe("🌎 Obsidian backup guide");
 		expect(backupLink?.getAttribute("target")).toBe("_blank");
 		expect(backupLink?.classList.contains("keepsidian-link-button")).toBe(true);
 	});
@@ -672,28 +609,19 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
 		await tabInternals.addAutoSyncSettings(container);
 
-		const backupSetting = findSettingByLabel(
-			container,
-			"Confirm vault backups"
-		);
-		const manualSetting = findSettingByLabel(
-			container,
-			"Enable two-way sync (beta)"
-		);
-		const autoSetting = findSettingByLabel(
-			container,
-			"Enable two-way sync for auto sync"
-		);
+		const backupSetting = findSettingByLabel(container, "Confirm opt in");
+		const manualSetting = findSettingByLabel(container, "Enable two-way sync");
+		const autoSetting = findSettingByLabel(container, "Enable two-way background sync");
 
-		const backupToggle = backupSetting?.querySelector(
-			'input[type="checkbox"]'
-		) as HTMLInputElement | undefined;
-		const manualToggle = manualSetting?.querySelector(
-			'input[type="checkbox"]'
-		) as HTMLInputElement | undefined;
-		const autoToggle = autoSetting?.querySelector(
-			'input[type="checkbox"]'
-		) as HTMLInputElement | undefined;
+		const backupToggle = backupSetting?.querySelector('input[type="checkbox"]') as
+			| HTMLInputElement
+			| undefined;
+		const manualToggle = manualSetting?.querySelector('input[type="checkbox"]') as
+			| HTMLInputElement
+			| undefined;
+		const autoToggle = autoSetting?.querySelector('input[type="checkbox"]') as
+			| HTMLInputElement
+			| undefined;
 
 		if (!backupToggle || !manualToggle || !autoToggle) {
 			throw new Error("Two-way toggle inputs missing");
@@ -704,10 +632,8 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		await waitForAsync();
 
 		expect(autoSetting?.classList.contains("is-disabled")).toBe(true);
-		const autoDescBefore = autoSetting?.querySelector(
-			".setting-item-description"
-		)?.textContent;
-		expect(autoDescBefore).toContain("enable two-way sync above");
+		const autoDescBefore = autoSetting?.querySelector(".setting-item-description")?.textContent;
+		expect(autoDescBefore).toContain("requires two-way sync");
 
 		manualToggle.checked = true;
 		manualToggle.dispatchEvent(new Event("change"));
@@ -721,15 +647,11 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		await waitForAsync();
 
 		expect(plugin.settings.twoWaySyncAutoSyncEnabled).toBe(true);
-		const autoDescAfter = autoSetting?.querySelector(
-			".setting-item-description"
-		)?.textContent;
-		expect(autoDescAfter).toContain(
-			"Auto sync will run uploads and downloads together"
-		);
+		const autoDescAfter = autoSetting?.querySelector(".setting-item-description")?.textContent;
+		expect(autoDescAfter).toContain("Background sync will run uploads and downloads together");
 	});
 
-	test("auto sync toggle refreshes auto two-way prerequisites", async () => {
+	test("background sync toggle refreshes auto two-way prerequisites", async () => {
 		const container = tab.containerEl;
 		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
 		plugin.settings.twoWaySyncBackupAcknowledged = true;
@@ -738,33 +660,25 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 
 		await tabInternals.addAutoSyncSettings(container);
 
-		const autoSyncSetting = findSettingByLabel(
-			container,
-			"Enable auto sync"
-		);
-		const autoSetting = findSettingByLabel(
-			container,
-			"Enable two-way sync for auto sync"
-		);
+		const autoSyncSetting = findSettingByLabel(container, "Enable background sync");
+		const autoSetting = findSettingByLabel(container, "Enable two-way background sync");
 		if (!autoSyncSetting || !autoSetting) {
-			throw new Error("Auto sync settings not rendered");
+			throw new Error("Background sync settings not rendered");
 		}
-		const autoSyncToggle = autoSyncSetting.querySelector(
-			'input[type="checkbox"]'
-		) as HTMLInputElement | undefined;
-		const autoToggle = autoSetting.querySelector(
-			'input[type="checkbox"]'
-		) as HTMLInputElement | undefined;
+		const autoSyncToggle = autoSyncSetting.querySelector('input[type="checkbox"]') as
+			| HTMLInputElement
+			| undefined;
+		const autoToggle = autoSetting.querySelector('input[type="checkbox"]') as
+			| HTMLInputElement
+			| undefined;
 
 		if (!autoSyncToggle || !autoToggle) {
 			throw new Error("Auto sync prerequisites inputs missing");
 		}
 
-		const autoDescBefore = autoSetting.querySelector(
-			".setting-item-description"
-		)?.textContent;
+		const autoDescBefore = autoSetting.querySelector(".setting-item-description")?.textContent;
 		expect(autoSetting.classList.contains("is-disabled")).toBe(true);
-		expect(autoDescBefore).toContain("turn on auto sync");
+		expect(autoDescBefore).toContain("requires background sync");
 
 		autoSyncToggle.checked = true;
 		autoSyncToggle.dispatchEvent(new Event("change"));
@@ -776,9 +690,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		const autoDescAfterEnable = autoSetting.querySelector(
 			".setting-item-description"
 		)?.textContent;
-		expect(autoDescAfterEnable).toContain(
-			"Auto sync will run uploads and downloads together"
-		);
+		expect(autoDescAfterEnable).toContain("Background sync will run uploads and downloads together");
 
 		autoSyncToggle.checked = false;
 		autoSyncToggle.dispatchEvent(new Event("change"));
@@ -788,7 +700,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		const autoDescAfterDisable = autoSetting.querySelector(
 			".setting-item-description"
 		)?.textContent;
-		expect(autoDescAfterDisable).toContain("turn on auto sync");
+		expect(autoDescAfterDisable).toContain("requires background sync");
 		expect(autoSetting.classList.contains("is-disabled")).toBe(true);
 	});
 
@@ -798,28 +710,19 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(true);
 		await tabInternals.addAutoSyncSettings(container);
 
-		const backupSetting = findSettingByLabel(
-			container,
-			"Confirm vault backups"
-		);
-		const manualSetting = findSettingByLabel(
-			container,
-			"Enable two-way sync (beta)"
-		);
-		const autoSetting = findSettingByLabel(
-			container,
-			"Enable two-way sync for auto sync"
-		);
+		const backupSetting = findSettingByLabel(container, "Confirm opt in");
+		const manualSetting = findSettingByLabel(container, "Enable two-way sync");
+		const autoSetting = findSettingByLabel(container, "Enable two-way background sync");
 
-		const backupToggle = backupSetting?.querySelector(
-			'input[type="checkbox"]'
-		) as HTMLInputElement | undefined;
-		const manualToggle = manualSetting?.querySelector(
-			'input[type="checkbox"]'
-		) as HTMLInputElement | undefined;
-		const autoToggle = autoSetting?.querySelector(
-			'input[type="checkbox"]'
-		) as HTMLInputElement | undefined;
+		const backupToggle = backupSetting?.querySelector('input[type="checkbox"]') as
+			| HTMLInputElement
+			| undefined;
+		const manualToggle = manualSetting?.querySelector('input[type="checkbox"]') as
+			| HTMLInputElement
+			| undefined;
+		const autoToggle = autoSetting?.querySelector('input[type="checkbox"]') as
+			| HTMLInputElement
+			| undefined;
 
 		if (!backupToggle || !manualToggle || !autoToggle) {
 			throw new Error("Two-way toggle inputs missing");
@@ -852,15 +755,10 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(false);
 		await tabInternals.addAutoSyncSettings(container);
 
-		const autoSetting = findSettingByLabel(
-			container,
-			"Enable two-way sync for auto sync"
-		);
+		const autoSetting = findSettingByLabel(container, "Enable two-way background sync");
 		expect(autoSetting).not.toBeNull();
 		expect(autoSetting?.classList.contains("requires-subscription")).toBe(true);
-		const autoDesc = autoSetting?.querySelector(
-			".setting-item-description"
-		)?.textContent;
-		expect(autoDesc).toContain("upgrade to KeepSidian Premium");
+		const autoDesc = autoSetting?.querySelector(".setting-item-description")?.textContent;
+		expect(autoDesc).toContain("Available to project supporters");
 	});
 });

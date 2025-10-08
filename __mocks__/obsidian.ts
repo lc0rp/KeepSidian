@@ -22,7 +22,8 @@ type EnhancableHTMLElement = HTMLElement & {
 	empty?: () => void;
 };
 
-type EnhancedElement<K extends keyof HTMLElementTagNameMap> = HTMLElementTagNameMap[K] & EnhancableHTMLElement;
+type EnhancedElement<K extends keyof HTMLElementTagNameMap> = HTMLElementTagNameMap[K] &
+	EnhancableHTMLElement;
 
 type EnhancedHTMLElementMap = {
 	[K in keyof HTMLElementTagNameMap]: EnhancedElement<K>;
@@ -132,7 +133,9 @@ export class Plugin {
 		element.setText = (text: string) => {
 			element.textContent = text;
 		};
-		const createChild: CreateElFunction = function createChild<K extends keyof HTMLElementTagNameMap>(
+		const createChild: CreateElFunction = function createChild<
+			K extends keyof HTMLElementTagNameMap
+		>(
 			this: StatusBarItemElement,
 			tagName: K,
 			options?: CreateElOptions
@@ -163,8 +166,8 @@ class NoticeInstance {
 	hide(): void {}
 }
 
-export const Notice = jest.fn<NoticeInstance, [string | DocumentFragment, number | undefined]>((message, timeout) =>
-	new NoticeInstance(message, timeout)
+export const Notice = jest.fn<NoticeInstance, [string | DocumentFragment, number | undefined]>(
+	(message, timeout) => new NoticeInstance(message, timeout)
 );
 
 export function arrayBufferToBase64(data: ArrayBuffer): string {
@@ -192,7 +195,7 @@ export class MenuItem {
 	icon: string | null = null;
 	disabled = false;
 	isLabel = false;
-	onClickHandler: ((evt: MouseEvent | KeyboardEvent) => any) | null = null;
+	onClickHandler: ((evt: MouseEvent | KeyboardEvent) => unknown) | null = null;
 
 	setTitle(title: string | DocumentFragment): this {
 		this.title = title;
@@ -218,7 +221,7 @@ export class MenuItem {
 		return this;
 	}
 
-	onClick(callback: (evt: MouseEvent | KeyboardEvent) => any): this {
+	onClick(callback: (evt: MouseEvent | KeyboardEvent) => unknown): this {
 		this.onClickHandler = callback;
 		return this;
 	}
@@ -532,3 +535,37 @@ export class ProgressBarComponent {
 		this.value = value;
 	}
 }
+
+// Global Obsidian utility function
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(global as any).createFragment = function createFragment(
+	callback?: (el: DocumentFragment) => void
+): DocumentFragment {
+	const fragment = document.createDocumentFragment();
+	const enhancedFragment = fragment as DocumentFragment & EnhancableHTMLElement;
+
+	// Add createEl, createDiv methods to the fragment
+	if (!enhancedFragment.createEl) {
+		enhancedFragment.createEl = function <K extends keyof HTMLElementTagNameMap>(
+			tagName: K,
+			options?: CreateElOptions
+		): EnhancedElement<K> {
+			const element = document.createElement(tagName);
+			applyOptions(element, options);
+			fragment.appendChild(element);
+			return enhanceElement(element) as EnhancedElement<K>;
+		};
+	}
+
+	if (!enhancedFragment.createDiv) {
+		enhancedFragment.createDiv = function (options?: CreateElOptions): EnhancedElement<"div"> {
+			return enhancedFragment.createEl!("div", options);
+		};
+	}
+
+	if (callback) {
+		callback(enhancedFragment);
+	}
+
+	return enhancedFragment;
+};

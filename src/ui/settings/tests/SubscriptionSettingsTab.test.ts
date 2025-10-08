@@ -123,9 +123,7 @@ const createMockTextComponent = (
 	return component;
 };
 
-const createMockToggleComponent = (
-	inputEl: HTMLInputElement
-): MockToggleComponent => {
+const createMockToggleComponent = (inputEl: HTMLInputElement): MockToggleComponent => {
 	const component: MockToggleComponent = {
 		setValue: jest.fn(),
 		onChange: jest.fn(),
@@ -143,9 +141,7 @@ const createMockToggleComponent = (
 	return component;
 };
 
-const createMockButtonComponent = (
-	buttonEl: HTMLButtonElement
-): MockButtonComponent => {
+const createMockButtonComponent = (buttonEl: HTMLButtonElement): MockButtonComponent => {
 	const component: MockButtonComponent = {
 		setButtonText: jest.fn(),
 		setCta: jest.fn(),
@@ -165,9 +161,7 @@ const createMockButtonComponent = (
 	return component;
 };
 
-const createMockExtraButtonComponent = (
-	buttonEl: HTMLButtonElement
-): MockExtraButtonComponent => {
+const createMockExtraButtonComponent = (buttonEl: HTMLButtonElement): MockExtraButtonComponent => {
 	const component: MockExtraButtonComponent = {
 		setIcon: jest.fn(),
 		setTooltip: jest.fn(),
@@ -218,10 +212,7 @@ const createMockSliderComponent = (
 	return component;
 };
 
-function attachCreateEl(
-	element: HTMLElement,
-	createEl: CreateElFn
-): HTMLElementWithCreateEl {
+function attachCreateEl(element: HTMLElement, createEl: CreateElFn): HTMLElementWithCreateEl {
 	const elementWithCreate = element as HTMLElementWithCreateEl;
 	elementWithCreate.createEl = createEl;
 	const createDivImpl = function createDiv(
@@ -235,10 +226,7 @@ function attachCreateEl(
 	return elementWithCreate;
 }
 
-function applyOptions(
-	element: HTMLElementWithCreateEl,
-	opts?: CreateElOptions | string
-): void {
+function applyOptions(element: HTMLElementWithCreateEl, opts?: CreateElOptions | string): void {
 	if (!opts) {
 		return;
 	}
@@ -253,11 +241,7 @@ function applyOptions(
 		element.appendChild(text);
 	}
 	if (cls) {
-		const classes = Array.isArray(cls)
-			? cls
-			: String(cls)
-				.split(/\s+/)
-				.filter(Boolean);
+		const classes = Array.isArray(cls) ? cls : String(cls).split(/\s+/).filter(Boolean);
 		for (const clsName of classes) {
 			element.classList.add(String(clsName));
 		}
@@ -279,7 +263,10 @@ function createElImpl(
 	opts?: CreateElOptions | string,
 	callback?: (el: HTMLElementWithCreateEl) => void
 ): HTMLElementWithCreateEl {
-	const element = attachCreateEl(document.createElement(tag), createElImpl as unknown as CreateElFn);
+	const element = attachCreateEl(
+		document.createElement(tag),
+		createElImpl as unknown as CreateElFn
+	);
 	applyOptions(element, opts);
 	this.appendChild(element);
 	if (callback) {
@@ -303,21 +290,12 @@ jest.mock("obsidian", () => {
 
 		constructor(containerEl: HTMLElement) {
 			attachCreateEl(containerEl, typedCreateEl);
-			this.settingEl = attachCreateEl(
-				document.createElement("div"),
-				typedCreateEl
-			);
+			this.settingEl = attachCreateEl(document.createElement("div"), typedCreateEl);
 			this.settingEl.classList.add("setting-item");
-			this.infoEl = attachCreateEl(
-				document.createElement("div"),
-				typedCreateEl
-			);
+			this.infoEl = attachCreateEl(document.createElement("div"), typedCreateEl);
 			this.infoEl.classList.add("setting-item-info");
 			this.settingEl.appendChild(this.infoEl);
-			this.controlEl = attachCreateEl(
-				document.createElement("div"),
-				typedCreateEl
-			);
+			this.controlEl = attachCreateEl(document.createElement("div"), typedCreateEl);
 			this.controlEl.classList.add("setting-item-control");
 			this.settingEl.appendChild(this.controlEl);
 			containerEl.appendChild(this.settingEl);
@@ -470,32 +448,21 @@ describe("SubscriptionSettingsTab", () => {
 	});
 
 	describe("display()", () => {
-		it("should display premium settings with subscription prompt when subscription is not active", async () => {
-			jest.spyOn(
-				plugin.subscriptionService,
-				"isSubscriptionActive"
-			).mockResolvedValue(false);
+		it("should display premium settings with supporter prompt when subscription is not active", async () => {
+			jest.spyOn(plugin.subscriptionService, "isSubscriptionActive").mockResolvedValue(false);
 
 			await subscriptionTab.display();
 
-			expect(containerEl.querySelector("h5")?.textContent).toBe(
-				"Why subscribe?"
+			expect(containerEl.querySelector("em")?.textContent).toBe(
+				"Support development and unlock advanced features"
 			);
 			expect(containerEl.textContent).toContain("Auto-tags");
-			expect(containerEl.textContent).toContain(
-				"requires a subscription"
-			);
+			expect(containerEl.textContent).toContain("Available to project supporters");
 		});
 
 		it("should display active subscriber view when subscription is active", async () => {
-			jest.spyOn(
-				plugin.subscriptionService,
-				"isSubscriptionActive"
-			).mockResolvedValue(true);
-			jest.spyOn(
-				plugin.subscriptionService,
-				"checkSubscription"
-			).mockResolvedValue({
+			jest.spyOn(plugin.subscriptionService, "isSubscriptionActive").mockResolvedValue(true);
+			jest.spyOn(plugin.subscriptionService, "checkSubscription").mockResolvedValue({
 				subscription_status: "active",
 				plan_details: { plan_id: "premium", features: [] },
 				metering_info: { usage: 100, limit: 1000 },
@@ -506,18 +473,13 @@ describe("SubscriptionSettingsTab", () => {
 
 			expect(containerEl.textContent).toContain("✅ Active subscription");
 			expect(containerEl.textContent).toContain("Auto-tags");
-			expect(containerEl.textContent).not.toContain(
-				"requires a subscription"
-			);
+			expect(containerEl.textContent).not.toContain("requires a subscription");
 		});
 	});
 
 	describe("Premium Features Display", () => {
-		it("should display tag suggestion settings for subscribers", async () => {
-			jest.spyOn(
-				plugin.subscriptionService,
-				"isSubscriptionActive"
-			).mockResolvedValue(true);
+		it("should display tag suggestion settings for supporters", async () => {
+			jest.spyOn(plugin.subscriptionService, "isSubscriptionActive").mockResolvedValue(true);
 			await subscriptionTab.display();
 
 			expect(containerEl.textContent).toContain("Auto-tags");
@@ -525,30 +487,19 @@ describe("SubscriptionSettingsTab", () => {
 			expect(containerEl.textContent).toContain("Tag prefix");
 		});
 
-		it("should display note filtering settings for non-subscribers", async () => {
-			jest.spyOn(
-				plugin.subscriptionService,
-				"isSubscriptionActive"
-			).mockResolvedValue(false);
+		it("should display note filtering settings for non-supporters", async () => {
+			jest.spyOn(plugin.subscriptionService, "isSubscriptionActive").mockResolvedValue(false);
 			await subscriptionTab.display();
 
-			expect(containerEl.textContent).toContain(
-				"Only include notes containing"
-			);
-			expect(containerEl.textContent).toContain(
-				"Exclude notes containing"
-			);
-			expect(containerEl.textContent).toContain(
-				"requires a subscription"
-			);
+			expect(containerEl.textContent).toContain("Only include notes containing");
+			expect(containerEl.textContent).toContain("Exclude notes containing");
+			expect(containerEl.textContent).toContain("Available to project supporters");
 		});
 	});
 
 	describe("Event Handlers", () => {
 		beforeEach(() => {
-			(
-				plugin.subscriptionService.isSubscriptionActive as jest.Mock
-			).mockResolvedValue(true);
+			(plugin.subscriptionService.isSubscriptionActive as jest.Mock).mockResolvedValue(true);
 		});
 
 		it("should handle subscription check button click", async () => {
@@ -560,15 +511,11 @@ describe("SubscriptionSettingsTab", () => {
 			) as HTMLElement;
 			refreshButton?.click();
 
-			expect(
-				plugin.subscriptionService.checkSubscription
-			).toHaveBeenCalled();
+			expect(plugin.subscriptionService.checkSubscription).toHaveBeenCalled();
 		});
 
 		it("should render subscribe link for inactive users", async () => {
-			(
-				plugin.subscriptionService.isSubscriptionActive as jest.Mock
-			).mockResolvedValue(false);
+			(plugin.subscriptionService.isSubscriptionActive as jest.Mock).mockResolvedValue(false);
 
 			await subscriptionTab.display();
 
@@ -576,13 +523,9 @@ describe("SubscriptionSettingsTab", () => {
 				'a[data-keepsidian-link="subscribe"]'
 			) as HTMLAnchorElement | null;
 			expect(subscribeLink).not.toBeNull();
-			expect(subscribeLink?.getAttribute("href")).toBe(
-				"https://keepsidian.com/subscribe"
-			);
+			expect(subscribeLink?.getAttribute("href")).toBe("https://keepsidian.com/subscribe");
 			expect(subscribeLink?.getAttribute("target")).toBe("_blank");
-			expect(subscribeLink?.getAttribute("rel")).toBe(
-				"noopener noreferrer"
-			);
+			expect(subscribeLink?.getAttribute("rel")).toBe("noopener noreferrer");
 		});
 	});
 });

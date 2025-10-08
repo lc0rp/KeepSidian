@@ -5,7 +5,6 @@ import KeepSidianPlugin from "main";
 import { App } from "obsidian";
 import { NoteImportOptionsModal } from "../NoteImportOptionsModal";
 import { DEFAULT_SETTINGS } from "../../../types";
-import type { PremiumFeatureSettings } from "../../../types/subscription";
 
 type MockCreateElOptions = {
 	text?: string | DocumentFragment;
@@ -130,16 +129,20 @@ class ExtraButtonComponentMock implements MockExtraButtonComponent {
 }
 
 // Mock SubscriptionSettingsTab static method used by the modal
+
 jest.mock("../../settings/SubscriptionSettingsTab", () => ({
 	SubscriptionSettingsTab: {
-		displayPremiumFeaturesServer: jest.fn(
-			(
-				contentEl: HTMLElement,
-				_plugin: KeepSidianPlugin,
-				premium: PremiumFeatureSettings
-			) => {
+		displayPremiumFeatures: jest.fn(
+			(contentEl: HTMLElement, plugin: KeepSidianPlugin, isActive: boolean) => {
 				// Simulate that UI mutates some premium values prior to submit
-				premium.includeNotesTerms = ["foo"];
+				plugin.settings = { ...DEFAULT_SETTINGS };
+				plugin.settings.premiumFeatures = {
+					...(plugin.settings.premiumFeatures ?? {}),
+					includeNotesTerms: ["foo"],
+				};
+				contentEl.createEl("div", {
+					text: `Mocked displayPremiumFeatures - isActive: ${isActive}`,
+				});
 			}
 		),
 	},
@@ -237,7 +240,7 @@ describe("NoteImportOptionsModal", () => {
 		plugin.settings = { ...DEFAULT_SETTINGS };
 	});
 
-	test("renders, calls displayPremiumFeaturesServer, and submits options", async () => {
+	test("renders, calls displayPremiumFeatures, and submits options", async () => {
 		const onSubmit = jest.fn();
 		const modal = new NoteImportOptionsModal(app, plugin, onSubmit);
 		// Spy on close to ensure it is called

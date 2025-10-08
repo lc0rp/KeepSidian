@@ -14,6 +14,7 @@ exchange data between both apps.
 
 This plugin supports syncing between Google Keep and Obsidian, on-demand or
 automatically on a schedule.
+
 - Versions 1.1.2+: Introducing two-way sync!
 - Versions 1.1.1 and below: Only downloading supported
 
@@ -74,7 +75,11 @@ When background-sync is enabled, a status bar indicator is shown in the bottom r
 
 ## Supporting the project
 
-KeepSidian is useful for all users. However, some advanced features that may incur additional processing, third party costs or developer time shall be released to users who choose to support KeepSidian development. Anyone can choose to support the project here: [🌎 Support KeepSidian](https://keepsidianserver-v2-162887264002.us-central1.run.app/subscribe).
+KeepSidian is useful for all users. However, some advanced features that may incur
+additional processing, third party costs or developer time shall be released to
+users who choose to support KeepSidian development. Anyone can choose to support
+the project here:
+[🌎 Support KeepSidian](https://keepsidianserver-v2-162887264002.us-central1.run.app/subscribe).
 
 ### Exclusive supporter features
 

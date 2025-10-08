@@ -23,17 +23,22 @@ type NoticeWithControls = Notice & {
 };
 
 function createMenuTitleWithHint(
+	plugin: KeepSidianPlugin,
 	label: string,
 	hint?: string
 ): string | DocumentFragment {
 	if (!hint) {
 		return label;
 	}
-	const fragment = document.createDocumentFragment();
-	const labelEl = document.createElement("span");
+	const doc = plugin.app.workspace?.containerEl?.ownerDocument;
+	if (!doc) {
+		return `${label} — ${hint}`;
+	}
+	const fragment = doc.createDocumentFragment();
+	const labelEl = doc.createElement("span");
 	labelEl.textContent = label;
 	fragment.appendChild(labelEl);
-	const hintEl = document.createElement("span");
+	const hintEl = doc.createElement("span");
 	hintEl.classList.add("keepsidian-menu-hint");
 	hintEl.textContent = ` — ${hint}`;
 	fragment.appendChild(hintEl);
@@ -112,8 +117,7 @@ function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 	menu.addSeparator();
 
 	menu.addItem((item) => {
-		item
-			.setTitle(createMenuTitleWithHint("Two-way sync", gateHint))
+		item.setTitle(createMenuTitleWithHint(plugin, "Two-way sync", gateHint))
 			.setDisabled(syncing)
 			.onClick(async () => {
 				if (plugin.isSyncInProgress()) {
@@ -140,8 +144,7 @@ function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 	});
 
 	menu.addItem((item) => {
-		item
-			.setTitle(createMenuTitleWithHint("Upload to Google Keep", gateHint))
+		item.setTitle(createMenuTitleWithHint(plugin, "Upload to Google Keep", gateHint))
 			.setDisabled(syncing)
 			.onClick(async () => {
 				if (plugin.isSyncInProgress()) {
@@ -161,8 +164,7 @@ function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 
 	if (!gateSnapshot.allowed) {
 		menu.addItem((item) => {
-			item
-				.setTitle("Open beta settings…")
+			item.setTitle("Open beta settings…")
 				.setIcon("settings")
 				.onClick(() => {
 					plugin.openTwoWaySettings();

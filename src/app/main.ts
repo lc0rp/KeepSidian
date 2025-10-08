@@ -145,14 +145,10 @@ export default class KeepSidianPlugin extends Plugin {
 		const autoSyncEnabled = this.settings.autoSyncEnabled;
 
 		if (!backupAcknowledged) {
-			reasons.push(
-				"Confirm vault backups in KeepSidian settings before enabling uploads."
-			);
+			reasons.push("Confirm vault backups in KeepSidian settings before enabling uploads.");
 		}
 		if (backupAcknowledged && !manualEnabled) {
-			reasons.push(
-				"Enable two-way sync (beta) in KeepSidian settings to use uploads."
-			);
+			reasons.push("Enable two-way sync (beta) in KeepSidian settings to use uploads.");
 		}
 
 		const subscriptionActive =
@@ -202,33 +198,45 @@ export default class KeepSidianPlugin extends Plugin {
 		if (result.allowed) {
 			return;
 		}
-		const fragment = document.createDocumentFragment();
-		const heading = document.createElement("div");
-		heading.textContent = "KeepSidian uploads are locked until you:";
+
+		const doc = this.app.workspace?.containerEl?.ownerDocument ?? null;
+		if (!doc) {
+			new Notice("KeepSidian uploads are locked until prerequisites are met.", 10000);
+			return;
+		}
+
+		const fragment = doc.createDocumentFragment();
+		const heading = doc.createElement("div");
 		heading.classList.add("keepsidian-notice-heading");
+		heading.textContent = "KeepSidian uploads are locked until you:";
 		fragment.appendChild(heading);
-		const list = document.createElement("ul");
+
+		const list = doc.createElement("ul");
 		list.classList.add("keepsidian-notice-list");
 		for (const reason of result.reasons) {
-			const item = document.createElement("li");
-			item.textContent = reason;
-			list.appendChild(item);
+			const listItem = doc.createElement("li");
+			listItem.textContent = reason;
+			list.appendChild(listItem);
 		}
 		fragment.appendChild(list);
-		const actions = document.createElement("div");
+
+		const actions = doc.createElement("div");
 		actions.classList.add("keepsidian-notice-actions");
-		const settingsButton = document.createElement("button");
-		settingsButton.type = "button";
+		const settingsButton = doc.createElement("button");
 		settingsButton.classList.add("keepsidian-notice-button");
 		settingsButton.textContent = "Open beta settings";
 		settingsButton.setAttribute("aria-label", "Open beta settings");
+		settingsButton.setAttribute("type", "button");
 		actions.appendChild(settingsButton);
 		fragment.appendChild(actions);
-		const notice = new Notice(fragment, 10000);
+
+		let notice: Notice;
 		settingsButton.addEventListener("click", () => {
 			this.openTwoWaySettings();
 			notice.hide();
 		});
+
+		notice = new Notice(fragment, 10000);
 	}
 
 	private autoSyncGateReasonsChanged(reasons: string[]): boolean {
@@ -248,7 +256,9 @@ export default class KeepSidianPlugin extends Plugin {
 	private async runAutoSyncTick(): Promise<void> {
 		try {
 			try {
-				const subscriptionActive = await this.subscriptionService.isSubscriptionActive(true);
+				const subscriptionActive = await this.subscriptionService.isSubscriptionActive(
+					true
+				);
 				this.subscriptionActive = subscriptionActive;
 			} catch {
 				// Notices are surfaced by SubscriptionService on failure; keep cached state.
@@ -263,10 +273,7 @@ export default class KeepSidianPlugin extends Plugin {
 			await this.handleAutoSyncGate(gate.reasons);
 		} catch (error: unknown) {
 			const message = getErrorMessage(error);
-			await logSync(
-				this,
-				`Auto sync upgrade check failed - ${message}`
-			);
+			await logSync(this, `Auto sync upgrade check failed - ${message}`);
 		}
 	}
 
@@ -297,13 +304,15 @@ export default class KeepSidianPlugin extends Plugin {
 
 	openTwoWaySettings() {
 		const pluginId = this.manifest?.id ?? "keepsidian";
-		const settingManager = (this.app as unknown as {
-			setting?: {
-				open: () => void;
-				openTabById?: (id: string) => void;
-				openSettingTab?: (id: string) => void;
-			};
-		}).setting;
+		const settingManager = (
+			this.app as unknown as {
+				setting?: {
+					open: () => void;
+					openTabById?: (id: string) => void;
+					openSettingTab?: (id: string) => void;
+				};
+			}
+		).setting;
 		if (settingManager?.open) {
 			settingManager.open();
 		}

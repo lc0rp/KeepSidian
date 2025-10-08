@@ -9,7 +9,7 @@ type MenuItemMock = {
 	title: string | DocumentFragment;
 	icon: string | null;
 	disabled: boolean;
-	onClickHandler?: (evt: MouseEvent | KeyboardEvent) => any;
+	onClickHandler?: (evt: MouseEvent | KeyboardEvent) => unknown;
 };
 
 type MenuMockContainer = {
