@@ -1,4 +1,4 @@
-# KeepSidian - Two-way sync for Google Keep and Obsidian
+# KeepSidian: 2-way Obsidian-Google Keep sync
 
 [![License](https://img.shields.io/github/license/lc0rp/KeepSidian?style=flat-square)](LICENSE)
 [![Issues](https://img.shields.io/github/issues/lc0rp/KeepSidian?style=flat-square)](https://github.com/lc0rp/KeepSidian/issues)
