@@ -137,7 +137,7 @@ export default class KeepSidianPlugin extends Plugin {
 		subscriptionOverride: boolean | null = null
 	): TwoWayGateResult {
 		const reasons: string[] = [];
-		const requirePremium = options.requirePremium ?? true;
+		const requirePremium = options.requirePremium ?? false;
 		const requireAutoSync = options.requireAutoSync ?? false;
 		const backupAcknowledged = this.settings.twoWaySyncBackupAcknowledged;
 		const manualEnabled = this.settings.twoWaySyncEnabled;
@@ -145,10 +145,10 @@ export default class KeepSidianPlugin extends Plugin {
 		const autoSyncEnabled = this.settings.autoSyncEnabled;
 
 		if (!backupAcknowledged) {
-			reasons.push("Confirm vault backups in KeepSidian settings before enabling uploads.");
+			reasons.push("Please opt-in in settings first.");
 		}
 		if (backupAcknowledged && !manualEnabled) {
-			reasons.push("Enable two-way sync (beta) in KeepSidian settings to use uploads.");
+			reasons.push("Please enable in settings first.");
 		}
 
 		const subscriptionActive =
@@ -159,11 +159,11 @@ export default class KeepSidianPlugin extends Plugin {
 
 		if (requireAutoSync) {
 			if (!autoSyncEnabled) {
-				reasons.push("Turn on auto sync to run two-way sync automatically.");
+				reasons.push("Please enable auto sync in settings first.");
 			}
 			if (!autoUploadsEnabled) {
 				reasons.push(
-					"Enable auto two-way sync in settings to include uploads in auto sync."
+					"Please enable auto two-way sync in settings first."
 				);
 			}
 		}

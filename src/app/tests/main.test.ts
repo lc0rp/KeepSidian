@@ -370,7 +370,7 @@ describe("KeepSidianPlugin", () => {
 					);
 				expect(gatingMessages.length).toBeGreaterThanOrEqual(2);
 				expect(gatingMessages[0]).toContain(
-					"Enable two-way sync (beta) in KeepSidian settings to use uploads."
+					"Please enable in settings first."
 				);
 				expect(importSpy).toHaveBeenCalledTimes(2);
 				expect(importSpy).toHaveBeenNthCalledWith(1, true);
@@ -734,7 +734,7 @@ describe("KeepSidianPlugin", () => {
 			const result = await plugin.requireTwoWaySafeguards();
 			expect(result.allowed).toBe(false);
 			expect(result.reasons).toContain(
-				"Confirm vault backups in KeepSidian settings before enabling uploads."
+				"Please opt-in in settings first."
 			);
 		});
 
