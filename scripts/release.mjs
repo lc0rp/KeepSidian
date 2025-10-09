@@ -19,6 +19,18 @@ const console = globalThis.console;
 const DRY_RUN_FLAGS = new Set(["--dry-run", "-n"]);
 const isDryRun = process.argv.some((arg) => DRY_RUN_FLAGS.has(arg));
 
+const isPathGitIgnored = (path) => {
+	try {
+		execSync(`git check-ignore -q -- ${path}`, { stdio: "ignore" });
+		return true;
+	} catch (error) {
+		if (error && error.status === 1) {
+			return false;
+		}
+		throw error;
+	}
+};
+
 const ensureCleanGitState = () => {
 	const status = runCapture("git status --porcelain").trim();
 	if (status.length > 0) {
@@ -197,8 +209,12 @@ const main = async () => {
 				`[dry-run] Skipping staging ${ENV_FILE_PATH} (file is ignored; no git changes made)`
 			);
 		} else {
-			console.log(`Staging ${ENV_FILE_PATH}...`);
-			run(`git add ${ENV_FILE_PATH}`);
+			if (isPathGitIgnored(ENV_FILE_PATH)) {
+				console.log(`${ENV_FILE_PATH} is gitignored; skipping staging.`);
+			} else {
+				console.log(`Staging ${ENV_FILE_PATH}...`);
+				run(`git add ${ENV_FILE_PATH}`);
+			}
 		}
 	} else if (!isDryRun) {
 		console.log(`No changes detected in ${ENV_FILE_PATH}; skipping staging.`);
