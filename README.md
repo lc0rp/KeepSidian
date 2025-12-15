@@ -21,6 +21,10 @@ automatically on a schedule.
 Please share your feedback in the
 [issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
 
+## Developer documentation
+
+Maintainer-focused documentation lives in `docs/` (start at [`docs/README.md`](./docs/README.md)).
+
 ## KIM based sync server
 
 The connection to Google Keep is established through a flask server based on
@@ -50,7 +54,9 @@ output:
   `KeepSidianLastSyncedDate` is older than the file's modified timestamp,
   bundles any attachments in the `media/` folder that have been updated since
   the last push, and sends the payload to Google Keep.
-  > **Note**: that attachments and media files are not currently supported.
+  > **Note**: Uploads are gated behind opt-in safeguards in settings and may require an active subscription.
+  > Attachments referenced from the note and located under `media/` are included in the upload payload; server support
+  > may vary by attachment type.
 
 - **Open sync log file** opens the most recent log file in a new pane.
 

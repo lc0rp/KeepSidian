@@ -3,7 +3,7 @@
 	"name": "KeepSidian",
 	"version": "1.1.3",
 	"minAppVersion": "1.6.5",
-	"description": "Import Google Keep notes.",
+	"description": "Two-way sync between Obsidian and Google Keep.",
 	"author": "lc0rp",
 	"authorUrl": "https://github.com/lc0rp",
 	"isDesktopOnly": true
