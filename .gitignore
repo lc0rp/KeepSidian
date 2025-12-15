@@ -35,10 +35,15 @@ data.json
 # Use ln -s /path/to/shared/file file to include here
 AGENTS.md
 logs/
+
 # BMAD tests (local only)
 bmad
+.bmad
 .bmad-*
 .gemini
 .github/chatmodes
+.github/agents
 .claude
 dev-plugin
+bmad-custom-modules-src
+bmad-custom-src
