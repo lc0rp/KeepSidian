@@ -3,7 +3,8 @@
 Purpose: single navigation point for the future docs IA that scales from one squad to multi-team operations while
 staying LLM-friendly.
 
-Linking: standardize on markdown links (no wikilinks); run `pnpm run lint:links` to catch strays.
+Linking: standardize on markdown links (no wikilinks); run `npm run lint:links` (or `pnpm run lint:links`) to catch
+strays.
 
 Flow (ordered by lifecycle):
 
@@ -20,4 +21,4 @@ Flow (ordered by lifecycle):
 - [99-archive](./99-archive/index.md)
 
 Caretakers: each index lists primary roles and update cadence; scrum master keeps this top index in sync at sprint
-start/end. Run `pnpm run lint:links` and `pnpm run lint:ia` before merging.
+start/end. Run `npm run lint:links` and `npm run lint:ia` before merging (or the `pnpm` equivalents).

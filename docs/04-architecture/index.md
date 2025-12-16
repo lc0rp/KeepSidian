@@ -15,4 +15,5 @@ Maintainers: plugin maintainers.
 Update when: the sync pipeline, server contract, or core module boundaries change.
 
 - [Architecture Overview](./overview.md)
+- [Source Tree](./source-tree.md)
 - [Server API Contract](./server-api.md)

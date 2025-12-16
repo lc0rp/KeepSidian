@@ -17,6 +17,13 @@ KeepSidian is an Obsidian plugin (TypeScript) that syncs notes via a companion s
   - Push: `src/integrations/server/keepApi.ts` (`pushNotes`)
   - Update note frontmatter: `KeepSidianLastSyncedDate` is refreshed on success
 
+## Download filtering and pagination
+
+- Downloads page through notes using `offset`/`limit`.
+- If a “last successful download” timestamp exists, it is sent as filters (`created_gt`, `updated_gt`) so the server
+  can return only notes created/updated after that timestamp.
+- The server may include `total_notes`; when present, the UI switches from indeterminate to determinate progress.
+
 ## Frontmatter keys
 
 The sync logic depends on these frontmatter keys in note files:
@@ -25,3 +32,13 @@ The sync logic depends on these frontmatter keys in note files:
 - `GoogleKeepUpdatedDate`
 - `KeepSidianLastSyncedDate`
 - `GoogleKeepUrl` (updated on push when provided by the server)
+
+## Where state is stored
+
+- Sync folder: `settings.saveLocation`.
+- Last successful download timestamp:
+  - `settings.keepSidianLastSuccessfulSyncDate`, and
+  - Obsidian vault config key `KeepSidianLastSuccessfulSyncDate` (best-effort, when available).
+- Sync logs:
+  - `settings.lastSyncLogPath` is updated on write.
+  - Logs are appended under `<saveLocation>/_KeepSidianLogs/` and rotated daily.
