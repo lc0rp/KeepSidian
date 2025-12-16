@@ -9,6 +9,9 @@ import obsidianmd from "eslint-plugin-obsidianmd";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// The Obsidian plugin ships a hybrid (iterator-based) flat config. Spread it
+// into a real array so ESLint 9 treats it as flat configs without involving the
+// legacy `extends` loader that breaks on ESM plugins.
 const obsidianFlatConfigs = [...obsidianmd.configs.recommended];
 
 export default [

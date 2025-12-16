@@ -47,3 +47,7 @@ bmad
 dev-plugin
 bmad-custom-modules-src
 bmad-custom-src
+logs_52363823175/0_build.txt
+logs_52363823175/build/system.txt
+logs_52363823175/runner-diagnostic-logs/58224622200-build/Runner_20251216-165428-utc.log
+logs_52363823175/runner-diagnostic-logs/58224622200-build/Worker_20251216-165431-utc.log
