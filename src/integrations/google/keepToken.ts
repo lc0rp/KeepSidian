@@ -1,6 +1,6 @@
 import KeepSidianPlugin from "main";
 import { KEEPSIDIAN_SERVER_URL } from "../../config";
-import { WebviewTag, ConsoleMessageEvent } from "electron";
+import type { WebviewTag, ConsoleMessageEvent } from "electron";
 import type {
 	CookiesGetFilter,
 	Cookie,
@@ -8,6 +8,7 @@ import type {
 	OnHeadersReceivedListenerDetails,
 	HeadersReceivedResponse,
 } from "electron";
+import { Platform } from "obsidian";
 
 type WebRequestWithRemoval = WebRequest & {
 	removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
@@ -78,6 +79,12 @@ const logSessionEvent = (
 	metadata: Record<string, unknown> = {}
 ) => {
 	void logRetrievalWizardEvent(level, message, metadata);
+};
+
+const ensureDesktopEnvironment = () => {
+	if (typeof Platform !== "undefined" && Platform.isMobileApp) {
+		throw new Error("Token retrieval wizard is only available on desktop.");
+	}
 };
 
 const summarizeUrl = (value: string) => {
@@ -670,6 +677,7 @@ async function getOAuthToken(
 	plugin: KeepSidianPlugin,
 	retrieveTokenWebview: WebviewTag
 ): Promise<string> {
+	ensureDesktopEnvironment();
 	const webview = retrieveTokenWebview as TestableWebview;
 	const OAUTH_URL = "https://accounts.google.com/EmbeddedSetup";
 	const CONSENT_REDIRECT_PREFIX = OAUTH_URL;
@@ -1538,6 +1546,7 @@ export async function initRetrieveToken(
 	plugin: KeepSidianPlugin,
 	retrieveTokenWebview: WebviewTag
 ) {
+	ensureDesktopEnvironment();
 	try {
 		logSessionEvent("info", "initRetrieveToken invoked");
 		await getOAuthToken(settingsTab, plugin, retrieveTokenWebview);

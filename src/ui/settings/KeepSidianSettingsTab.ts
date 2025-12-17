@@ -1,9 +1,9 @@
-import { WebviewTag } from "electron";
+import type { WebviewTag } from "electron";
 import KeepSidianPlugin from "main";
-import { PluginSettingTab, App, Setting, Notice, setIcon } from "obsidian";
+import { PluginSettingTab, App, Setting, Notice, setIcon, Platform } from "obsidian";
+import { exchangeOauthToken, initRetrieveToken } from "../../integrations/google/keepToken";
 import type { IconName, ToggleComponent } from "obsidian";
 import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
-import { exchangeOauthToken, initRetrieveToken } from "../../integrations/google/keepToken";
 import {
 	endRetrievalWizardSession,
 	logRetrievalWizardEvent,
@@ -11,7 +11,7 @@ import {
 } from "@integrations/google/retrievalSessionLogger";
 
 export class KeepSidianSettingsTab extends PluginSettingTab {
-	private retrieveTokenWebView: WebviewTag;
+	private retrieveTokenWebView?: WebviewTag;
 	private plugin: KeepSidianPlugin;
 	private retrieveTokenGuide?: {
 		container: HTMLElement;
@@ -42,7 +42,9 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		this.addSaveLocationSetting(containerEl);
 		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
 		this.addSyncTokenSetting(containerEl);
-		this.createRetrieveTokenWebView(containerEl);
+		if (Platform.isDesktopApp) {
+			this.createRetrieveTokenWebView(containerEl);
+		}
 		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
 		await this.addAutoSyncSettings(containerEl);
 		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
@@ -140,7 +142,10 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Sync token")
 			.setDesc(
-				"This token authorizes access to your Google Keep data. Retrieve your token below."
+				"This token authorizes access to your Google Keep data." +
+					(Platform.isMobileApp
+						? " Paste a token retrieved on desktop (syncs via Obsidian) or follow the GitHub instructions."
+						: " Retrieve your token below or paste one from desktop.")
 			)
 			.addText((text) => {
 				text.setPlaceholder("Google Keep sync token.")
@@ -166,16 +171,23 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 				});
 			});
 
-		const retrievalSetting = new Setting(containerEl)
-			.setName("Retrieve your sync token")
-			.setDesc(
-				'Get your token automatically using our "Retrieval wizard" or manually using the "Github KIM instructions".'
-			)
-			.addButton((button) =>
-				button
-					.setButtonText("Retrieval wizard")
-					.onClick(this.handleRetrieveToken.bind(this))
+		const retrievalSetting = new Setting(containerEl).setName("Retrieve your sync token");
+
+		if (Platform.isDesktopApp) {
+			retrievalSetting
+				.setDesc(
+					'Get your token automatically using our "Retrieval wizard" or manually using the "Github KIM instructions".'
+				)
+				.addButton((button) =>
+					button
+						.setButtonText("Retrieval wizard")
+						.onClick(this.handleRetrieveToken.bind(this))
+				);
+		} else {
+			retrievalSetting.setDesc(
+				"Mobile: use a desktop-synced token or the GitHub KIM instructions below."
 			);
+		}
 
 		const githubInstructionsUrl = "https://github.com/djsudduth/keep-it-markdown";
 		const githubInstructionsLink = retrievalSetting.controlEl.createEl("a", {
@@ -216,6 +228,14 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			new Notice("Please enter a valid email address before retrieving the token.");
 			return;
 		}
+		if (!Platform.isDesktopApp) {
+			new Notice("Token retrieval wizard is only available on desktop. Paste a token instead.");
+			await logRetrievalWizardEvent("warn", "Retrieval wizard aborted: mobile platform", {
+				platform: "mobile",
+			});
+			await endRetrievalWizardSession("aborted", { reason: "mobile-platform" });
+			return;
+		}
 		// Ensure the webview exists if display() wasn't called yet in this lifecycle
 		if (!this.retrieveTokenWebView) {
 			this.createRetrieveTokenWebView(this.containerEl);
@@ -239,7 +259,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			(this.retrieveTokenGuide.webviewContainer as HTMLElement & { show: () => void }).show();
 		}
 
-		await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView);
+		await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView!);
 		await logRetrievalWizardEvent("info", "Retrieval wizard workflow completed");
 		this.display();
 		await logRetrievalWizardEvent("debug", "Settings tab refreshed after retrieval wizard");
@@ -541,6 +561,9 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 	}
 
 	private createRetrieveTokenWebView(containerEl: HTMLElement): void {
+		if (!Platform.isDesktopApp) {
+			return;
+		}
 		const wrapper = containerEl.createDiv("keepsidian-retrieve-token-wrapper");
 		const guideContainer = wrapper.createDiv("keepsidian-retrieve-token-guide");
 		const titleEl = guideContainer.createDiv({

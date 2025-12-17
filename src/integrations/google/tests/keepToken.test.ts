@@ -10,6 +10,7 @@ jest.mock("obsidian", () => ({
 	...jest.requireActual("obsidian"),
 	requestUrl: jest.fn(),
 	Notice: jest.fn(),
+	Platform: { isDesktopApp: true, isMobileApp: false },
 }));
 
 // Mock the main plugin

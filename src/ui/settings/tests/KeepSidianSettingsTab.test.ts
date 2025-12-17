@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { App, PluginSettingTab, Notice } from 'obsidian';
+import { App, PluginSettingTab, Notice, Platform } from 'obsidian';
 import { KeepSidianSettingsTab } from '../KeepSidianSettingsTab';
 import KeepSidianPlugin from '../../../main';
 import { SubscriptionService } from 'services/subscription';
@@ -116,6 +116,7 @@ jest.mock('obsidian', () => ({
     requestUrl: jest.fn(),
     Notice: jest.fn(),
     setIcon: jest.fn(),
+    Platform: { isDesktopApp: true, isMobileApp: false },
 }));
 
 const mockSubscriptionService = () => {
@@ -149,6 +150,8 @@ const mockSubscriptionService = () => {
 
 	    beforeEach(() => {
 	        jest.resetModules();
+	        Platform.isDesktopApp = true;
+	        Platform.isMobileApp = false;
 	        app = new App();
 	        plugin = new KeepSidianPlugin(app, TEST_MANIFEST);
 	        plugin.settings = {
@@ -176,6 +179,7 @@ const mockSubscriptionService = () => {
 
         // Reset the exchangeOauthToken mock
         (exchangeOauthToken as jest.Mock).mockReset();
+        (initRetrieveToken as jest.Mock).mockReset();
     });
 
     test('two-way sync defaults stay disabled for safety', () => {
@@ -204,6 +208,17 @@ const mockSubscriptionService = () => {
         expect(spyAddSubscriptionSettings).toHaveBeenCalled();
         expect(spyCreateRetrieveTokenWebView).toHaveBeenCalled();
         expect(spyAddSupportSection).toHaveBeenCalledTimes(2);
+    });
+
+    test('should skip retrieval webview on mobile', async () => {
+        Platform.isDesktopApp = false;
+        Platform.isMobileApp = true;
+
+        const spyCreateRetrieveTokenWebView = jest.spyOn(settingsTabInternals, 'createRetrieveTokenWebView');
+
+        await settingsTab.display();
+
+        expect(spyCreateRetrieveTokenWebView).not.toHaveBeenCalled();
     });
 
     test('should validate email properly', () => {
@@ -252,6 +267,21 @@ const mockSubscriptionService = () => {
 
         expect(initRetrieveTokenMock).toHaveBeenCalled();
         expect(newNoticeMock).not.toHaveBeenCalled();
+    });
+
+    test('should block retrieval wizard on mobile', async () => {
+        Platform.isDesktopApp = false;
+        Platform.isMobileApp = true;
+
+        plugin.settings.email = 'test@example.com';
+
+        const noticeMock = jest.fn();
+        (Notice as jest.Mock).mockImplementation(noticeMock);
+
+        await settingsTabInternals.handleRetrieveToken();
+
+        expect(initRetrieveToken).not.toHaveBeenCalled();
+        expect(noticeMock).toHaveBeenCalledWith('Token retrieval wizard is only available on desktop. Paste a token instead.');
     });
 
     test('should show notice when retrieving token without valid email', async () => {

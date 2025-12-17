@@ -374,6 +374,7 @@ jest.mock("obsidian", () => {
 		...actual,
 		Setting,
 		PluginSettingTab,
+		Platform: { isDesktopApp: true, isMobileApp: false },
 	};
 });
 
