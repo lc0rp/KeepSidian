@@ -14,4 +14,5 @@
 ## Settings
 
 - Settings UI lives under `src/ui/settings/`.
-- Two-way sync safeguards are surfaced via a structured Notice in `KeepSidianPlugin.showTwoWaySafeguardNotice`.
+- Two-way sync safeguards are surfaced via a structured Notice in
+  `KeepSidianPlugin.showTwoWaySafeguardNotice`.

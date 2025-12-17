@@ -20,7 +20,8 @@ This document maps the repository structure to the runtime responsibilities of t
   - `src/app/logging.ts`: sync log writer (`_KeepSidianLogs/`).
 - `src/features/keep/`: Keep-domain workflows (download, upload, note normalization, attachments).
   - `src/features/keep/sync.ts`: download orchestration (pagination, de-dupe, merge, persistence).
-  - `src/features/keep/push.ts`: upload orchestration (eligible note detection, attachment bundling, API push).
+  - `src/features/keep/push.ts`: upload orchestration (eligible note detection, attachment bundling,
+    API push).
   - `src/features/keep/domain/`: note normalization + duplicate/merge logic.
   - `src/features/keep/io/`: attachment IO helpers.
 - `src/integrations/`: external boundaries (server API, token/OAuth helpers).
@@ -32,4 +33,5 @@ This document maps the repository structure to the runtime responsibilities of t
 
 ## Path aliases
 
-TypeScript uses aliases such as `@app/*`, `@features/*`, `@integrations/*`, `@services/*`, `@types/*`, `@schemas/*`.
+TypeScript uses aliases such as `@app/*`, `@features/*`, `@integrations/*`, `@services/*`,
+`@types/*`, `@schemas/*`.

@@ -2,7 +2,8 @@
 
 ## Purpose
 
-Describe user-visible behavior and product constraints at a level useful for maintainers and support.
+Describe user-visible behavior and product constraints at a level useful for maintainers and
+support.
 
 ## Subfolders
 

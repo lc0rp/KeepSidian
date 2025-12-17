@@ -9,5 +9,5 @@
 
 ## Rationale
 
-The repo previously had only a root `README.md`. This migration establishes a scalable structure for maintainer and
-user documentation, with automated checks to prevent broken links and drift.
+The repo previously had only a root `README.md`. This migration establishes a scalable structure for
+maintainer and user documentation, with automated checks to prevent broken links and drift.

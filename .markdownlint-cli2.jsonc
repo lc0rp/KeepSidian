@@ -1,0 +1,27 @@
+{
+  "globs": [
+    "**/*.md"
+  ],
+  "ignores": [
+    "**/node_modules/**",
+    "**/.bmad-core/**",
+    ".github/**",
+    ".claude/**",
+    "**/bmad*/**",
+    "**/.bmad*/**",
+    "**/test-results/**"
+  ],
+  "config": {
+    "default": true,
+    "MD013": {
+      "line_length": 120,
+      "code_blocks": false,
+      "tables": false
+    },
+    "MD024": { // Allow same heading text if in different sections
+      "siblings_only": true
+    },
+    "MD033": false, // Allow inline HTML (for embedding things like iframes)
+    "MD041": false // Disable first line heading rule, for obsidian notes compatibility
+  }
+}

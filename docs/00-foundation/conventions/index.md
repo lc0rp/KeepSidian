@@ -2,7 +2,8 @@
 
 ## Purpose
 
-Capture cross-cutting conventions that should be stable over time (docs IA, linking rules, and upkeep expectations).
+Capture cross-cutting conventions that should be stable over time (docs IA, linking rules, and
+upkeep expectations).
 
 ## Subfolders
 

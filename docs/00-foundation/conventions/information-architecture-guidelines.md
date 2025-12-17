@@ -5,14 +5,16 @@ Purpose: keep the project documentation IA consistent, link-clean, and traceable
 ## Ground rules
 
 - Use the numbered lifecycle folders only:
-  - 00-foundation, 01-product, 02-research, 03-design, 04-architecture, 05-planning, 06-delivery, 07-quality,
-    08-operations, 09-user-docs, 99-archive.
-- Every top-level folder must contain an `index.md` describing purpose, subfolders, owners, and update cadence.
-- Standardize on markdown links (no wikilinks). Relative links should be the shortest correct path from the current
-  file.
-- When adding new content, update the nearest index to include it and ensure it traces back to the source of truth
-  (issue/spec) where relevant.
-- Archive, don’t delete: move superseded docs into `99-archive/` with a one-line reason and successor link.
+  - 00-foundation, 01-product, 02-research, 03-design, 04-architecture, 05-planning, 06-delivery,
+    07-quality, 08-operations, 09-user-docs, 99-archive.
+- Every top-level folder must contain an `index.md` describing purpose, subfolders, owners, and
+  update cadence.
+- Standardize on markdown links (no wikilinks). Relative links should be the shortest correct path
+  from the current file.
+- When adding new content, update the nearest index to include it and ensure it traces back to the
+  source of truth (issue/spec) where relevant.
+- Archive, don’t delete: move superseded docs into `99-archive/` with a one-line reason and
+  successor link.
 
 ## Commands
 

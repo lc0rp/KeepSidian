@@ -2,7 +2,8 @@
 
 ## Purpose
 
-Capture investigation notes (spikes, alternatives, tradeoffs) that inform design and architecture decisions.
+Capture investigation notes (spikes, alternatives, tradeoffs) that inform design and architecture
+decisions.
 
 ## Subfolders
 

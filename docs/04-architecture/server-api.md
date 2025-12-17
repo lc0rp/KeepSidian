@@ -1,7 +1,7 @@
 # Server API Contract
 
-Server calls are centralized in `src/integrations/server/keepApi.ts` and use the Obsidian `requestUrl` wrapper in
-`src/services/http.ts`.
+Server calls are centralized in `src/integrations/server/keepApi.ts` and use the Obsidian
+`requestUrl` wrapper in `src/services/http.ts`.
 
 ## Endpoints
 

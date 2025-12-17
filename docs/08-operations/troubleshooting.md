@@ -8,10 +8,11 @@
 
 ## Upload is locked
 
-Uploads are gated behind two-way safeguards; the plugin will show a notice with the required prerequisites (opt-in,
-subscription status, auto-sync toggles).
+Uploads are gated behind two-way safeguards; the plugin will show a notice with the required
+prerequisites (opt-in, subscription status, auto-sync toggles).
 
 ## Attachments missing on upload
 
-- Only attachments referenced from the note content and resolving into `<saveLocation>/media/` are considered.
+- Only attachments referenced from the note content and resolving into `<saveLocation>/media/` are
+  considered.
 - Missing attachments are logged per-note in the sync log.
