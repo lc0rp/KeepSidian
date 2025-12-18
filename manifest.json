@@ -6,5 +6,5 @@
 	"description": "Two-way sync between Obsidian and Google Keep.",
 	"author": "lc0rp",
 	"authorUrl": "https://github.com/lc0rp",
-	"isDesktopOnly": true
+	"isDesktopOnly": false
 }
