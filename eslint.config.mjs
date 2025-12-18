@@ -32,7 +32,7 @@ export default [
 			ecmaVersion: 5,
 			sourceType: "module",
 			parserOptions: {
-				project: [path.resolve(__dirname, "tsconfig.json")],
+				project: [path.resolve(__dirname, "tsconfig.eslint.json")],
 				tsconfigRootDir: __dirname,
 			},
 		},

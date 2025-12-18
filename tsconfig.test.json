@@ -7,7 +7,12 @@
         "moduleResolution": "node",
         "allowJs": true,
         "strict": true,
-        "outDir": "dist-test"
+        "outDir": "dist-test",
+        "types": [
+            "@wdio/globals/types",
+            "@wdio/mocha-framework",
+            "wdio-obsidian-service"
+        ],
     },
     "include": [
         "src/services/task-roles.service.ts",

@@ -24,6 +24,7 @@ coverage/
 
 # obsidian
 data.json
+.obsidian-cache/
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
