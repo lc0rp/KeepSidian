@@ -144,7 +144,7 @@ describe("KeepSidianPlugin", () => {
 			);
 			expect(NoteImportOptionsModal).not.toHaveBeenCalled();
 			expect(Notice).toHaveBeenCalledWith(
-				"Syncing Google Keep Notes...",
+				expect.stringMatching(/Syncing Google Keep Notes\.\.\. 0\/\?/),
 				0
 			);
 			expect(plugin.progressNotice).not.toBeNull();
@@ -161,6 +161,57 @@ describe("KeepSidianPlugin", () => {
 			).toBe(true);
 			expect(plugin.statusTextEl?.textContent).toContain("Last synced");
 			isSubscriptionActiveSpy.mockRestore();
+		});
+
+		it("updates the sync notice as progress advances", async () => {
+			const setMessage = jest.fn();
+			(Notice as unknown as jest.Mock).mockImplementationOnce(
+				(message: string, timeout?: number) => ({
+					message,
+					timeout,
+					setMessage,
+					hide: jest.fn(),
+				})
+			);
+			const importMock = jest
+				.spyOn(SyncModule, "importGoogleKeepNotes")
+				.mockImplementation(async (_plugin, callbacks) => {
+					callbacks?.setTotalNotes?.(2);
+					callbacks?.reportProgress?.();
+					return 1;
+				});
+
+			// Provide minimal vault adapter to allow precondition checks
+			plugin.app = {
+				workspace: {},
+				vault: {
+					adapter: {
+						exists: jest.fn().mockResolvedValue(true),
+						read: jest.fn().mockResolvedValue(""),
+						write: jest.fn().mockResolvedValue(undefined),
+					},
+					createFolder: jest.fn().mockResolvedValue(undefined),
+				},
+			} as unknown as Plugin["app"];
+
+			await plugin.onload();
+			setTestCredentials(plugin);
+			const isSubscriptionActiveSpy = jest
+				.spyOn(plugin.subscriptionService, "isSubscriptionActive")
+				.mockResolvedValue(false);
+
+			await plugin.importNotes();
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(setMessage).toHaveBeenCalledWith(
+				"Syncing Google Keep Notes... 0/2"
+			);
+			expect(setMessage).toHaveBeenCalledWith(
+				"Syncing Google Keep Notes... 1/2"
+			);
+
+			isSubscriptionActiveSpy.mockRestore();
+			importMock.mockRestore();
 		});
 
 		it("should show options modal for premium users", async () => {

@@ -40,6 +40,8 @@ logs/
 
 # BMAD tests (local only)
 bmad
+_bmad
+_bmad-*
 .bmad
 .bmad-*
 .gemini

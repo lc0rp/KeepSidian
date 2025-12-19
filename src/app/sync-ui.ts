@@ -20,7 +20,10 @@ type MenuWithPositioning = Menu & {
 type NoticeWithControls = Notice & {
 	setMessage?: (message: string) => void;
 	hide?: () => void;
+	noticeEl?: HTMLElement;
 };
+
+const SYNC_NOTICE_PREFIX = "Syncing Google Keep Notes...";
 
 function createMenuTitleWithHint(
 	plugin: KeepSidianPlugin,
@@ -53,6 +56,37 @@ function hasSetText(element: HTMLElement | null): element is StatusBarItemElemen
 
 function getNoticeControls(notice: Notice | null): NoticeWithControls | null {
 	return notice ? (notice as NoticeWithControls) : null;
+}
+
+function formatSyncNoticeMessage(processedNotes: number, totalNotes: number | null): string {
+	const safeProcessed =
+		Number.isFinite(processedNotes) && processedNotes >= 0
+			? Math.floor(processedNotes)
+			: 0;
+	const totalLabel =
+		typeof totalNotes === "number" && totalNotes > 0 ? String(totalNotes) : "?";
+	return `${SYNC_NOTICE_PREFIX} ${safeProcessed}/${totalLabel}`;
+}
+
+function updateProgressNotice(plugin: KeepSidianPlugin) {
+	if (!plugin.progressNotice) {
+		return;
+	}
+	const noticeControls = getNoticeControls(plugin.progressNotice);
+	const setMessage = noticeControls?.setMessage;
+	if (setMessage) {
+		setMessage.call(
+			noticeControls,
+			formatSyncNoticeMessage(plugin.processedNotes, plugin.totalNotes)
+		);
+		return;
+	}
+	if (noticeControls?.noticeEl) {
+		noticeControls.noticeEl.textContent = formatSyncNoticeMessage(
+			plugin.processedNotes,
+			plugin.totalNotes
+		);
+	}
 }
 
 function setStatusBarText(plugin: KeepSidianPlugin, text: string) {
@@ -237,7 +271,10 @@ export function startSyncUI(plugin: KeepSidianPlugin) {
 	setStatusBarTooltip(plugin, "KeepSidian syncing...");
 	plugin.progressModal?.setProgress(0, undefined);
 
-	plugin.progressNotice = new Notice("Syncing Google Keep Notes...", 0);
+	plugin.progressNotice = new Notice(
+		formatSyncNoticeMessage(plugin.processedNotes, plugin.totalNotes),
+		0
+	);
 }
 
 export function reportSyncProgress(plugin: KeepSidianPlugin) {
@@ -260,6 +297,7 @@ export function reportSyncProgress(plugin: KeepSidianPlugin) {
 		plugin.progressBar.setValue(pct);
 	}
 	plugin.progressModal?.setProgress(plugin.processedNotes, total);
+	updateProgressNotice(plugin);
 }
 
 export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
@@ -316,4 +354,5 @@ export function setTotalNotes(plugin: KeepSidianPlugin, total: number) {
 		plugin.progressBar.setValue(pct);
 	}
 	plugin.progressModal?.setProgress(plugin.processedNotes, total);
+	updateProgressNotice(plugin);
 }

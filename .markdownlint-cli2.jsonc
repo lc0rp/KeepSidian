@@ -9,6 +9,7 @@
     ".claude/**",
     "**/bmad*/**",
     "**/.bmad*/**",
+    "**/_bmad*/**",
     "**/test-results/**"
   ],
   "config": {
