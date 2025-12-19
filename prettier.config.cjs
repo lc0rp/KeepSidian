@@ -3,7 +3,7 @@
 module.exports = {
 	useTabs: true,
 	tabWidth: 4,
-	printWidth: 100,
+	printWidth: 120,
 	proseWrap: "always",
 	endOfLine: "lf",
 	singleQuote: false,

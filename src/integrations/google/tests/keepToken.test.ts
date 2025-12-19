@@ -1,4 +1,5 @@
-import { initRetrieveToken, exchangeOauthToken } from "../keepToken";
+import { exchangeOauthToken } from "../keepToken";
+import { initRetrieveToken } from "../keepTokenDesktop";
 import { WebviewTag } from "electron";
 import type { ConsoleMessageEvent } from "electron";
 import * as obsidian from "obsidian";

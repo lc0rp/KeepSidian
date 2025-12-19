@@ -5,7 +5,7 @@ import { App } from "obsidian";
 import KeepSidianPlugin from "../../../main";
 import { KeepSidianSettingsTab } from "../KeepSidianSettingsTab";
 import { DEFAULT_SETTINGS } from "../../../types/keepsidian-plugin-settings";
-import { initRetrieveToken } from "../../../integrations/google/keepToken";
+import { loadKeepTokenDesktop } from "../../../integrations/google/keepTokenDesktopLoader";
 
 type CreateElOptions = {
 	text?: string | DocumentFragment;
@@ -379,8 +379,11 @@ jest.mock("obsidian", () => {
 });
 
 jest.mock("../../../integrations/google/keepToken", () => ({
-	initRetrieveToken: jest.fn(),
 	exchangeOauthToken: jest.fn(),
+}));
+
+jest.mock("../../../integrations/google/keepTokenDesktopLoader", () => ({
+	loadKeepTokenDesktop: jest.fn(),
 }));
 
 describe("KeepSidianSettingsTab UI interactions", () => {
@@ -389,6 +392,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 	let tab: KeepSidianSettingsTab;
 	let tabInternals: KeepSidianSettingsTabInternals;
 	let subscriptionServiceMock: SubscriptionServiceMock;
+	let initRetrieveTokenMock: jest.Mock;
 
 	const TEST_MANIFEST = {
 		id: "keepsidian",
@@ -401,6 +405,10 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
+		initRetrieveTokenMock = jest.fn().mockResolvedValue(undefined);
+		(loadKeepTokenDesktop as jest.Mock).mockResolvedValue({
+			initRetrieveToken: initRetrieveTokenMock,
+		});
 		app = new App();
 		plugin = new KeepSidianPlugin(app, TEST_MANIFEST);
 		plugin.settings = { ...DEFAULT_SETTINGS };
@@ -483,7 +491,8 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		expect(retrieveBtn).toBeTruthy();
 		retrieveBtn.click();
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(initRetrieveToken).toHaveBeenCalled();
+		expect(loadKeepTokenDesktop).toHaveBeenCalled();
+		expect(initRetrieveTokenMock).toHaveBeenCalled();
 
 		// Also ensure the GitHub instructions link exists
 		const githubLink = container.querySelector(

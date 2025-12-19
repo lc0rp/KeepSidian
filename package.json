@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "npm run lint:ts && tsc --project tsconfig.json --noEmit --skipLibCheck && node esbuild.config.mjs production",
+    "build": "npm run lint:ts && tsc --project tsconfig.json --noEmit --skipLibCheck && node esbuild.config.mjs production && npm run verify:bundles",
     "prebuild": "npm run barrels",
     "barrels": "barrelsby --config barrelsby.json",
     "release": "node scripts/release.mjs",
@@ -21,6 +21,7 @@
     "lint:links:fix": "node scripts/link-check.mjs --fix",
     "lint:ia": "node scripts/ia-validate.mjs",
     "lint:fix": "npm run lint:ts:fix && npm run lint:md:fix",
+    "verify:bundles": "node scripts/verify-bundles.mjs",
     "preversion": "npm run lint",
     "test": "npx jest",
     "coverage": "npx jest --coverage",

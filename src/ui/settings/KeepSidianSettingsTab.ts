@@ -1,11 +1,11 @@
 import type { WebviewTag } from "electron";
 import KeepSidianPlugin from "main";
 import { PluginSettingTab, App, Setting, Notice, setIcon, Platform } from "obsidian";
-import { exchangeOauthToken, initRetrieveToken } from "../../integrations/google/keepToken";
+import { exchangeOauthToken } from "../../integrations/google/keepToken";
+import { loadKeepTokenDesktop } from "../../integrations/google/keepTokenDesktopLoader";
 import type { IconName, ToggleComponent } from "obsidian";
 import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
 import {
-	endRetrievalWizardSession,
 	logRetrievalWizardEvent,
 	startRetrievalWizardSession,
 } from "@integrations/google/retrievalSessionLogger";
@@ -214,28 +214,20 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 	}
 
 	private async handleRetrieveToken(): Promise<void> {
+		if (!this.plugin.settings.email || !this.isValidEmail(this.plugin.settings.email)) {
+			new Notice("Please enter a valid email address before retrieving the token.");
+			return;
+		}
+		if (!Platform.isDesktopApp) {
+			new Notice("Token retrieval wizard is only available on desktop. Paste a token instead.");
+			return;
+		}
 		const sessionMetadata = {
 			email: this.plugin.settings.email,
 			pluginVersion: this.plugin.manifest.version,
 		};
 		await startRetrievalWizardSession(this.plugin, sessionMetadata);
 		await logRetrievalWizardEvent("info", "Retrieval wizard button clicked", sessionMetadata);
-		if (!this.plugin.settings.email || !this.isValidEmail(this.plugin.settings.email)) {
-			await logRetrievalWizardEvent("warn", "Retrieval wizard aborted: invalid email", {
-				email: this.plugin.settings.email,
-			});
-			await endRetrievalWizardSession("aborted", { reason: "invalid-email" });
-			new Notice("Please enter a valid email address before retrieving the token.");
-			return;
-		}
-		if (!Platform.isDesktopApp) {
-			new Notice("Token retrieval wizard is only available on desktop. Paste a token instead.");
-			await logRetrievalWizardEvent("warn", "Retrieval wizard aborted: mobile platform", {
-				platform: "mobile",
-			});
-			await endRetrievalWizardSession("aborted", { reason: "mobile-platform" });
-			return;
-		}
 		// Ensure the webview exists if display() wasn't called yet in this lifecycle
 		if (!this.retrieveTokenWebView) {
 			this.createRetrieveTokenWebView(this.containerEl);
@@ -259,7 +251,8 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			(this.retrieveTokenGuide.webviewContainer as HTMLElement & { show: () => void }).show();
 		}
 
-		await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView!);
+			const { initRetrieveToken } = await loadKeepTokenDesktop();
+			await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView!);
 		await logRetrievalWizardEvent("info", "Retrieval wizard workflow completed");
 		this.display();
 		await logRetrievalWizardEvent("debug", "Settings tab refreshed after retrieval wizard");

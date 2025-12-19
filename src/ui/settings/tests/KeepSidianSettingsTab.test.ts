@@ -6,7 +6,8 @@ import { KeepSidianSettingsTab } from '../KeepSidianSettingsTab';
 import KeepSidianPlugin from '../../../main';
 import { SubscriptionService } from 'services/subscription';
 import { DEFAULT_SETTINGS } from '../../../types/keepsidian-plugin-settings';
-import { exchangeOauthToken, initRetrieveToken } from '../../../integrations/google/keepToken';
+import { exchangeOauthToken } from '../../../integrations/google/keepToken';
+import { loadKeepTokenDesktop } from '../../../integrations/google/keepTokenDesktopLoader';
 
 type CreateElOptions = {
 	text?: string | DocumentFragment;
@@ -50,7 +51,10 @@ jest.mock('../../modals/NoteImportOptionsModal', () => ({
 
 jest.mock('../../../integrations/google/keepToken', () => ({
     exchangeOauthToken: jest.fn(),
-    initRetrieveToken: jest.fn(),
+}));
+
+jest.mock('../../../integrations/google/keepTokenDesktopLoader', () => ({
+    loadKeepTokenDesktop: jest.fn(),
 }));
 
 function attachCreateEl(element: HTMLElement, createEl: CreateElFn): HTMLElementWithCreateEl {
@@ -138,6 +142,7 @@ const mockSubscriptionService = () => {
 	    let plugin: KeepSidianPlugin;
 	    let settingsTab: KeepSidianSettingsTab;
 	    let settingsTabInternals: KeepSidianSettingsTabInternals;
+	    let initRetrieveTokenMock: jest.Mock;
 
     const TEST_MANIFEST = {
         id: 'keepsidian',
@@ -179,7 +184,11 @@ const mockSubscriptionService = () => {
 
         // Reset the exchangeOauthToken mock
         (exchangeOauthToken as jest.Mock).mockReset();
-        (initRetrieveToken as jest.Mock).mockReset();
+        initRetrieveTokenMock = jest.fn().mockResolvedValue(undefined);
+        (loadKeepTokenDesktop as jest.Mock).mockReset();
+        (loadKeepTokenDesktop as jest.Mock).mockResolvedValue({
+            initRetrieveToken: initRetrieveTokenMock,
+        });
     });
 
     test('two-way sync defaults stay disabled for safety', () => {
@@ -258,13 +267,12 @@ const mockSubscriptionService = () => {
 
     test('should handle retrieve token with valid email', async () => {
         plugin.settings.email = 'test@example.com';
-        const initRetrieveTokenMock = initRetrieveToken as jest.Mock;
-
         const newNoticeMock = jest.fn();
         (Notice as jest.Mock) = jest.fn(() => newNoticeMock);
 
         await settingsTabInternals.handleRetrieveToken();
 
+        expect(loadKeepTokenDesktop).toHaveBeenCalled();
         expect(initRetrieveTokenMock).toHaveBeenCalled();
         expect(newNoticeMock).not.toHaveBeenCalled();
     });
@@ -280,7 +288,8 @@ const mockSubscriptionService = () => {
 
         await settingsTabInternals.handleRetrieveToken();
 
-        expect(initRetrieveToken).not.toHaveBeenCalled();
+        expect(loadKeepTokenDesktop).not.toHaveBeenCalled();
+        expect(initRetrieveTokenMock).not.toHaveBeenCalled();
         expect(noticeMock).toHaveBeenCalledWith('Token retrieval wizard is only available on desktop. Paste a token instead.');
     });
 

@@ -1,7 +1,8 @@
 # Tech-Spec: Mobile-Safe KeepSidian Settings & Sync
 
 **Created:** 2025-12-17  
-**Status:** Ready for Development
+**Status:** Implemented (Needs Mobile QA)
+**Updated:** 2025-12-19
 
 ## Overview
 
@@ -36,53 +37,49 @@ allows mobile users to sync using an already-synced token or manual token entry.
 - Obsidian plugin with esbuild bundling; externals include `obsidian`, `electron`.
 - Path aliases via tsconfig (`@app/*`, `@ui/*`, etc.).
 - Settings tab registered in `src/app/main.ts`; token wizard in
-  `src/ui/settings/KeepSidianSettingsTab.ts`; Electron flow in
-  `src/integrations/google/keepToken.ts`.
+  `src/ui/settings/KeepSidianSettingsTab.ts`; desktop-only token wizard in
+  `src/integrations/google/keepTokenDesktop.ts`.
 - Platform detection available from `Platform` in `obsidian`.
 
 ### Files to Reference
 
 - `src/app/main.ts` — registers settings tab.
 - `src/ui/settings/KeepSidianSettingsTab.ts` — settings UI + token wizard.
-- `src/integrations/google/keepToken.ts` — Electron webview OAuth flow.
+- `src/integrations/google/keepToken.ts` — shared (mobile-safe) token exchange export.
+- `src/integrations/google/keepTokenExchange.ts` — token exchange implementation.
+- `src/integrations/google/keepTokenDesktop.ts` — desktop-only Electron webview OAuth flow.
+- `src/integrations/google/keepTokenDesktopLoader.ts` — desktop module loader.
 - `esbuild.config.mjs` — bundling config (externalizes `electron`).
 - `docs/02-research/mobile-compatibility.md` — prior findings.
 
 ### Technical Decisions
 
 - Use `Platform.isDesktopApp` / `Platform.isMobileApp` from Obsidian to branch UI/flows.
-- Convert Electron imports in TS to `import type` and perform
-  `const { <api> } = require("electron")` inside desktop-only branches to avoid mobile runtime
-  errors.
 - Keep token retrieval wizard desktop-only; on mobile, hide the button and surface manual token
   input.
-- Lazy-load `keepToken` on desktop when the wizard starts to keep mobile bundle safe even if code is
-  present.
+- Produce a second bundle (`keepTokenDesktop.js`) that contains all Electron webview logic; keep
+  `main.js` free of `require("electron")` and desktop-only wizard internals.
 
 ## Implementation Plan
 
 ### Tasks
 
-- [ ] Add platform utilities or inline helper to detect desktop vs mobile using `Platform`.
-- [ ] Update `KeepSidianSettingsTab`:
-  - [ ] Switch `electron` import to `import type`.
-  - [ ] Render token retrieval wizard only when `Platform.isDesktopApp` is true.
-  - [ ] Ensure manual token text field is always available; add hint for mobile users to paste
-        desktop-synced token.
-  - [ ] Lazy-import `keepToken` functions inside the desktop-only click handler.
-- [ ] Update `keepToken.ts`:
-  - [ ] Convert `electron` imports to `import type` and guard all runtime access with desktop
-        checks.
-  - [ ] Export a no-op or error message early if invoked on mobile (defensive).
-- [ ] Update `app/main.ts`:
-  - [ ] Guard settings tab registration or its desktop-only parts so plugin load does not require
-        Electron on mobile.
-- [ ] Optional: Add a small badge/notice in settings when on mobile explaining manual token
-      requirement.
-- [ ] Tests:
-  - [ ] Add unit test stubs that simulate mobile env (mock `Platform.isMobileApp`) to ensure no
-        Electron require occurs.
-  - [ ] Re-run existing Jest suite.
+- [x] Use `Platform` to branch desktop/mobile behavior.
+- [x] Update `KeepSidianSettingsTab`:
+  - [x] Render token retrieval wizard UI only when `Platform.isDesktopApp` is true.
+  - [x] Ensure manual token text field is always available; add mobile-specific hint.
+  - [x] Only load token wizard code on desktop click via a loader (`keepTokenDesktopLoader`).
+- [x] Split token logic:
+  - [x] Keep mobile-safe exchange code in `keepTokenExchange.ts` and re-export from `keepToken.ts`.
+  - [x] Move Electron/webview wizard logic to `keepTokenDesktop.ts`.
+  - [x] Ensure `main.js` contains no `require("electron")` (desktop code lives in `keepTokenDesktop.js`).
+- [x] Build/release plumbing:
+  - [x] Update `esbuild.config.mjs` to build `main.js` and `keepTokenDesktop.js`.
+  - [x] Update `.github/workflows/release.yml` to ship `keepTokenDesktop.js` with releases.
+- [x] Optional: add mobile notice text (wizard is desktop-only).
+- [x] Tests:
+  - [x] Add tests for mobile guard paths and desktop loader usage.
+  - [x] Re-run Jest suites for settings and token logic.
 
 ### Acceptance Criteria
 
@@ -93,8 +90,8 @@ allows mobile users to sync using an already-synced token or manual token entry.
       renders.
 - [ ] Sync/push flows operate on mobile when a token is present (manually set or synced from
       desktop).
-- [ ] Bundling leaves `electron` external, and no runtime `require("electron")` executes on mobile
-      code paths.
+- [x] Main bundle safety: `main.js` contains no `require("electron")` (desktop-only logic is in
+      `keepTokenDesktop.js`).
 
 ## Additional Context
 
@@ -114,3 +111,30 @@ allows mobile users to sync using an already-synced token or manual token entry.
 ### Notes
 
 - Background sync timers may still be throttled on mobile; out of scope for this change.
+
+## Dev Agent Record
+
+### File List
+
+- `esbuild.config.mjs`
+- `.github/workflows/release.yml`
+- `src/ui/settings/KeepSidianSettingsTab.ts`
+- `src/ui/settings/tests/KeepSidianSettingsTab.test.ts`
+- `src/ui/settings/tests/KeepSidianSettingsTab.ui.test.ts`
+- `src/integrations/google/keepToken.ts`
+- `src/integrations/google/keepTokenExchange.ts`
+- `src/integrations/google/keepTokenDesktop.ts`
+- `src/integrations/google/keepTokenDesktopLoader.ts`
+- `src/integrations/google/tests/keepToken.test.ts`
+
+### Test Summary
+
+- `npm test -- src/ui/settings/tests/KeepSidianSettingsTab.test.ts`
+- `npm test -- src/ui/settings/tests/KeepSidianSettingsTab.ui.test.ts`
+- `npm test -- src/integrations/google/tests/keepToken.test.ts`
+
+### Build/Lint Summary
+
+- `npm run lint:ts`
+- `npm run lint:md`
+- `npm run build`

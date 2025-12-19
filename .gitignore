@@ -11,6 +11,7 @@ package-lock.json
 
 # build
 main.js
+keepTokenDesktop.js
 *.js.map
 test-vault/
 *.zip
