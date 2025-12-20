@@ -9,7 +9,8 @@
   - Driven by `SyncProgressModal` in `src/ui/modals/SyncProgressModal`.
   - Orchestrated via `startSyncUI` / `finishSyncUI` in `src/app/sync-ui.ts`.
 - Notices:
-  - Used for start/end and error states; avoid spamming.
+  - Used for start/end, error states, and live progress updates during sync.
+  - Updates prefer `Notice#setMessage` with a `noticeEl` fallback; avoid spamming.
 
 ## Settings
 

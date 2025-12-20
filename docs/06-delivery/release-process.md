@@ -23,4 +23,7 @@ printf "1\n" | node scripts/release.mjs --dry-run
 
 ## Build artifact
 
-- Ensure `manifest.json` is in sync with the built `main.js` before publishing.
+- Ensure `manifest.json` is in sync with the built `main.js` and `keepTokenDesktop.js` before
+  publishing.
+- Release artifacts should include both bundles; the desktop token wizard depends on
+  `keepTokenDesktop.js`.

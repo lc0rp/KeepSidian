@@ -1,15 +1,22 @@
-# KeepSidian Mobile Compatibility Report (2025-12-17)
+# KeepSidian Mobile Compatibility Report (2025-12-17, updated 2025-12-20)
 
 ## TL;DR
 
-- The plugin currently imports Electron-only APIs at startup, so the entire plugin fails to load on
-  Obsidian Mobile.
-- Token retrieval uses an Electron `<webview>` flow that cannot run on iOS/Android; manual token
-  entry would be required.
+- The plugin now loads on Obsidian Mobile after moving Electron-only wizard code into a desktop
+  bundle.
+- Token retrieval still uses an Electron `<webview>` flow and remains desktop-only; mobile users
+  must paste a token captured on desktop.
 - Core sync logic (pull/push via `requestUrl` + vault adapter) is mobile-friendly once a token is
   present.
 
-## Desktop‑only blockers
+## Status update (2025-12-20)
+
+- Electron-only token wizard code now ships in `keepTokenDesktop.js` and is loaded on demand via the
+  desktop loader.
+- Settings UI hides the retrieval wizard on mobile and allows manual token entry.
+- Build verification now ensures `main.js` ships without Electron `require` paths.
+
+## Desktop‑only blockers (original findings from 2025-12-17)
 
 - `src/app/main.ts` instantiates `KeepSidianSettingsTab`, which imports `electron` at module load.
   Obsidian Mobile ships without the Electron runtime, so the `require("electron")` call throws
@@ -35,8 +42,8 @@
 
 ## Caveats & edge cases
 
-- Without the desktop token wizard, mobile users would need to paste a valid Keep token manually
-  into settings; the UI currently forces the Electron webview, so a mobile-safe code path is needed.
+- Without the desktop token wizard, mobile users must paste a valid Keep token manually into
+  settings; the retrieval wizard is hidden on mobile.
 - Default server URL is injected at build time; ensure production builds use the hosted endpoint, as
   `localhost` is unreachable from mobile devices.
 - Background sync relies on timers (`setInterval`) and network availability; on iOS/Android, the app
@@ -44,7 +51,7 @@
 - Large bundles include dev-only dependencies (playwright/puppeteer) that inflate install size; they
   are not used at runtime but worth keeping dev-only to reduce mobile download footprint.
 
-## Quick mitigation ideas
+## Quick mitigation ideas (implemented)
 
 - Gate all Electron imports and the settings tab token wizard behind `Platform.isDesktopApp`; load a
   simplified settings view on mobile that only accepts manual token input.

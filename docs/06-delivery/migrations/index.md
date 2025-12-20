@@ -10,6 +10,8 @@ Track intentional documentation/tooling migrations with dated notes.
   scripts.
 - [docs-update-2025-12-16](./docs-update-2025-12-16/notes.md) — expand architecture docs and align
   command examples.
+- [docs-update-2025-12-20](./docs-update-2025-12-20/notes.md) — sync IA indexes and update token
+  wizard/release notes.
 
 ## Usage
 

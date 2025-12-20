@@ -14,3 +14,5 @@ decisions.
 Maintainers: plugin maintainers.
 
 Update when: exploring new sync features, server contracts, or Obsidian API changes.
+
+- [Mobile Compatibility](./mobile-compatibility.md)

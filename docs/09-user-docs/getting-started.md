@@ -12,6 +12,8 @@ In the plugin settings:
 - Set your Google account email.
 - Set the target folder to sync to (relative to your vault).
 - Retrieve and set your Google Keep token.
+  - Desktop: use the "Retrieval wizard" button in settings.
+  - Mobile: paste a token captured on desktop (wizard is hidden on mobile).
 
 ## Commands
 
