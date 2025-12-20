@@ -491,8 +491,13 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		expect(retrieveBtn).toBeTruthy();
 		retrieveBtn.click();
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(loadKeepTokenDesktop).toHaveBeenCalled();
-		expect(initRetrieveTokenMock).toHaveBeenCalled();
+		expect(loadKeepTokenDesktop).toHaveBeenCalledWith(plugin);
+		expect(initRetrieveTokenMock).toHaveBeenCalledWith(
+			expect.any(KeepSidianSettingsTab),
+			plugin,
+			expect.any(Object),
+			expect.any(Function)
+		);
 
 		// Also ensure the GitHub instructions link exists
 		const githubLink = container.querySelector(

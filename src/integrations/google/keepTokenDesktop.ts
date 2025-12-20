@@ -1,4 +1,4 @@
-import KeepSidianPlugin from "main";
+import type KeepSidianPlugin from "main";
 import type { WebviewTag, ConsoleMessageEvent } from "electron";
 import type {
 	CookiesGetFilter,
@@ -7,17 +7,14 @@ import type {
 	OnHeadersReceivedListenerDetails,
 	HeadersReceivedResponse,
 } from "electron";
-import { Platform } from "obsidian";
 
 type WebRequestWithRemoval = WebRequest & {
 	removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
 	off?: (event: string, listener: (...args: unknown[]) => void) => void;
 };
-import { Notice } from "obsidian";
-import { KeepSidianSettingsTab } from "ui/settings/KeepSidianSettingsTab";
+import type { KeepSidianSettingsTab } from "ui/settings/KeepSidianSettingsTab";
 import { HIDDEN_CLASS } from "@app/ui-constants";
 import { endRetrievalWizardSession, logRetrievalWizardEvent } from "./retrievalSessionLogger";
-import { exchangeOauthToken } from "./keepTokenExchange";
 
 declare global {
 	interface Window {
@@ -80,12 +77,6 @@ const logSessionEvent = (
 	void logRetrievalWizardEvent(level, message, metadata);
 };
 
-const ensureDesktopEnvironment = () => {
-	if (typeof Platform !== "undefined" && Platform.isMobileApp) {
-		throw new Error("Token retrieval wizard is only available on desktop.");
-	}
-};
-
 const summarizeUrl = (value: string) => {
 	try {
 		const parsed = new URL(value);
@@ -117,6 +108,7 @@ class WebviewStateError extends Error {
 }
 
 const webviewUrlErrorLogMap = new WeakMap<WebviewTag, number>();
+type OauthTokenHandler = (token: string) => Promise<void>;
 
 function waitForWebviewReady(wv: WebviewTag, timeoutMs = 30000) {
 	return new Promise<void>((resolve, reject) => {
@@ -660,9 +652,9 @@ function wireOAuthHandlers(
 async function getOAuthToken(
 	settingsTab: KeepSidianSettingsTab,
 	plugin: KeepSidianPlugin,
-	retrieveTokenWebview: WebviewTag
+	retrieveTokenWebview: WebviewTag,
+	onOauthToken?: OauthTokenHandler
 ): Promise<string> {
-	ensureDesktopEnvironment();
 	const webview = retrieveTokenWebview as TestableWebview;
 	const OAUTH_URL = "https://accounts.google.com/EmbeddedSetup";
 	const CONSENT_REDIRECT_PREFIX = OAUTH_URL;
@@ -1193,12 +1185,14 @@ async function getOAuthToken(
 			}
 			finished = true;
 			try {
-				logSessionEvent("info", "Exchanging oauth_token with server", {
-					tokenSample: redactToken(oauthToken),
-				});
-				await exchangeOauthToken(settingsTab, plugin, oauthToken);
+				if (onOauthToken) {
+					logSessionEvent("info", "Handling oauth_token with callback", {
+						tokenSample: redactToken(oauthToken),
+					});
+					await onOauthToken(oauthToken);
+				}
 				cleanup();
-				logSessionEvent("info", "Token exchange complete", {
+				logSessionEvent("info", "Token capture complete", {
 					tokenSample: redactToken(oauthToken),
 				});
 				void endRetrievalWizardSession("success", {
@@ -1529,19 +1523,18 @@ async function getOAuthToken(
 export async function initRetrieveToken(
 	settingsTab: KeepSidianSettingsTab,
 	plugin: KeepSidianPlugin,
-	retrieveTokenWebview: WebviewTag
+	retrieveTokenWebview: WebviewTag,
+	onOauthToken?: OauthTokenHandler
 ) {
-	ensureDesktopEnvironment();
 	try {
 		logSessionEvent("info", "initRetrieveToken invoked");
-		await getOAuthToken(settingsTab, plugin, retrieveTokenWebview);
+		await getOAuthToken(settingsTab, plugin, retrieveTokenWebview, onOauthToken);
 		logSessionEvent("info", "initRetrieveToken completed successfully");
 	} catch (error) {
 		logErrorIfNotTest("Failed to retrieve token:", error);
 		logSessionEvent("error", "initRetrieveToken failed", {
 			errorMessage: error instanceof Error ? error.message : String(error),
 		});
-		new Notice(`Failed to retrieve token: ${(error as Error).message}`);
 		throw error;
 	}
 }

@@ -228,34 +228,53 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		};
 		await startRetrievalWizardSession(this.plugin, sessionMetadata);
 		await logRetrievalWizardEvent("info", "Retrieval wizard button clicked", sessionMetadata);
-		// Ensure the webview exists if display() wasn't called yet in this lifecycle
-		if (!this.retrieveTokenWebView) {
-			this.createRetrieveTokenWebView(this.containerEl);
-			await logRetrievalWizardEvent("debug", "Created retrieval webview for session");
-		} else {
-			await logRetrievalWizardEvent("debug", "Reusing existing retrieval webview instance");
-		}
-		await logRetrievalWizardEvent("info", "Initializing retrieval wizard workflow");
-		if (
-			this.retrieveTokenGuide?.container &&
-			typeof (this.retrieveTokenGuide.container as HTMLElement & { show?: () => void })
-				.show === "function"
-		) {
-			(this.retrieveTokenGuide.container as HTMLElement & { show: () => void }).show();
-		}
-		if (
-			this.retrieveTokenGuide?.webviewContainer &&
-			typeof (this.retrieveTokenGuide.webviewContainer as HTMLElement & { show?: () => void })
-				.show === "function"
-		) {
-			(this.retrieveTokenGuide.webviewContainer as HTMLElement & { show: () => void }).show();
-		}
+		try {
+			// Ensure the webview exists if display() wasn't called yet in this lifecycle
+			if (!this.retrieveTokenWebView) {
+				this.createRetrieveTokenWebView(this.containerEl);
+				await logRetrievalWizardEvent("debug", "Created retrieval webview for session");
+			} else {
+				await logRetrievalWizardEvent(
+					"debug",
+					"Reusing existing retrieval webview instance"
+				);
+			}
+			await logRetrievalWizardEvent("info", "Initializing retrieval wizard workflow");
+			if (
+				this.retrieveTokenGuide?.container &&
+				typeof (this.retrieveTokenGuide.container as HTMLElement & { show?: () => void })
+					.show === "function"
+			) {
+				(this.retrieveTokenGuide.container as HTMLElement & { show: () => void }).show();
+			}
+			if (
+				this.retrieveTokenGuide?.webviewContainer &&
+				typeof (this.retrieveTokenGuide.webviewContainer as HTMLElement & { show?: () => void })
+					.show === "function"
+			) {
+				(this.retrieveTokenGuide.webviewContainer as HTMLElement & { show: () => void }).show();
+			}
 
-			const { initRetrieveToken } = await loadKeepTokenDesktop();
-			await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView!);
-		await logRetrievalWizardEvent("info", "Retrieval wizard workflow completed");
-		this.display();
-		await logRetrievalWizardEvent("debug", "Settings tab refreshed after retrieval wizard");
+			const { initRetrieveToken } = await loadKeepTokenDesktop(this.plugin);
+			await initRetrieveToken(
+				this,
+				this.plugin,
+				this.retrieveTokenWebView!,
+				async (oauthToken) => {
+					await exchangeOauthToken(this, this.plugin, oauthToken);
+				}
+			);
+			await logRetrievalWizardEvent("info", "Retrieval wizard workflow completed");
+			this.display();
+			await logRetrievalWizardEvent("debug", "Settings tab refreshed after retrieval wizard");
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Unable to initialize retrieval wizard.";
+			new Notice(message);
+			await logRetrievalWizardEvent("error", "Retrieval wizard initialization failed", {
+				errorMessage: message,
+			});
+		}
 	}
 
 	public updateRetrieveTokenInstructions(

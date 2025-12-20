@@ -272,8 +272,13 @@ const mockSubscriptionService = () => {
 
         await settingsTabInternals.handleRetrieveToken();
 
-        expect(loadKeepTokenDesktop).toHaveBeenCalled();
-        expect(initRetrieveTokenMock).toHaveBeenCalled();
+        expect(loadKeepTokenDesktop).toHaveBeenCalledWith(plugin);
+        expect(initRetrieveTokenMock).toHaveBeenCalledWith(
+            settingsTab,
+            plugin,
+            expect.any(Object),
+            expect.any(Function)
+        );
         expect(newNoticeMock).not.toHaveBeenCalled();
     });
 

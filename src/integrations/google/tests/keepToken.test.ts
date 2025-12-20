@@ -145,6 +145,7 @@ describe("Token Management", () => {
 	describe("initRetrieveToken", () => {
 		it("should handle successful token retrieval", async () => {
 			const mockOAuthToken = "mock-oauth-token";
+			const onOauthToken = jest.fn().mockResolvedValue(undefined);
 
 			// Mock getURL to return the desired URL every time it's called
 			retrieveTokenWebview.getURL.mockReturnValue("accounts.google.com");
@@ -164,16 +165,13 @@ describe("Token Management", () => {
 				return 1 as unknown as ReturnType<typeof setInterval>;
 			}) as typeof setInterval);
 
-			// Mock the requestUrl function
-			(obsidian.requestUrl as jest.Mock).mockResolvedValueOnce({
-				status: 200,
-				json: {
-					keep_token: "mock-keep-token",
-				},
-			});
-
 			// Start the token retrieval process
-			const initPromise = initRetrieveToken(settingsTab, plugin, retrieveTokenWebview);
+			const initPromise = initRetrieveToken(
+				settingsTab,
+				plugin,
+				retrieveTokenWebview,
+				onOauthToken
+			);
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			const consoleHandlers = eventHandlers["console-message"] ?? [];
 			for (const handler of consoleHandlers) {
@@ -185,6 +183,17 @@ describe("Token Management", () => {
 			setIntervalSpy.mockRestore();
 
 			// Assertions
+			expect(settingsTab.updateRetrieveTokenInstructions).toHaveBeenCalledWith(
+				1,
+				"Log in with Google",
+				expect.stringContaining("Sign in with the Google account you use for Keep."),
+				[]
+			);
+			expect(settingsTab.updateRetrieveTokenStatus).toHaveBeenCalledWith(
+				expect.stringContaining("Loading Google login page"),
+				"info"
+			);
+			expect(onOauthToken).toHaveBeenCalledWith(mockOAuthToken);
 			const loadedWithLoadUrl = retrieveTokenWebview.loadURL.mock.calls.length > 0;
 			const loadedViaSrc =
 				retrieveTokenWebview.loadURL.mock.calls.length === 0 &&
@@ -217,10 +226,6 @@ describe("Token Management", () => {
 			await expect(
 				initRetrieveToken(settingsTab, plugin, retrieveTokenWebview)
 			).rejects.toThrow("Failed to retrieve token");
-
-			expect(obsidian.Notice).toHaveBeenCalledWith(
-				expect.stringContaining("Failed to retrieve token")
-			);
 		});
 	});
 });
