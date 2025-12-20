@@ -18,6 +18,8 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		titleEl: HTMLElement;
 		messageEl: HTMLElement;
 		listEl: HTMLOListElement;
+		actionButton: HTMLButtonElement;
+		actionHandler?: (event: MouseEvent) => void;
 		statusEl: HTMLElement;
 		webviewContainer: HTMLElement;
 		webview: WebviewTag;
@@ -346,6 +348,31 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		}
 	}
 
+	public updateRetrieveTokenAction(
+		action?: { label: string; onClick: () => void } | null
+	): void {
+		if (!this.retrieveTokenGuide) {
+			return;
+		}
+		const { actionButton } = this.retrieveTokenGuide;
+		if (this.retrieveTokenGuide.actionHandler) {
+			actionButton.removeEventListener("click", this.retrieveTokenGuide.actionHandler);
+			this.retrieveTokenGuide.actionHandler = undefined;
+		}
+		if (!action) {
+			actionButton.addClass("keepsidian-hidden");
+			return;
+		}
+		actionButton.removeClass("keepsidian-hidden");
+		actionButton.setText(action.label);
+		const handler = (event: MouseEvent) => {
+			event.preventDefault();
+			action.onClick();
+		};
+		actionButton.addEventListener("click", handler);
+		this.retrieveTokenGuide.actionHandler = handler;
+	}
+
 	private addSaveLocationSetting(containerEl: HTMLElement): void {
 		new Setting(containerEl)
 			.setName("Save location")
@@ -588,6 +615,11 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		const listEl = guideContainer.createEl("ol", {
 			cls: "keepsidian-retrieve-token-guide__list keepsidian-hidden",
 		});
+		const actionButton = guideContainer.createEl("button", {
+			cls: "keepsidian-retrieve-token-guide__action keepsidian-link-button keepsidian-hidden",
+			text: "(Re)Open DevTools",
+		});
+		actionButton.setAttribute("type", "button");
 		const statusEl = guideContainer.createDiv("keepsidian-retrieve-token-guide__status");
 
 		const webviewContainer = wrapper.createDiv("keepsidian-retrieve-token-webview");
@@ -611,6 +643,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			titleEl,
 			messageEl,
 			listEl,
+			actionButton,
 			statusEl,
 			webviewContainer,
 			webview: this.retrieveTokenWebView,

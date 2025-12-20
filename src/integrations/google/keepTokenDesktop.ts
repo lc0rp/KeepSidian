@@ -700,9 +700,33 @@ async function getOAuthToken(
 		step: number,
 		title: string,
 		message: string,
-		listItems: string[] = []
+		listItems: string[] = [],
+		action?: { label: string; onClick: () => void } | null
 	) => {
 		settingsTab.updateRetrieveTokenInstructions(step, title, message, listItems);
+		settingsTab.updateRetrieveTokenAction(action ?? null);
+	};
+	const reopenDevTools = () => {
+		try {
+			if (typeof retrieveTokenWebview.closeDevTools === "function") {
+				retrieveTokenWebview.closeDevTools();
+			}
+		} catch (error) {
+			logErrorIfNotTest("Unable to close webview DevTools", error);
+			logSessionEvent("warn", "Unable to close webview DevTools", {
+				errorMessage: error instanceof Error ? error.message : String(error),
+			});
+		}
+		try {
+			if (typeof retrieveTokenWebview.openDevTools === "function") {
+				retrieveTokenWebview.openDevTools();
+			}
+		} catch (error) {
+			logErrorIfNotTest("Unable to open webview DevTools", error);
+			logSessionEvent("error", "Unable to open webview DevTools", {
+				errorMessage: error instanceof Error ? error.message : String(error),
+			});
+		}
 	};
 	const updateGuideStatus = (
 		message: string,
@@ -955,7 +979,13 @@ async function getOAuthToken(
 			3,
 			"Retrieve the oauth_token cookie",
 			"We're opening Chrome DevTools in a separate window. If they don't appear automatically, open them manually and follow the checklist.",
-			stepThreeListItems
+			stepThreeListItems,
+			{
+				label: "(Re)Open DevTools",
+				onClick: () => {
+					reopenDevTools();
+				},
+			}
 		);
 		updateGuideStatus("Opening DevTools… this can take a few seconds.", "info");
 

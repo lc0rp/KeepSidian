@@ -249,6 +249,10 @@ If your plugin does not need CSS, delete this file.
 	line-height: 1.35;
 }
 
+.keepsidian-retrieve-token-guide__action {
+	margin-top: 8px;
+}
+
 .keepsidian-retrieve-token-guide__status {
 	padding: 8px 10px;
 	border-radius: 6px;

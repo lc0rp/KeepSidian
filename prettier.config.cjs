@@ -2,7 +2,7 @@
 /** @type {import("prettier").Config} */
 module.exports = {
 	useTabs: true,
-	tabWidth: 4,
+	tabWidth: 2,
 	printWidth: 120,
 	proseWrap: "always",
 	endOfLine: "lf",

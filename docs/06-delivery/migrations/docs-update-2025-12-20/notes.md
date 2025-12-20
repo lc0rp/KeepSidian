@@ -13,3 +13,4 @@ Align docs with recent desktop token wizard changes, release artifacts, and IA n
 - Clarified desktop-only token retrieval in `docs/09-user-docs/getting-started.md`.
 - Documented `keepTokenDesktop.js` in `docs/04-architecture/source-tree.md` and release guidance.
 - Added sprint artifact tech spec for mobile OAuth token exchange.
+- Added research report comparing KeepSidian token retrieval with embedded browser approaches.

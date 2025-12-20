@@ -52,6 +52,7 @@ describe("Token Management", () => {
 			display: jest.fn(),
 			updateRetrieveTokenInstructions: jest.fn(),
 			updateRetrieveTokenStatus: jest.fn(),
+			updateRetrieveTokenAction: jest.fn(),
 		} as unknown as jest.Mocked<KeepSidianSettingsTab>;
 
 		retrieveTokenWebview = {
@@ -206,6 +207,61 @@ describe("Token Management", () => {
 				"console-message",
 				expect.any(Function)
 			);
+		});
+
+		it("should reopen DevTools from step 3 action", async () => {
+			const mockOAuthToken = "mock-oauth-token";
+			const onOauthToken = jest.fn().mockResolvedValue(undefined);
+
+			retrieveTokenWebview.getURL.mockReturnValue("accounts.google.com");
+			retrieveTokenWebview.executeJavaScript.mockResolvedValue(undefined);
+
+			const setIntervalSpy = jest.spyOn(global, "setInterval").mockImplementation(((
+				callback: TimerHandler,
+				_ms?: number,
+				...args: unknown[]
+			) => {
+				if (typeof callback === "function") {
+					callback(...(args as []));
+				}
+				return 1 as unknown as ReturnType<typeof setInterval>;
+			}) as typeof setInterval);
+
+			const initPromise = initRetrieveToken(
+				settingsTab,
+				plugin,
+				retrieveTokenWebview,
+				onOauthToken
+			);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			const consoleHandlers = eventHandlers["console-message"] ?? [];
+			for (const handler of consoleHandlers) {
+				handler({
+					message: "buttonClicked",
+				} as ConsoleMessageEvent);
+			}
+
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			const actionCalls = (settingsTab.updateRetrieveTokenAction as jest.Mock).mock
+				.calls;
+			const action = actionCalls
+				.map((call) => call[0] as { label?: string; onClick?: () => void } | null)
+				.find((candidate) => candidate?.label === "(Re)Open DevTools");
+			expect(action).toBeTruthy();
+			action?.onClick?.();
+			expect(retrieveTokenWebview.closeDevTools).toHaveBeenCalled();
+			expect(retrieveTokenWebview.openDevTools).toHaveBeenCalled();
+
+			for (const handler of consoleHandlers) {
+				handler({
+					message: `oauthToken: ${mockOAuthToken}`,
+				} as ConsoleMessageEvent);
+			}
+
+			await initPromise;
+			setIntervalSpy.mockRestore();
 		});
 
 		it("should handle errors during token retrieval", async () => {
