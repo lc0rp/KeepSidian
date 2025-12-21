@@ -97,4 +97,35 @@ describe("loadKeepTokenDesktop", () => {
 		expect(adapter.getFullPath).toHaveBeenCalledWith(manifestDir);
 		expect(requireMock).toHaveBeenCalledWith(expectedBase);
 	});
+
+	test("uses Web Viewer module when flow is set in settings", async () => {
+		const pluginDir = path.join("/vault", "obsidian-config", "plugins", "KeepSidian");
+		const expectedBase = path.join(pluginDir, "keepTokenDesktopWebViewer");
+		const module = { initRetrieveToken: jest.fn() };
+		const requireMock = jest.fn((moduleId: string) => {
+			if (moduleId === "path") {
+				return path;
+			}
+			if (moduleId === expectedBase || moduleId === `${expectedBase}.js`) {
+				return module;
+			}
+			throw new Error(`Cannot find module ${moduleId}`);
+		});
+		(globalThis as unknown as { require?: unknown }).require = requireMock;
+
+		const plugin = {
+			manifest: {
+				id: "keepsidian",
+				dir: pluginDir,
+			},
+			settings: {
+				oauthFlow: "webviewer",
+			},
+		} as unknown as KeepSidianPlugin;
+
+		const loaded = await loadKeepTokenDesktop(plugin);
+
+		expect(loaded).toBe(module);
+		expect(requireMock).toHaveBeenCalledWith(expectedBase);
+	});
 });

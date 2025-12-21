@@ -5,10 +5,7 @@ import { exchangeOauthToken } from "../../integrations/google/keepToken";
 import { loadKeepTokenDesktop } from "../../integrations/google/keepTokenDesktopLoader";
 import type { IconName, ToggleComponent } from "obsidian";
 import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
-import {
-	logRetrievalWizardEvent,
-	startRetrievalWizardSession,
-} from "@integrations/google/retrievalSessionLogger";
+import { logRetrievalWizardEvent, startRetrievalWizardSession } from "@integrations/google/retrievalSessionLogger";
 
 export class KeepSidianSettingsTab extends PluginSettingTab {
 	private retrieveTokenWebView?: WebviewTag;
@@ -52,6 +49,8 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
 		await this.addSubscriptionSettings(containerEl);
 		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
+		this.addAdvancedSettings(containerEl);
+		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
 		this.addSupportSection(containerEl);
 	}
 
@@ -78,12 +77,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			cls: "keepsidian-support-links",
 		});
 
-		this.createSupportLink(
-			linksContainer,
-			"GitHub Issues",
-			"https://github.com/lc0rp/KeepSidian/issues",
-			"github"
-		);
+		this.createSupportLink(linksContainer, "GitHub Issues", "https://github.com/lc0rp/KeepSidian/issues", "github");
 
 		this.createSupportLink(
 			linksContainer,
@@ -93,12 +87,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		);
 	}
 
-	private createSupportLink(
-		parentEl: HTMLElement,
-		label: string,
-		href: string,
-		icon: IconName
-	): void {
+	private createSupportLink(parentEl: HTMLElement, label: string, href: string, icon: IconName): void {
 		const linkEl = parentEl.createEl("a", {
 			cls: "keepsidian-support-link",
 		});
@@ -181,14 +170,10 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 					'Get your token automatically using our "Retrieval wizard" or manually using the "Github KIM instructions".'
 				)
 				.addButton((button) =>
-					button
-						.setButtonText("Retrieval wizard")
-						.onClick(this.handleRetrieveToken.bind(this))
+					button.setButtonText("Retrieval wizard").onClick(this.handleRetrieveToken.bind(this))
 				);
 		} else {
-			retrievalSetting.setDesc(
-				"Mobile: use a desktop-synced token or the GitHub KIM instructions below."
-			);
+			retrievalSetting.setDesc("Mobile: use a desktop-synced token or the GitHub KIM instructions below.");
 		}
 
 		const githubInstructionsUrl = "https://github.com/djsudduth/keep-it-markdown";
@@ -203,6 +188,45 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		});
 		githubInstructionsLink.classList.add("keepsidian-link-button");
 		githubInstructionsLink.setAttribute("role", "button");
+	}
+
+	private addAdvancedSettings(containerEl: HTMLElement): void {
+		new Setting(containerEl).setName("Advanced & debug").setHeading();
+
+		const oauthFlowSetting = new Setting(containerEl)
+			.setName("OAuth flow")
+			.setDesc(
+				"Choose how KeepSidian opens the Google login flow on desktop. Web Viewer opens a separate tab."
+			)
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("desktop", "Embedded panel (default)")
+					.addOption("webviewer", "Web Viewer tab");
+				dropdown.setValue(this.plugin.settings.oauthFlow ?? "desktop");
+				dropdown.onChange(async (value) => {
+					this.plugin.settings.oauthFlow = value as "desktop" | "webviewer";
+					await this.plugin.saveSettings();
+				});
+				if (!Platform.isDesktopApp) {
+					dropdown.setDisabled(true);
+				}
+			});
+
+		if (!Platform.isDesktopApp) {
+			oauthFlowSetting.setDesc("Desktop only: OAuth flow selection is disabled on mobile.");
+		}
+
+		new Setting(containerEl)
+			.setName("Enable OAuth debug logging")
+			.setDesc("Logs OAuth token retrieval steps to the developer console.")
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.settings.oauthDebugMode ?? false)
+					.onChange(async (value) => {
+						this.plugin.settings.oauthDebugMode = value;
+						await this.plugin.saveSettings();
+					});
+			});
 	}
 
 	private async handleTokenPaste(event: ClipboardEvent): Promise<void> {
@@ -236,42 +260,32 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 				this.createRetrieveTokenWebView(this.containerEl);
 				await logRetrievalWizardEvent("debug", "Created retrieval webview for session");
 			} else {
-				await logRetrievalWizardEvent(
-					"debug",
-					"Reusing existing retrieval webview instance"
-				);
+				await logRetrievalWizardEvent("debug", "Reusing existing retrieval webview instance");
 			}
 			await logRetrievalWizardEvent("info", "Initializing retrieval wizard workflow");
 			if (
 				this.retrieveTokenGuide?.container &&
-				typeof (this.retrieveTokenGuide.container as HTMLElement & { show?: () => void })
-					.show === "function"
+				typeof (this.retrieveTokenGuide.container as HTMLElement & { show?: () => void }).show === "function"
 			) {
 				(this.retrieveTokenGuide.container as HTMLElement & { show: () => void }).show();
 			}
 			if (
 				this.retrieveTokenGuide?.webviewContainer &&
-				typeof (this.retrieveTokenGuide.webviewContainer as HTMLElement & { show?: () => void })
-					.show === "function"
+				typeof (this.retrieveTokenGuide.webviewContainer as HTMLElement & { show?: () => void }).show ===
+					"function"
 			) {
 				(this.retrieveTokenGuide.webviewContainer as HTMLElement & { show: () => void }).show();
 			}
 
 			const { initRetrieveToken } = await loadKeepTokenDesktop(this.plugin);
-			await initRetrieveToken(
-				this,
-				this.plugin,
-				this.retrieveTokenWebView!,
-				async (oauthToken) => {
-					await exchangeOauthToken(this, this.plugin, oauthToken);
-				}
-			);
+			await initRetrieveToken(this, this.plugin, this.retrieveTokenWebView!, async (oauthToken) => {
+				await exchangeOauthToken(this, this.plugin, oauthToken);
+			});
 			await logRetrievalWizardEvent("info", "Retrieval wizard workflow completed");
 			this.display();
 			await logRetrievalWizardEvent("debug", "Settings tab refreshed after retrieval wizard");
 		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : "Unable to initialize retrieval wizard.";
+			const message = error instanceof Error ? error.message : "Unable to initialize retrieval wizard.";
 			new Notice(message);
 			await logRetrievalWizardEvent("error", "Retrieval wizard initialization failed", {
 				errorMessage: message,
@@ -310,10 +324,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		}
 	}
 
-	public updateRetrieveTokenStatus(
-		message: string,
-		type: "info" | "success" | "warning" | "error" = "info"
-	): void {
+	public updateRetrieveTokenStatus(message: string, type: "info" | "success" | "warning" | "error" = "info"): void {
 		if (!this.retrieveTokenGuide) {
 			return;
 		}
@@ -348,9 +359,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		}
 	}
 
-	public updateRetrieveTokenAction(
-		action?: { label: string; onClick: () => void } | null
-	): void {
+	public updateRetrieveTokenAction(action?: { label: string; onClick: () => void } | null): void {
 		if (!this.retrieveTokenGuide) {
 			return;
 		}
@@ -376,9 +385,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 	private addSaveLocationSetting(containerEl: HTMLElement): void {
 		new Setting(containerEl)
 			.setName("Save location")
-			.setDesc(
-				"Where to save imported notes (relative to vault). Will be created if it doesn't exist."
-			)
+			.setDesc("Where to save imported notes (relative to vault). Will be created if it doesn't exist.")
 			.addText((text) =>
 				text
 					.setPlaceholder("KeepSidian")
@@ -416,10 +423,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 
 		const intervalSetting = new Setting(containerEl)
 			.setName("Sync interval (hours)")
-			.setDesc(
-				"Change the default sync interval." +
-					(isSubscribed ? "" : " (Available to project supporters)")
-			)
+			.setDesc("Change the default sync interval." + (isSubscribed ? "" : " (Available to project supporters)"))
 			.addText((text) =>
 				text
 					.setPlaceholder("24")
@@ -486,7 +490,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			if (backupAcknowledged && !manualTwoWayEnabled) {
 				requirements.push("requires two-way sync");
 			}
-			
+
 			if (backupAcknowledged && manualTwoWayEnabled && isSubscribed && !autoSyncActive) {
 				requirements.push("requires background sync");
 			}
@@ -494,19 +498,20 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			const autoDesc = requirements.length
 				? `Background sync will run uploads and downloads together when enabled. (${formatRequirementList(
 						requirements
-				  )})`
+					)})`
 				: "Background sync will run uploads and downloads together when enabled.";
 			autoTwoWaySetting.setDesc(autoDesc);
 			autoTwoWaySetting.setDisabled(requirements.length > 0);
 			suppressTwoWayUpdates = false;
 		};
 
-		// eslint-disable-next-line obsidianmd/hardcoded-config-path
 		const backupGuideUrl = "https://help.obsidian.md/backup";
 
 		const backupGuideSetting = new Setting(containerEl)
 			.setName("⚠️ Backup advisory ⚠️")
-			.setDesc("This is an experimental feature. Media uploads are NOT supported. To protect your data, KeepSidian attempts to archive conflicting Google Keep notes, and only downloads to the 'Save Location' specified in the settings above. As always, please remember to backup your vault.");
+			.setDesc(
+				"This is an experimental feature. Media uploads are NOT supported. To protect your data, KeepSidian attempts to archive conflicting Google Keep notes, and only downloads to the 'Save Location' specified in the settings above. As always, please remember to backup your vault."
+			);
 
 		const backupGuideLink = backupGuideSetting.controlEl.createEl("a", {
 			text: "🌎 Obsidian backup guide",
@@ -522,42 +527,16 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Confirm opt in")
-			.setDesc(
-				"I've reviewed the info above and the backup guide. Let's proceed."
-			)
+			.setDesc("I've reviewed the info above and the backup guide. Let's proceed.")
 			.addToggle((toggle) => {
 				backupToggle = toggle;
-				toggle
-					.setValue(this.plugin.settings.twoWaySyncBackupAcknowledged)
-					.onChange(async (value) => {
-						if (suppressTwoWayUpdates) {
-							return;
-						}
-						this.plugin.settings.twoWaySyncBackupAcknowledged = value;
-						if (!value) {
-							this.plugin.settings.twoWaySyncEnabled = false;
-							this.plugin.settings.twoWaySyncAutoSyncEnabled = false;
-						}
-						this.plugin.refreshAutoSyncSafeguards();
-						await this.plugin.saveSettings();
-						updateTwoWaySettingsState();
-					});
-			});
-
-		manualTwoWaySetting = new Setting(containerEl)
-			.setName("Enable two-way sync")
-			.addToggle((toggle) => {
-				manualTwoWayToggle = toggle;
-				toggle.setValue(this.plugin.settings.twoWaySyncEnabled).onChange(async (value) => {
+				toggle.setValue(this.plugin.settings.twoWaySyncBackupAcknowledged).onChange(async (value) => {
 					if (suppressTwoWayUpdates) {
 						return;
 					}
-					if (!this.plugin.settings.twoWaySyncBackupAcknowledged) {
-						updateTwoWaySettingsState();
-						return;
-					}
-					this.plugin.settings.twoWaySyncEnabled = value;
+					this.plugin.settings.twoWaySyncBackupAcknowledged = value;
 					if (!value) {
+						this.plugin.settings.twoWaySyncEnabled = false;
 						this.plugin.settings.twoWaySyncAutoSyncEnabled = false;
 					}
 					this.plugin.refreshAutoSyncSafeguards();
@@ -566,31 +545,47 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 				});
 			});
 
-		autoTwoWaySetting = new Setting(containerEl)
-			.setName("Enable two-way background sync")
-			.addToggle((toggle) => {
-				autoTwoWayToggle = toggle;
-				toggle
-					.setValue(this.plugin.settings.twoWaySyncAutoSyncEnabled)
-					.onChange(async (value) => {
-						if (suppressTwoWayUpdates) {
-							return;
-						}
-						const prerequisitesMet =
-							this.plugin.settings.twoWaySyncBackupAcknowledged &&
-							this.plugin.settings.twoWaySyncEnabled &&
-							isSubscribed &&
-							this.plugin.settings.autoSyncEnabled;
-						if (!prerequisitesMet) {
-							updateTwoWaySettingsState();
-							return;
-						}
-						this.plugin.settings.twoWaySyncAutoSyncEnabled = value;
-						this.plugin.refreshAutoSyncSafeguards();
-						await this.plugin.saveSettings();
-						updateTwoWaySettingsState();
-					});
+		manualTwoWaySetting = new Setting(containerEl).setName("Enable two-way sync").addToggle((toggle) => {
+			manualTwoWayToggle = toggle;
+			toggle.setValue(this.plugin.settings.twoWaySyncEnabled).onChange(async (value) => {
+				if (suppressTwoWayUpdates) {
+					return;
+				}
+				if (!this.plugin.settings.twoWaySyncBackupAcknowledged) {
+					updateTwoWaySettingsState();
+					return;
+				}
+				this.plugin.settings.twoWaySyncEnabled = value;
+				if (!value) {
+					this.plugin.settings.twoWaySyncAutoSyncEnabled = false;
+				}
+				this.plugin.refreshAutoSyncSafeguards();
+				await this.plugin.saveSettings();
+				updateTwoWaySettingsState();
 			});
+		});
+
+		autoTwoWaySetting = new Setting(containerEl).setName("Enable two-way background sync").addToggle((toggle) => {
+			autoTwoWayToggle = toggle;
+			toggle.setValue(this.plugin.settings.twoWaySyncAutoSyncEnabled).onChange(async (value) => {
+				if (suppressTwoWayUpdates) {
+					return;
+				}
+				const prerequisitesMet =
+					this.plugin.settings.twoWaySyncBackupAcknowledged &&
+					this.plugin.settings.twoWaySyncEnabled &&
+					isSubscribed &&
+					this.plugin.settings.autoSyncEnabled;
+				if (!prerequisitesMet) {
+					updateTwoWaySettingsState();
+					return;
+				}
+				this.plugin.settings.twoWaySyncAutoSyncEnabled = value;
+				this.plugin.refreshAutoSyncSafeguards();
+				await this.plugin.saveSettings();
+				updateTwoWaySettingsState();
+			});
+		});
 
 		if (!isSubscribed) {
 			autoTwoWaySetting.setClass("requires-subscription");
@@ -623,12 +618,9 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		const statusEl = guideContainer.createDiv("keepsidian-retrieve-token-guide__status");
 
 		const webviewContainer = wrapper.createDiv("keepsidian-retrieve-token-webview");
-		this.retrieveTokenWebView = webviewContainer.createEl(
-			"webview" as keyof HTMLElementTagNameMap,
-			{
-				attr: { style: "width: 100%; height: 600px;" },
-			}
-		) as WebviewTag;
+		this.retrieveTokenWebView = webviewContainer.createEl("webview" as keyof HTMLElementTagNameMap, {
+			attr: { style: "width: 100%; height: 600px;" },
+		}) as WebviewTag;
 		this.retrieveTokenWebView.setAttribute("disablewebsecurity", "true");
 		this.retrieveTokenWebView.setAttribute("crossorigin", "anonymous");
 		this.retrieveTokenWebView.setAttribute("disableblinkfeatures", "AutomationControlled");

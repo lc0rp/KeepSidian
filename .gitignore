@@ -12,6 +12,7 @@ package-lock.json
 # build
 main.js
 keepTokenDesktop.js
+keepTokenDesktopWebViewer.js
 *.js.map
 test-vault/
 *.zip
@@ -51,3 +52,7 @@ _bmad-*
 dev-plugin
 bmad-custom-modules-src
 bmad-custom-src
+
+# Reference materials
+.ref/
+.agents/

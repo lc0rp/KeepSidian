@@ -25,6 +25,21 @@ type PathModule = {
 	isAbsolute: (value: string) => boolean;
 };
 
+const DEFAULT_OAUTH_FLOW = "desktop";
+const WEBVIEWER_OAUTH_ALIASES = [
+	"webviewer",
+	"web-viewer",
+	"web_viewer",
+	"web",
+	"viewer",
+	"wv",
+	"customframes",
+	"custom-frames",
+	"custom_frames",
+	"1",
+	"true",
+];
+
 declare const require: RequireLike | undefined;
 declare const module:
 	| {
@@ -119,6 +134,15 @@ const resolvePluginDir = (
 	return pathModule.join(basePath, configDir, "plugins", pluginId);
 };
 
+const resolveTokenDesktopModuleBaseName = (flowSetting?: string) => {
+	const normalized = String(flowSetting ?? DEFAULT_OAUTH_FLOW).trim().toLowerCase();
+	const isWebViewer = WEBVIEWER_OAUTH_ALIASES.includes(normalized);
+	return {
+		moduleBaseName: isWebViewer ? "keepTokenDesktopWebViewer" : "keepTokenDesktop",
+		normalized,
+	};
+};
+
 export async function loadKeepTokenDesktop(
 	plugin?: KeepSidianPlugin
 ): Promise<KeepTokenDesktopModule> {
@@ -129,15 +153,18 @@ export async function loadKeepTokenDesktop(
 	const pathModule = req("path") as PathModule;
 	const candidates: string[] = [];
 	const pluginDir = resolvePluginDir(plugin, pathModule);
+	const { moduleBaseName, normalized } = resolveTokenDesktopModuleBaseName(
+		plugin?.settings?.oauthFlow
+	);
 	if (pluginDir) {
-		const base = pathModule.join(pluginDir, "keepTokenDesktop");
+		const base = pathModule.join(pluginDir, moduleBaseName);
 		candidates.push(base, `${base}.js`);
 	}
 	if (typeof __dirname === "string" && __dirname.length > 0) {
-		const base = pathModule.join(__dirname, "keepTokenDesktop");
+		const base = pathModule.join(__dirname, moduleBaseName);
 		candidates.push(base, `${base}.js`);
 	}
-	candidates.push("./keepTokenDesktop", "./keepTokenDesktop.js");
+	candidates.push(`./${moduleBaseName}`, `./${moduleBaseName}.js`);
 
 	let loaded: Partial<KeepTokenDesktopModule> | undefined;
 	let lastError: unknown;
@@ -158,9 +185,11 @@ export async function loadKeepTokenDesktop(
 		const errorMessage =
 			lastError instanceof Error ? lastError.message : String(lastError ?? "");
 		throw new Error(
-			`Failed to load keepTokenDesktop module.${
+			`Failed to load ${moduleBaseName} module.${
 				errorMessage ? ` ${errorMessage}` : ""
-			}${failures.length ? ` Tried: ${failures.join(" | ")}` : ""}`
+			}${failures.length ? ` Tried: ${failures.join(" | ")}` : ""} (flow=${
+				plugin?.settings?.oauthFlow ?? "default"
+			}, normalized=${normalized})`
 		);
 	}
 	return loaded as KeepTokenDesktopModule;

@@ -18,6 +18,8 @@ export interface KeepSidianPluginSettings {
 	email: string;
 	token: string;
 	saveLocation: string;
+	oauthFlow: "desktop" | "webviewer";
+	oauthDebugMode: boolean;
 	subscriptionCache?: SubscriptionCache;
 	premiumFeatures: PremiumFeatureSettings;
 	gdriveToken?: string;
@@ -38,6 +40,8 @@ export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
 	email: "",
 	token: "",
 	saveLocation: "Google Keep",
+	oauthFlow: "desktop",
+	oauthDebugMode: false,
 	subscriptionCache: undefined,
 	premiumFeatures: DEFAULT_PREMIUM_FEATURES,
 	gdriveToken: undefined,

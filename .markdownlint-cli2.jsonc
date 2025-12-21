@@ -10,7 +10,8 @@
     "**/bmad*/**",
     "**/.bmad*/**",
     "**/_bmad*/**",
-    "**/test-results/**"
+    "**/test-results/**",
+    ".agents/**"
   ],
   "config": {
     "default": true,

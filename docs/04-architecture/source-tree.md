@@ -7,6 +7,8 @@ This document maps the repository structure to the runtime responsibilities of t
 - `manifest.json`: Obsidian plugin metadata (id, name, min app version, version).
 - `main.js`: main plugin bundle shipped to Obsidian.
 - `keepTokenDesktop.js`: desktop-only OAuth webview wizard bundle, loaded on demand.
+- `keepTokenDesktopWebViewer.js`: Web Viewer-based OAuth wizard bundle, loaded on demand when the
+  desktop flow is switched to Web Viewer mode.
 - `styles.css`: plugin styles (status UI, modals, settings).
 - `package.json`: dev scripts, linting, tests, build pipeline.
 - `esbuild.config.mjs`: build entry (injects environment variables like `KEEPSIDIAN_SERVER_URL`).

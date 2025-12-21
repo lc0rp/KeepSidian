@@ -1,5 +1,5 @@
 import esbuild from "esbuild";
-import builtins from "builtin-modules";
+import { builtinModules } from "module";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -78,10 +78,7 @@ function tsconfigPathsPlugin({ tsconfigPath }) {
 							];
 							for (const candidate of candidates) {
 								try {
-									if (
-										fs.existsSync(candidate) &&
-										fs.statSync(candidate).isFile()
-									) {
+									if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
 										return candidate;
 									}
 								} catch {
@@ -111,29 +108,25 @@ const ___filename = fileURLToPath(import.meta.url);
 const ___dirname = path.dirname(___filename);
 const rootDir = path.resolve(___dirname, ".");
 
-const envFiles = [
-	path.resolve(rootDir, ".env"),
-	path.resolve(rootDir, prod ? ".env.production" : ".env.development"),
-];
+const envFiles = [path.resolve(rootDir, ".env"), path.resolve(rootDir, prod ? ".env.production" : ".env.development")];
 
 for (const candidate of envFiles) {
 	loadEnvFile(candidate);
 }
 
-const defaultServerUrl = prod
-	? "https://keepsidianserver-i55qr5tvea-uc.a.run.app"
-	: "http://localhost:8080";
+const defaultServerUrl = prod ? "https://keepsidianserver-i55qr5tvea-uc.a.run.app" : "http://localhost:8080";
 
-const resolvedServerUrl = String(process.env.KEEPSIDIAN_SERVER_URL ?? defaultServerUrl).replace(
-	/\/$/,
-	""
-);
+const resolvedServerUrl = String(process.env.KEEPSIDIAN_SERVER_URL ?? defaultServerUrl).replace(/\/$/, "");
 
 const context = await esbuild.context({
 	banner: {
 		js: banner,
 	},
-	entryPoints: ["src/main.ts", "src/integrations/google/keepTokenDesktop.ts"],
+	entryPoints: [
+		"src/main.ts",
+		"src/integrations/google/keepTokenDesktop.ts",
+		"src/integrations/google/keepTokenDesktopWebViewer.ts",
+	],
 	bundle: true,
 	external: [
 		"obsidian",
@@ -149,7 +142,7 @@ const context = await esbuild.context({
 		"@lezer/common",
 		"@lezer/highlight",
 		"@lezer/lr",
-		...builtins,
+		...builtinModules,
 	],
 	format: "cjs",
 	target: "es2018",
