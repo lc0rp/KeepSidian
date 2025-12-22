@@ -62,6 +62,14 @@ interface MockSliderComponent {
 	onChange: jest.Mock<MockSliderComponent, [ChangeHandler<number>]>;
 }
 
+interface MockDropdownComponent {
+	addOption: jest.Mock<MockDropdownComponent, [string, string]>;
+	addOptions: jest.Mock<MockDropdownComponent, [Record<string, string>]>;
+	setValue: jest.Mock<MockDropdownComponent, [string]>;
+	onChange: jest.Mock<MockDropdownComponent, [ChangeHandler<string>]>;
+	setDisabled: jest.Mock<MockDropdownComponent, [boolean]>;
+}
+
 interface SubscriptionServiceMock {
 	isSubscriptionActive: jest.Mock<Promise<boolean>, [boolean?]>;
 	getEmail: jest.Mock<string | undefined, []>;
@@ -190,6 +198,44 @@ const createMockSliderComponent = (
 	if (parentElement) {
 		attachCreateEl(parentElement, createEl);
 	}
+
+	return component;
+};
+
+const createMockDropdownComponent = (selectEl: HTMLSelectElement): MockDropdownComponent => {
+	const component: MockDropdownComponent = {
+		addOption: jest.fn(),
+		addOptions: jest.fn(),
+		setValue: jest.fn(),
+		onChange: jest.fn(),
+		setDisabled: jest.fn(),
+	};
+
+	component.addOption.mockImplementation((value, label) => {
+		const optionEl = document.createElement("option");
+		optionEl.value = value;
+		optionEl.textContent = label;
+		selectEl.appendChild(optionEl);
+		return component;
+	});
+	component.addOptions.mockImplementation((options) => {
+		for (const [value, label] of Object.entries(options)) {
+			component.addOption(value, label);
+		}
+		return component;
+	});
+	component.setValue.mockImplementation((value) => {
+		selectEl.value = value;
+		return component;
+	});
+	component.onChange.mockImplementation((handler) => {
+		selectEl.addEventListener("change", () => handler(selectEl.value));
+		return component;
+	});
+	component.setDisabled.mockImplementation((disabled) => {
+		selectEl.disabled = disabled;
+		return component;
+	});
 
 	return component;
 };
@@ -359,6 +405,14 @@ jest.mock("obsidian", () => {
 			this.controlEl.appendChild(inputEl);
 			const sliderComponent = createMockSliderComponent(inputEl, typedCreateEl);
 			cb(sliderComponent);
+			return this;
+		}
+
+		addDropdown(cb: (dropdown: MockDropdownComponent) => void) {
+			const selectEl = document.createElement("select");
+			this.controlEl.appendChild(selectEl);
+			const dropdownComponent = createMockDropdownComponent(selectEl);
+			cb(dropdownComponent);
 			return this;
 		}
 	}

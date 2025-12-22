@@ -3,7 +3,12 @@
 
 import { readFileSync, existsSync } from "fs";
 
-const REQUIRED_FILES = ["main.js", "keepTokenDesktop.js", "keepTokenDesktopWebViewer.js"];
+const REQUIRED_FILES = [
+	"main.js",
+	"keepTokenDesktop.js",
+	"keepTokenDesktopWebViewer.js",
+	"keepTokenBrowserAutomationDesktop.js",
+];
 
 const fail = (message) => {
 	console.error(message);
@@ -39,9 +44,10 @@ if (requireElectronPattern.test(mainJs)) {
 }
 
 // Sanity: the desktop bundles should exist. They *may* reference electron; that's expected.
-// We don't assert its contents beyond existence to avoid coupling to esbuild output.
+// We don't assert their contents beyond existence to avoid coupling to esbuild output.
 readText("keepTokenDesktop.js");
 readText("keepTokenDesktopWebViewer.js");
+readText("keepTokenBrowserAutomationDesktop.js");
 
 if (!process.exitCode) {
 	console.log(

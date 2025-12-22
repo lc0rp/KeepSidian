@@ -3,9 +3,14 @@ import KeepSidianPlugin from "main";
 import { PluginSettingTab, App, Setting, Notice, setIcon, Platform } from "obsidian";
 import { exchangeOauthToken } from "../../integrations/google/keepToken";
 import { loadKeepTokenDesktop } from "../../integrations/google/keepTokenDesktopLoader";
+import { runOauthBrowserAutomation } from "@integrations/google/keepTokenBrowserAutomation";
 import type { IconName, ToggleComponent } from "obsidian";
 import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
-import { logRetrievalWizardEvent, startRetrievalWizardSession } from "@integrations/google/retrievalSessionLogger";
+import {
+	endRetrievalWizardSession,
+	logRetrievalWizardEvent,
+	startRetrievalWizardSession,
+} from "@integrations/google/retrievalSessionLogger";
 
 export class KeepSidianSettingsTab extends PluginSettingTab {
 	private retrieveTokenWebView?: WebviewTag;
@@ -227,6 +232,48 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					});
 			});
+
+		new Setting(containerEl).setName("Browser automation (experimental)").setHeading();
+		const automationDesc =
+			"Launches a controlled browser window to capture the oauth_token cookie outside of Obsidian.";
+
+		const systemBrowserSetting = new Setting(containerEl)
+			.setName("Use system browser for Playwright")
+			.setDesc(
+				"Use your installed Chrome/Edge (if available) instead of Playwright's bundled Chromium."
+			)
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.settings.oauthPlaywrightUseSystemBrowser ?? false)
+					.onChange(async (value) => {
+						this.plugin.settings.oauthPlaywrightUseSystemBrowser = value;
+						await this.plugin.saveSettings();
+					});
+			});
+
+		const puppeteerSetting = new Setting(containerEl)
+			.setName("Launch Puppeteer automation")
+			.setDesc(automationDesc)
+			.addButton((button) =>
+				button
+					.setButtonText("Launch Puppeteer")
+					.onClick(() => void this.handleAutomationLaunch("puppeteer"))
+			);
+
+		const playwrightSetting = new Setting(containerEl)
+			.setName("Launch Playwright automation")
+			.setDesc(automationDesc)
+			.addButton((button) =>
+				button
+					.setButtonText("Launch Playwright")
+					.onClick(() => void this.handleAutomationLaunch("playwright"))
+			);
+
+		if (!Platform.isDesktopApp) {
+			systemBrowserSetting.setDisabled(true);
+			puppeteerSetting.setDisabled(true);
+			playwrightSetting.setDisabled(true);
+		}
 	}
 
 	private async handleTokenPaste(event: ClipboardEvent): Promise<void> {
@@ -289,6 +336,60 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			new Notice(message);
 			await logRetrievalWizardEvent("error", "Retrieval wizard initialization failed", {
 				errorMessage: message,
+			});
+		}
+	}
+
+	private async handleAutomationLaunch(engine: "puppeteer" | "playwright"): Promise<void> {
+		if (!this.plugin.settings.email || !this.isValidEmail(this.plugin.settings.email)) {
+			new Notice("Please enter a valid email address before launching browser automation.");
+			return;
+		}
+		if (!Platform.isDesktopApp) {
+			new Notice("Browser automation is only available on desktop.");
+			return;
+		}
+		const sessionMetadata = {
+			email: this.plugin.settings.email,
+			pluginVersion: this.plugin.manifest.version,
+			engine,
+			flow: "browser-automation",
+		};
+		await startRetrievalWizardSession(this.plugin, sessionMetadata);
+		await logRetrievalWizardEvent("info", "Browser automation button clicked", sessionMetadata);
+		new Notice(`Launching ${engine} login window...`);
+		try {
+			const result = await runOauthBrowserAutomation(this.plugin, engine, {
+				debug: this.plugin.settings.oauthDebugMode,
+				useSystemBrowser:
+					engine === "playwright"
+						? this.plugin.settings.oauthPlaywrightUseSystemBrowser
+						: false,
+			});
+			await logRetrievalWizardEvent("info", "Browser automation returned oauth token", {
+				engine,
+				tokenReceived: Boolean(result.oauth_token),
+			});
+			await exchangeOauthToken(this, this.plugin, result.oauth_token);
+			await endRetrievalWizardSession("success", {
+				engine,
+				flow: "browser-automation",
+			});
+		} catch (error) {
+			const rawMessage =
+				error instanceof Error ? error.message : "Browser automation failed to capture a token.";
+			const message = rawMessage.includes("ENOENT")
+				? "Unable to launch browser automation. Please install Node.js or run the script manually."
+				: rawMessage;
+			new Notice(message);
+			await logRetrievalWizardEvent("error", "Browser automation failed", {
+				engine,
+				errorMessage: rawMessage,
+			});
+			await endRetrievalWizardSession("error", {
+				engine,
+				flow: "browser-automation",
+				reason: message,
 			});
 		}
 	}
