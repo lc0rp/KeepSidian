@@ -27,16 +27,30 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	private isValidEmail(email: string): boolean {
-		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		return emailRegex.test(email);
-	}
+        private isValidEmail(email: string): boolean {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return emailRegex.test(email);
+        }
 
-	async display(): Promise<void> {
-		const { containerEl } = this;
-		containerEl.empty();
+        private isLikelyLongLivedToken(token?: string | null): boolean {
+                const trimmed = token?.trim();
+                if (!trimmed) {
+                        return false;
+                }
 
-		this.addSupportSection(containerEl);
+                const normalized = trimmed.toLowerCase();
+                if (normalized.includes("oauth2_")) {
+                        return false;
+                }
+
+                return trimmed.length >= 20;
+        }
+
+        async display(): Promise<void> {
+                const { containerEl } = this;
+                containerEl.empty();
+
+                this.addSupportSection(containerEl);
 		this.addEmailSetting(containerEl);
 		this.addSaveLocationSetting(containerEl);
 		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
@@ -128,39 +142,66 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			);
 	}
 
-	private addSyncTokenSetting(containerEl: HTMLElement): void {
-		new Setting(containerEl).setName("Configure sync token").setHeading();
-		new Setting(containerEl)
-			.setName("Sync token")
-			.setDesc(
-				"This token authorizes access to your Google Keep data." +
-					(Platform.isMobileApp
-						? " Paste a token retrieved on desktop (syncs via Obsidian) or follow the GitHub instructions."
-						: " Retrieve your token below or paste one from desktop.")
-			)
-			.addText((text) => {
-				text.setPlaceholder("Google Keep sync token.")
-					.setValue(this.plugin.settings.token)
-					.onChange(async (value) => {
-						this.plugin.settings.token = value;
-						await this.plugin.saveSettings();
-					});
-				text.inputEl.type = "password";
-				text.inputEl.addEventListener("paste", this.handleTokenPaste.bind(this));
-				const toggleButton = text.inputEl.parentElement?.createEl("button", {
-					text: "Show",
-				});
-				toggleButton?.addEventListener("click", (e) => {
-					e.preventDefault();
-					if (text.inputEl.type === "password") {
-						text.inputEl.type = "text";
-						toggleButton.textContent = "Hide";
-					} else {
-						text.inputEl.type = "password";
-						toggleButton.textContent = "Show";
-					}
-				});
-			});
+        private addSyncTokenSetting(containerEl: HTMLElement): void {
+                new Setting(containerEl).setName("Configure sync token").setHeading();
+                const tokenSetting = new Setting(containerEl)
+                        .setName("Sync token")
+                        .setDesc(
+                                "This token authorizes access to your Google Keep data." +
+                                        (Platform.isMobileApp
+                                                ? " Paste a token retrieved on desktop (syncs via Obsidian) or follow the GitHub instructions."
+                                                : " Retrieve your token below or paste one from desktop.")
+                        );
+
+                const tokenStatus = tokenSetting.controlEl.createDiv(
+                        "keepsidian-token-status keepsidian-hidden"
+                );
+                const statusIcon = tokenStatus.createEl("span", {
+                        cls: "keepsidian-token-status__icon",
+                });
+                setIcon(statusIcon, "check-circle");
+                tokenStatus.createEl("span", {
+                        text: "token successfully retrieved",
+                        cls: "keepsidian-token-status__text",
+                });
+
+                const updateTokenStatus = (tokenValue: string) => {
+                        const hasValidToken = this.isLikelyLongLivedToken(tokenValue);
+                        if (hasValidToken) {
+                                tokenStatus.classList.remove("keepsidian-hidden");
+                                tokenSetting.settingEl.classList.add("keepsidian-token-valid");
+                        } else {
+                                tokenStatus.classList.add("keepsidian-hidden");
+                                tokenSetting.settingEl.classList.remove("keepsidian-token-valid");
+                        }
+                };
+
+                tokenSetting.addText((text) => {
+                        text.setPlaceholder("Google Keep sync token.")
+                                .setValue(this.plugin.settings.token)
+                                .onChange(async (value) => {
+                                        this.plugin.settings.token = value;
+                                        await this.plugin.saveSettings();
+                                        updateTokenStatus(value);
+                                });
+                        text.inputEl.type = "password";
+                        text.inputEl.addEventListener("paste", this.handleTokenPaste.bind(this));
+                        const toggleButton = text.inputEl.parentElement?.createEl("button", {
+                                text: "Show",
+                        });
+                        toggleButton?.addEventListener("click", (e) => {
+                                e.preventDefault();
+                                if (text.inputEl.type === "password") {
+                                        text.inputEl.type = "text";
+                                        toggleButton.textContent = "Hide";
+                                } else {
+                                        text.inputEl.type = "password";
+                                        toggleButton.textContent = "Show";
+                                }
+                        });
+
+                        updateTokenStatus(this.plugin.settings.token);
+                });
 
 		const retrievalSetting = new Setting(containerEl).setName("Retrieve your sync token");
 

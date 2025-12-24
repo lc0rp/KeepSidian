@@ -56,10 +56,17 @@ interface MockExtraButtonComponent {
 }
 
 interface MockSliderComponent {
-	setLimits: jest.Mock<MockSliderComponent, [number, number, number?]>;
-	setValue: jest.Mock<MockSliderComponent, [number]>;
-	setDynamicTooltip: jest.Mock<MockSliderComponent, [boolean?]>;
-	onChange: jest.Mock<MockSliderComponent, [ChangeHandler<number>]>;
+        setLimits: jest.Mock<MockSliderComponent, [number, number, number?]>;
+        setValue: jest.Mock<MockSliderComponent, [number]>;
+        setDynamicTooltip: jest.Mock<MockSliderComponent, [boolean?]>;
+        onChange: jest.Mock<MockSliderComponent, [ChangeHandler<number>]>;
+}
+
+interface MockDropdownComponent {
+        addOption: jest.Mock<MockDropdownComponent, [string, string]>;
+        setValue: jest.Mock<MockDropdownComponent, [string]>;
+        onChange: jest.Mock<MockDropdownComponent, [ChangeHandler<string>]>;
+        setDisabled: jest.Mock<MockDropdownComponent, [boolean]>;
 }
 
 interface SubscriptionServiceMock {
@@ -353,15 +360,49 @@ jest.mock("obsidian", () => {
 			return this;
 		}
 
-		addSlider(cb: (slider: MockSliderComponent) => void) {
-			const inputEl = document.createElement("input");
-			inputEl.type = "range";
-			this.controlEl.appendChild(inputEl);
-			const sliderComponent = createMockSliderComponent(inputEl, typedCreateEl);
-			cb(sliderComponent);
-			return this;
-		}
-	}
+                addSlider(cb: (slider: MockSliderComponent) => void) {
+                        const inputEl = document.createElement("input");
+                        inputEl.type = "range";
+                        this.controlEl.appendChild(inputEl);
+                        const sliderComponent = createMockSliderComponent(inputEl, typedCreateEl);
+                        cb(sliderComponent);
+                        return this;
+                }
+
+                addDropdown(cb: (dropdown: MockDropdownComponent) => void) {
+                        const selectEl = document.createElement("select");
+                        this.controlEl.appendChild(selectEl);
+
+                        const dropdownComponent: MockDropdownComponent = {
+                                addOption: jest.fn(() => dropdownComponent),
+                                setValue: jest.fn(() => dropdownComponent),
+                                onChange: jest.fn((handler: ChangeHandler<string>) => {
+                                        selectEl.addEventListener("change", () => handler(selectEl.value));
+                                        return dropdownComponent;
+                                }),
+                                setDisabled: jest.fn((disabled: boolean) => {
+                                        selectEl.disabled = disabled;
+                                        return dropdownComponent;
+                                }),
+                        } as unknown as MockDropdownComponent;
+
+                        dropdownComponent.addOption.mockImplementation((value: string, label: string) => {
+                                const optionEl = document.createElement("option");
+                                optionEl.value = value;
+                                optionEl.textContent = label;
+                                selectEl.appendChild(optionEl);
+                                return dropdownComponent;
+                        });
+
+                        dropdownComponent.setValue.mockImplementation((value: string) => {
+                                selectEl.value = value;
+                                return dropdownComponent;
+                        });
+
+                        cb(dropdownComponent);
+                        return this;
+                }
+        }
 
 	class PluginSettingTab extends actual.PluginSettingTab {
 		constructor(app: App, plugin: KeepSidianPlugin) {
@@ -449,9 +490,9 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		);
 	};
 
-	test("token field show/hide toggle and onChange save", async () => {
-		const container = tab.containerEl;
-		await tabInternals.addSyncTokenSetting(container);
+        test("token field show/hide toggle and onChange save", async () => {
+                const container = tab.containerEl;
+                await tabInternals.addSyncTokenSetting(container);
 
 		// Find the token input created by addText in sync token setting
 		const tokenInput = container.querySelector("input") as HTMLInputElement;
@@ -475,9 +516,24 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 
 		// Trigger onChange for token value save
 		tokenInput.value = "new-token";
-		tokenInput.dispatchEvent(new Event("input"));
-		expect(plugin.settings.token).toBe("new-token");
-	});
+                tokenInput.dispatchEvent(new Event("input"));
+                expect(plugin.settings.token).toBe("new-token");
+        });
+
+        test("shows a success indicator when a long-lived token is present", async () => {
+                plugin.settings.token = "long-lived-token-value-1234567890";
+
+                const container = tab.containerEl;
+                await tabInternals.addSyncTokenSetting(container);
+
+                const tokenStatus = container.querySelector(
+                        ".keepsidian-token-status"
+                ) as HTMLElement | null;
+
+                expect(tokenStatus).not.toBeNull();
+                expect(tokenStatus?.classList.contains("keepsidian-hidden")).toBe(false);
+                expect(tokenStatus?.textContent).toContain("token successfully retrieved");
+        });
 
 	test("retrieve token button calls flow with valid email and github instructions link exists", async () => {
 		plugin.settings.email = "test@example.com";

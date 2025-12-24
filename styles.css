@@ -196,14 +196,40 @@ If your plugin does not need CSS, delete this file.
 }
 
 .keepsidian-support-text {
-	font-weight: 400;
-	font-size: var(--font-ui-small);
+        font-weight: 400;
+        font-size: var(--font-ui-small);
+}
+
+.keepsidian-token-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        color: var(--text-success, #4caf50);
+        font-weight: 600;
+}
+
+.keepsidian-token-status__icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: inherit;
+}
+
+.keepsidian-token-status__icon svg {
+        width: 1em;
+        height: 1em;
+}
+
+.keepsidian-token-status__text {
+        color: inherit;
+        text-transform: lowercase;
 }
 
 .keepsidian-settings-hr {
-	margin: 16px 0;
-	border: none;
-	border-top: 2px dashed var(--background-modifier-border);
+        margin: 16px 0;
+        border: none;
+        border-top: 2px dashed var(--background-modifier-border);
 }
 
 .keepsidian-retrieve-token-wrapper {
