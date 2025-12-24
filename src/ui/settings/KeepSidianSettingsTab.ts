@@ -54,8 +54,6 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
 		await this.addSubscriptionSettings(containerEl);
 		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
-		this.addAdvancedSettings(containerEl);
-		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
 		this.addSupportSection(containerEl);
 	}
 
@@ -84,12 +82,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 
 		this.createSupportLink(linksContainer, "GitHub Issues", "https://github.com/lc0rp/KeepSidian/issues", "github");
 
-		this.createSupportLink(
-			linksContainer,
-			"Discord DM (@lc0rp)",
-			"https://discord.com/users/lc0rp",
-			"message-circle"
-		);
+		this.createSupportLink(linksContainer, "Discord DM (@lc0rp)", "https://discord.com/users/lc0rp", "message-circle");
 	}
 
 	private createSupportLink(parentEl: HTMLElement, label: string, href: string, icon: IconName): void {
@@ -134,17 +127,18 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 	}
 
 	private addSyncTokenSetting(containerEl: HTMLElement): void {
-		new Setting(containerEl).setName("Configure sync token").setHeading();
+		new Setting(containerEl).setName("Retrieve sync token").setHeading();
 		new Setting(containerEl)
 			.setName("Sync token")
 			.setDesc(
 				"This token authorizes access to your Google Keep data." +
 					(Platform.isMobileApp
-						? " Paste a token retrieved on desktop (syncs via Obsidian) or follow the GitHub instructions."
-						: " Retrieve your token below or paste one from desktop.")
+						? " Paste a token retrieved on desktop, or follow the GitHub instructions further down below."
+						: " Retrieve your token using the options below, or paste it directly here.")
 			)
 			.addText((text) => {
-				text.setPlaceholder("Google Keep sync token.")
+				text
+					.setPlaceholder("Google Keep sync token.")
 					.setValue(this.plugin.settings.token)
 					.onChange(async (value) => {
 						this.plugin.settings.token = value;
@@ -167,22 +161,52 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 				});
 			});
 
-		const retrievalSetting = new Setting(containerEl).setName("Retrieve your sync token");
-
 		if (Platform.isDesktopApp) {
-			retrievalSetting
+			const retrievalSetting = new Setting(containerEl)
+				.setName("Retrieval wizard (option 1)")
 				.setDesc(
-					'Get your token automatically using our "Retrieval wizard" or manually using the "Github KIM instructions".'
-				)
-				.addButton((button) =>
-					button.setButtonText("Retrieval wizard").onClick(this.handleRetrieveToken.bind(this))
+					'KeepSidian provides two wizards to help retrieve your token. Each one walks you through the retrieval process using a different browser automation tool. This first option uses playwright from Microsoft. You can also retrieve your token manually using the "Github KIM instructions" further down below.'
 				);
-		} else {
-			retrievalSetting.setDesc("Mobile: use a desktop-synced token or the GitHub KIM instructions below.");
-		}
 
+			retrievalSetting.addButton((button) =>
+				button.setButtonText("Launch wizard option 1").onClick(() => void this.handleAutomationLaunch("playwright"))
+			);
+
+			const puppeteerSetting = new Setting(containerEl)
+				.setName("Retrieval wizard (option 2)")
+				.setDesc(
+					'This second option uses puppeteer, a browser automation tool from Google. You can also retrieve your token manually using the "Github KIM instructions" below.'
+				);
+			puppeteerSetting.addButton((button) =>
+				button.setButtonText("Launch wizard option 2").onClick(() => void this.handleAutomationLaunch("puppeteer"))
+			);
+
+			const githubSetting = new Setting(containerEl)
+				.setName("Manual retrieval")
+				.setDesc(
+					'Prefer manual steps? Click the button to follow the GitHub KIM instructions, and paste the token into the "Sync token" field above.'
+				);
+			this.addGithubInstructionsLink(githubSetting);
+
+			new Setting(containerEl)
+				.setName("Enable debug logging")
+				.setDesc("Log retrieval steps to the console.")
+				.addToggle((toggle) => {
+					toggle.setValue(this.plugin.settings.oauthDebugMode ?? false).onChange(async (value) => {
+						this.plugin.settings.oauthDebugMode = value;
+						await this.plugin.saveSettings();
+					});
+				});
+		} else {
+			const retrievalSetting = new Setting(containerEl).setName("Retrieve your sync token");
+			retrievalSetting.setDesc("Mobile: use a desktop-synced token or the GitHub KIM instructions below.");
+			this.addGithubInstructionsLink(retrievalSetting);
+		}
+	}
+
+	private addGithubInstructionsLink(setting: Setting): void {
 		const githubInstructionsUrl = "https://github.com/djsudduth/keep-it-markdown";
-		const githubInstructionsLink = retrievalSetting.controlEl.createEl("a", {
+		const githubInstructionsLink = setting.controlEl.createEl("a", {
 			text: "🌎 Github KIM instructions",
 			attr: {
 				href: githubInstructionsUrl,
@@ -200,13 +224,9 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 
 		const oauthFlowSetting = new Setting(containerEl)
 			.setName("OAuth flow")
-			.setDesc(
-				"Choose how KeepSidian opens the Google login flow on desktop. Web Viewer opens a separate tab."
-			)
+			.setDesc("Choose how KeepSidian opens the Google login flow on desktop. Web Viewer opens a separate tab.")
 			.addDropdown((dropdown) => {
-				dropdown
-					.addOption("desktop", "Embedded panel (default)")
-					.addOption("webviewer", "Web Viewer tab");
+				dropdown.addOption("desktop", "Embedded panel (default)").addOption("webviewer", "Web Viewer tab");
 				dropdown.setValue(this.plugin.settings.oauthFlow ?? "desktop");
 				dropdown.onChange(async (value) => {
 					this.plugin.settings.oauthFlow = value as "desktop" | "webviewer";
@@ -221,58 +241,9 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			oauthFlowSetting.setDesc("Desktop only: OAuth flow selection is disabled on mobile.");
 		}
 
-		new Setting(containerEl)
-			.setName("Enable OAuth debug logging")
-			.setDesc("Logs OAuth token retrieval steps to the developer console.")
-			.addToggle((toggle) => {
-				toggle
-					.setValue(this.plugin.settings.oauthDebugMode ?? false)
-					.onChange(async (value) => {
-						this.plugin.settings.oauthDebugMode = value;
-						await this.plugin.saveSettings();
-					});
-			});
-
-		new Setting(containerEl).setName("Browser automation (experimental)").setHeading();
-		const automationDesc =
-			"Launches a controlled browser window to capture the oauth_token cookie outside of Obsidian.";
-
-		const systemBrowserSetting = new Setting(containerEl)
-			.setName("Use system browser for Playwright")
-			.setDesc(
-				"Use your installed Chrome/Edge (if available) instead of Playwright's bundled Chromium."
-			)
-			.addToggle((toggle) => {
-				toggle
-					.setValue(this.plugin.settings.oauthPlaywrightUseSystemBrowser ?? false)
-					.onChange(async (value) => {
-						this.plugin.settings.oauthPlaywrightUseSystemBrowser = value;
-						await this.plugin.saveSettings();
-					});
-			});
-
-		const puppeteerSetting = new Setting(containerEl)
-			.setName("Launch Puppeteer automation")
-			.setDesc(automationDesc)
-			.addButton((button) =>
-				button
-					.setButtonText("Launch Puppeteer")
-					.onClick(() => void this.handleAutomationLaunch("puppeteer"))
-			);
-
-		const playwrightSetting = new Setting(containerEl)
-			.setName("Launch Playwright automation")
-			.setDesc(automationDesc)
-			.addButton((button) =>
-				button
-					.setButtonText("Launch Playwright")
-					.onClick(() => void this.handleAutomationLaunch("playwright"))
-			);
-
-		if (!Platform.isDesktopApp) {
-			systemBrowserSetting.setDisabled(true);
-			puppeteerSetting.setDisabled(true);
-			playwrightSetting.setDisabled(true);
+		if (this.plugin.settings.oauthPlaywrightUseSystemBrowser !== true) {
+			this.plugin.settings.oauthPlaywrightUseSystemBrowser = true;
+			void this.plugin.saveSettings();
 		}
 	}
 
@@ -318,8 +289,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			}
 			if (
 				this.retrieveTokenGuide?.webviewContainer &&
-				typeof (this.retrieveTokenGuide.webviewContainer as HTMLElement & { show?: () => void }).show ===
-					"function"
+				typeof (this.retrieveTokenGuide.webviewContainer as HTMLElement & { show?: () => void }).show === "function"
 			) {
 				(this.retrieveTokenGuide.webviewContainer as HTMLElement & { show: () => void }).show();
 			}
@@ -359,12 +329,14 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		await logRetrievalWizardEvent("info", "Browser automation button clicked", sessionMetadata);
 		new Notice(`Launching ${engine} login window...`);
 		try {
+			const useSystemBrowser = engine === "playwright" ? true : false;
+			if (engine === "playwright" && this.plugin.settings.oauthPlaywrightUseSystemBrowser !== true) {
+				this.plugin.settings.oauthPlaywrightUseSystemBrowser = true;
+				await this.plugin.saveSettings();
+			}
 			const result = await runOauthBrowserAutomation(this.plugin, engine, {
 				debug: this.plugin.settings.oauthDebugMode,
-				useSystemBrowser:
-					engine === "playwright"
-						? this.plugin.settings.oauthPlaywrightUseSystemBrowser
-						: false,
+				useSystemBrowser,
 			});
 			await logRetrievalWizardEvent("info", "Browser automation returned oauth token", {
 				engine,
@@ -376,8 +348,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 				flow: "browser-automation",
 			});
 		} catch (error) {
-			const rawMessage =
-				error instanceof Error ? error.message : "Browser automation failed to capture a token.";
+			const rawMessage = error instanceof Error ? error.message : "Browser automation failed to capture a token.";
 			const message = rawMessage.includes("ENOENT")
 				? "Unable to launch browser automation. Please install Node.js or run the script manually."
 				: rawMessage;
@@ -394,12 +365,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		}
 	}
 
-	public updateRetrieveTokenInstructions(
-		step: number,
-		title: string,
-		message: string,
-		listItems: string[] = []
-	): void {
+	public updateRetrieveTokenInstructions(step: number, title: string, message: string, listItems: string[] = []): void {
 		if (!this.retrieveTokenGuide) {
 			return;
 		}

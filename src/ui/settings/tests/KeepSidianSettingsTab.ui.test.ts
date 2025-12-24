@@ -5,7 +5,8 @@ import { App } from "obsidian";
 import KeepSidianPlugin from "../../../main";
 import { KeepSidianSettingsTab } from "../KeepSidianSettingsTab";
 import { DEFAULT_SETTINGS } from "../../../types/keepsidian-plugin-settings";
-import { loadKeepTokenDesktop } from "../../../integrations/google/keepTokenDesktopLoader";
+import { exchangeOauthToken } from "../../../integrations/google/keepToken";
+import { runOauthBrowserAutomation } from "../../../integrations/google/keepTokenBrowserAutomation";
 
 type CreateElOptions = {
 	text?: string | DocumentFragment;
@@ -436,8 +437,8 @@ jest.mock("../../../integrations/google/keepToken", () => ({
 	exchangeOauthToken: jest.fn(),
 }));
 
-jest.mock("../../../integrations/google/keepTokenDesktopLoader", () => ({
-	loadKeepTokenDesktop: jest.fn(),
+jest.mock("../../../integrations/google/keepTokenBrowserAutomation", () => ({
+	runOauthBrowserAutomation: jest.fn(),
 }));
 
 describe("KeepSidianSettingsTab UI interactions", () => {
@@ -446,7 +447,6 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 	let tab: KeepSidianSettingsTab;
 	let tabInternals: KeepSidianSettingsTabInternals;
 	let subscriptionServiceMock: SubscriptionServiceMock;
-	let initRetrieveTokenMock: jest.Mock;
 
 	const TEST_MANIFEST = {
 		id: "keepsidian",
@@ -459,10 +459,6 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		initRetrieveTokenMock = jest.fn().mockResolvedValue(undefined);
-		(loadKeepTokenDesktop as jest.Mock).mockResolvedValue({
-			initRetrieveToken: initRetrieveTokenMock,
-		});
 		app = new App();
 		plugin = new KeepSidianPlugin(app, TEST_MANIFEST);
 		plugin.settings = { ...DEFAULT_SETTINGS };
@@ -533,27 +529,51 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		expect(plugin.settings.token).toBe("new-token");
 	});
 
-	test("retrieve token button calls flow with valid email and github instructions link exists", async () => {
+	test("retrieval wizard buttons launch Playwright and Puppeteer flows", async () => {
 		plugin.settings.email = "test@example.com";
+		(runOauthBrowserAutomation as jest.Mock).mockResolvedValue({
+			oauth_token: "oauth_token_value",
+		});
+		(exchangeOauthToken as jest.Mock).mockResolvedValue(undefined);
 
 		const container = tab.containerEl;
 		await tabInternals.addSyncTokenSetting(container);
 
-		const retrieveBtn = Array.from(container.querySelectorAll("button")).find(
-			(b) => b.textContent === "Retrieval wizard"
+		const playwrightBtn = Array.from(container.querySelectorAll("button")).find(
+			(b) => b.textContent === "Launch wizard option 1"
 		) as HTMLButtonElement;
-		expect(retrieveBtn).toBeTruthy();
-		retrieveBtn.click();
+		const puppeteerBtn = Array.from(container.querySelectorAll("button")).find(
+			(b) => b.textContent === "Launch wizard option 2"
+		) as HTMLButtonElement;
+
+		expect(playwrightBtn).toBeTruthy();
+		expect(puppeteerBtn).toBeTruthy();
+
+		playwrightBtn.click();
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(loadKeepTokenDesktop).toHaveBeenCalledWith(plugin);
-		expect(initRetrieveTokenMock).toHaveBeenCalledWith(
-			expect.any(KeepSidianSettingsTab),
+		expect(runOauthBrowserAutomation).toHaveBeenCalledWith(plugin, "playwright", {
+			debug: false,
+			useSystemBrowser: true,
+		});
+		expect(exchangeOauthToken).toHaveBeenCalledWith(tab, plugin, "oauth_token_value");
+
+		(runOauthBrowserAutomation as jest.Mock).mockResolvedValue({
+			oauth_token: "oauth_token_value_two",
+		});
+		(exchangeOauthToken as jest.Mock).mockResolvedValue(undefined);
+
+		puppeteerBtn.click();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(runOauthBrowserAutomation).toHaveBeenCalledWith(plugin, "puppeteer", {
+			debug: false,
+			useSystemBrowser: false,
+		});
+		expect(exchangeOauthToken).toHaveBeenCalledWith(
+			tab,
 			plugin,
-			expect.any(Object),
-			expect.any(Function)
+			"oauth_token_value_two"
 		);
 
-		// Also ensure the GitHub instructions link exists
 		const githubLink = container.querySelector(
 			'a[data-keepsidian-link="github-instructions"]'
 		) as HTMLAnchorElement | null;
