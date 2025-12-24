@@ -5,7 +5,8 @@ import { App } from "obsidian";
 import KeepSidianPlugin from "../../../main";
 import { KeepSidianSettingsTab } from "../KeepSidianSettingsTab";
 import { DEFAULT_SETTINGS } from "../../../types/keepsidian-plugin-settings";
-import { loadKeepTokenDesktop } from "../../../integrations/google/keepTokenDesktopLoader";
+import { exchangeOauthToken } from "../../../integrations/google/keepToken";
+import { runOauthBrowserAutomation } from "../../../integrations/google/keepTokenBrowserAutomation";
 
 type CreateElOptions = {
 	text?: string | DocumentFragment;
@@ -56,17 +57,18 @@ interface MockExtraButtonComponent {
 }
 
 interface MockSliderComponent {
-        setLimits: jest.Mock<MockSliderComponent, [number, number, number?]>;
-        setValue: jest.Mock<MockSliderComponent, [number]>;
-        setDynamicTooltip: jest.Mock<MockSliderComponent, [boolean?]>;
-        onChange: jest.Mock<MockSliderComponent, [ChangeHandler<number>]>;
+    setLimits: jest.Mock<MockSliderComponent, [number, number, number?]>;
+    setValue: jest.Mock<MockSliderComponent, [number]>;
+    setDynamicTooltip: jest.Mock<MockSliderComponent, [boolean?]>;
+    onChange: jest.Mock<MockSliderComponent, [ChangeHandler<number>]>;
 }
 
 interface MockDropdownComponent {
-        addOption: jest.Mock<MockDropdownComponent, [string, string]>;
-        setValue: jest.Mock<MockDropdownComponent, [string]>;
-        onChange: jest.Mock<MockDropdownComponent, [ChangeHandler<string>]>;
-        setDisabled: jest.Mock<MockDropdownComponent, [boolean]>;
+	addOption: jest.Mock<MockDropdownComponent, [string, string]>;
+	addOptions: jest.Mock<MockDropdownComponent, [Record<string, string>]>;
+	setValue: jest.Mock<MockDropdownComponent, [string]>;
+	onChange: jest.Mock<MockDropdownComponent, [ChangeHandler<string>]>;
+	setDisabled: jest.Mock<MockDropdownComponent, [boolean]>;
 }
 
 interface SubscriptionServiceMock {
@@ -201,6 +203,44 @@ const createMockSliderComponent = (
 	return component;
 };
 
+const createMockDropdownComponent = (selectEl: HTMLSelectElement): MockDropdownComponent => {
+	const component: MockDropdownComponent = {
+		addOption: jest.fn(),
+		addOptions: jest.fn(),
+		setValue: jest.fn(),
+		onChange: jest.fn(),
+		setDisabled: jest.fn(),
+	};
+
+	component.addOption.mockImplementation((value, label) => {
+		const optionEl = document.createElement("option");
+		optionEl.value = value;
+		optionEl.textContent = label;
+		selectEl.appendChild(optionEl);
+		return component;
+	});
+	component.addOptions.mockImplementation((options) => {
+		for (const [value, label] of Object.entries(options)) {
+			component.addOption(value, label);
+		}
+		return component;
+	});
+	component.setValue.mockImplementation((value) => {
+		selectEl.value = value;
+		return component;
+	});
+	component.onChange.mockImplementation((handler) => {
+		selectEl.addEventListener("change", () => handler(selectEl.value));
+		return component;
+	});
+	component.setDisabled.mockImplementation((disabled) => {
+		selectEl.disabled = disabled;
+		return component;
+	});
+
+	return component;
+};
+
 function attachCreateEl(element: HTMLElement, createEl: CreateElFn): HTMLElementWithCreateEl {
 	const elementWithCreate = element as HTMLElementWithCreateEl;
 	elementWithCreate.createEl = createEl;
@@ -317,9 +357,9 @@ jest.mock("obsidian", () => {
 			} else {
 				this.settingEl.classList.remove("is-disabled");
 			}
-			const actionableEls = this.controlEl.querySelectorAll(
-				"input, button, select"
-			) as NodeListOf<HTMLElement & { disabled?: boolean }>;
+			const actionableEls = this.controlEl.querySelectorAll("input, button, select") as NodeListOf<
+				HTMLElement & { disabled?: boolean }
+			>;
 			actionableEls.forEach((element) => {
 				element.disabled = disabled;
 			});
@@ -360,49 +400,23 @@ jest.mock("obsidian", () => {
 			return this;
 		}
 
-                addSlider(cb: (slider: MockSliderComponent) => void) {
-                        const inputEl = document.createElement("input");
-                        inputEl.type = "range";
-                        this.controlEl.appendChild(inputEl);
-                        const sliderComponent = createMockSliderComponent(inputEl, typedCreateEl);
-                        cb(sliderComponent);
-                        return this;
-                }
+		addSlider(cb: (slider: MockSliderComponent) => void) {
+			const inputEl = document.createElement("input");
+			inputEl.type = "range";
+			this.controlEl.appendChild(inputEl);
+			const sliderComponent = createMockSliderComponent(inputEl, typedCreateEl);
+			cb(sliderComponent);
+			return this;
+		}
 
-                addDropdown(cb: (dropdown: MockDropdownComponent) => void) {
-                        const selectEl = document.createElement("select");
-                        this.controlEl.appendChild(selectEl);
-
-                        const dropdownComponent: MockDropdownComponent = {
-                                addOption: jest.fn(() => dropdownComponent),
-                                setValue: jest.fn(() => dropdownComponent),
-                                onChange: jest.fn((handler: ChangeHandler<string>) => {
-                                        selectEl.addEventListener("change", () => handler(selectEl.value));
-                                        return dropdownComponent;
-                                }),
-                                setDisabled: jest.fn((disabled: boolean) => {
-                                        selectEl.disabled = disabled;
-                                        return dropdownComponent;
-                                }),
-                        } as unknown as MockDropdownComponent;
-
-                        dropdownComponent.addOption.mockImplementation((value: string, label: string) => {
-                                const optionEl = document.createElement("option");
-                                optionEl.value = value;
-                                optionEl.textContent = label;
-                                selectEl.appendChild(optionEl);
-                                return dropdownComponent;
-                        });
-
-                        dropdownComponent.setValue.mockImplementation((value: string) => {
-                                selectEl.value = value;
-                                return dropdownComponent;
-                        });
-
-                        cb(dropdownComponent);
-                        return this;
-                }
-        }
+		addDropdown(cb: (dropdown: MockDropdownComponent) => void) {
+			const selectEl = document.createElement("select");
+			this.controlEl.appendChild(selectEl);
+			const dropdownComponent = createMockDropdownComponent(selectEl);
+			cb(dropdownComponent);
+			return this;
+		}
+	}
 
 	class PluginSettingTab extends actual.PluginSettingTab {
 		constructor(app: App, plugin: KeepSidianPlugin) {
@@ -423,8 +437,8 @@ jest.mock("../../../integrations/google/keepToken", () => ({
 	exchangeOauthToken: jest.fn(),
 }));
 
-jest.mock("../../../integrations/google/keepTokenDesktopLoader", () => ({
-	loadKeepTokenDesktop: jest.fn(),
+jest.mock("../../../integrations/google/keepTokenBrowserAutomation", () => ({
+	runOauthBrowserAutomation: jest.fn(),
 }));
 
 describe("KeepSidianSettingsTab UI interactions", () => {
@@ -433,7 +447,6 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 	let tab: KeepSidianSettingsTab;
 	let tabInternals: KeepSidianSettingsTabInternals;
 	let subscriptionServiceMock: SubscriptionServiceMock;
-	let initRetrieveTokenMock: jest.Mock;
 
 	const TEST_MANIFEST = {
 		id: "keepsidian",
@@ -446,10 +459,6 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		initRetrieveTokenMock = jest.fn().mockResolvedValue(undefined);
-		(loadKeepTokenDesktop as jest.Mock).mockResolvedValue({
-			initRetrieveToken: initRetrieveTokenMock,
-		});
 		app = new App();
 		plugin = new KeepSidianPlugin(app, TEST_MANIFEST);
 		plugin.settings = { ...DEFAULT_SETTINGS };
@@ -535,27 +544,51 @@ describe("KeepSidianSettingsTab UI interactions", () => {
                 expect(tokenStatus?.textContent).toContain("token successfully retrieved");
         });
 
-	test("retrieve token button calls flow with valid email and github instructions link exists", async () => {
+	test("retrieval wizard buttons launch Playwright and Puppeteer flows", async () => {
 		plugin.settings.email = "test@example.com";
+		(runOauthBrowserAutomation as jest.Mock).mockResolvedValue({
+			oauth_token: "oauth_token_value",
+		});
+		(exchangeOauthToken as jest.Mock).mockResolvedValue(undefined);
 
 		const container = tab.containerEl;
 		await tabInternals.addSyncTokenSetting(container);
 
-		const retrieveBtn = Array.from(container.querySelectorAll("button")).find(
-			(b) => b.textContent === "Retrieval wizard"
+		const playwrightBtn = Array.from(container.querySelectorAll("button")).find(
+			(b) => b.textContent === "Launch wizard option 1"
 		) as HTMLButtonElement;
-		expect(retrieveBtn).toBeTruthy();
-		retrieveBtn.click();
+		const puppeteerBtn = Array.from(container.querySelectorAll("button")).find(
+			(b) => b.textContent === "Launch wizard option 2"
+		) as HTMLButtonElement;
+
+		expect(playwrightBtn).toBeTruthy();
+		expect(puppeteerBtn).toBeTruthy();
+
+		playwrightBtn.click();
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(loadKeepTokenDesktop).toHaveBeenCalledWith(plugin);
-		expect(initRetrieveTokenMock).toHaveBeenCalledWith(
-			expect.any(KeepSidianSettingsTab),
+		expect(runOauthBrowserAutomation).toHaveBeenCalledWith(plugin, "playwright", {
+			debug: false,
+			useSystemBrowser: true,
+		});
+		expect(exchangeOauthToken).toHaveBeenCalledWith(tab, plugin, "oauth_token_value");
+
+		(runOauthBrowserAutomation as jest.Mock).mockResolvedValue({
+			oauth_token: "oauth_token_value_two",
+		});
+		(exchangeOauthToken as jest.Mock).mockResolvedValue(undefined);
+
+		puppeteerBtn.click();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(runOauthBrowserAutomation).toHaveBeenCalledWith(plugin, "puppeteer", {
+			debug: false,
+			useSystemBrowser: false,
+		});
+		expect(exchangeOauthToken).toHaveBeenCalledWith(
+			tab,
 			plugin,
-			expect.any(Object),
-			expect.any(Function)
+			"oauth_token_value_two"
 		);
 
-		// Also ensure the GitHub instructions link exists
 		const githubLink = container.querySelector(
 			'a[data-keepsidian-link="github-instructions"]'
 		) as HTMLAnchorElement | null;

@@ -7,7 +7,7 @@ import KeepSidianPlugin from '../../../main';
 import { SubscriptionService } from 'services/subscription';
 import { DEFAULT_SETTINGS } from '../../../types/keepsidian-plugin-settings';
 import { exchangeOauthToken } from '../../../integrations/google/keepToken';
-import { loadKeepTokenDesktop } from '../../../integrations/google/keepTokenDesktopLoader';
+import { runOauthBrowserAutomation } from '../../../integrations/google/keepTokenBrowserAutomation';
 
 type CreateElOptions = {
 	text?: string | DocumentFragment;
@@ -40,7 +40,7 @@ type KeepSidianSettingsTabInternals = {
 	addSupportSection(containerEl: HTMLElement): void;
 	isValidEmail(email: string): boolean;
 	handleTokenPaste(event: ClipboardEvent): Promise<void>;
-	handleRetrieveToken(): Promise<void>;
+	handleAutomationLaunch(engine: 'puppeteer' | 'playwright'): Promise<void>;
 };
 
 jest.mock('../../modals/NoteImportOptionsModal', () => ({
@@ -53,8 +53,8 @@ jest.mock('../../../integrations/google/keepToken', () => ({
     exchangeOauthToken: jest.fn(),
 }));
 
-jest.mock('../../../integrations/google/keepTokenDesktopLoader', () => ({
-    loadKeepTokenDesktop: jest.fn(),
+jest.mock('../../../integrations/google/keepTokenBrowserAutomation', () => ({
+    runOauthBrowserAutomation: jest.fn(),
 }));
 
 function attachCreateEl(element: HTMLElement, createEl: CreateElFn): HTMLElementWithCreateEl {
@@ -142,7 +142,7 @@ const mockSubscriptionService = () => {
 	    let plugin: KeepSidianPlugin;
 	    let settingsTab: KeepSidianSettingsTab;
 	    let settingsTabInternals: KeepSidianSettingsTabInternals;
-	    let initRetrieveTokenMock: jest.Mock;
+	    let automationResult: { oauth_token: string };
 
     const TEST_MANIFEST = {
         id: 'keepsidian',
@@ -155,6 +155,7 @@ const mockSubscriptionService = () => {
 
 	    beforeEach(() => {
 	        jest.resetModules();
+	        jest.clearAllMocks();
 	        Platform.isDesktopApp = true;
 	        Platform.isMobileApp = false;
 	        app = new App();
@@ -184,11 +185,9 @@ const mockSubscriptionService = () => {
 
         // Reset the exchangeOauthToken mock
         (exchangeOauthToken as jest.Mock).mockReset();
-        initRetrieveTokenMock = jest.fn().mockResolvedValue(undefined);
-        (loadKeepTokenDesktop as jest.Mock).mockReset();
-        (loadKeepTokenDesktop as jest.Mock).mockResolvedValue({
-            initRetrieveToken: initRetrieveTokenMock,
-        });
+        (runOauthBrowserAutomation as jest.Mock).mockReset();
+        automationResult = { oauth_token: 'oauth_token_value' };
+        (runOauthBrowserAutomation as jest.Mock).mockResolvedValue(automationResult);
     });
 
     test('two-way sync defaults stay disabled for safety', () => {
@@ -265,47 +264,59 @@ const mockSubscriptionService = () => {
         expect(exchangeOauthToken).not.toHaveBeenCalled();
     });
 
-    test('should handle retrieve token with valid email', async () => {
+    test('should launch Playwright automation with system browser enabled', async () => {
         plugin.settings.email = 'test@example.com';
-        const newNoticeMock = jest.fn();
-        (Notice as jest.Mock) = jest.fn(() => newNoticeMock);
+        const noticeMock = jest.fn();
+        (Notice as jest.Mock).mockImplementation(noticeMock);
 
-        await settingsTabInternals.handleRetrieveToken();
+        await settingsTabInternals.handleAutomationLaunch('playwright');
 
-        expect(loadKeepTokenDesktop).toHaveBeenCalledWith(plugin);
-        expect(initRetrieveTokenMock).toHaveBeenCalledWith(
-            settingsTab,
-            plugin,
-            expect.any(Object),
-            expect.any(Function)
+        expect(runOauthBrowserAutomation).toHaveBeenCalledWith(plugin, 'playwright', {
+            debug: false,
+            useSystemBrowser: true,
+        });
+        expect(exchangeOauthToken).toHaveBeenCalledWith(settingsTab, plugin, automationResult.oauth_token);
+        expect(noticeMock).not.toHaveBeenCalledWith(
+            'Please enter a valid email address before launching browser automation.'
         );
-        expect(newNoticeMock).not.toHaveBeenCalled();
     });
 
-    test('should block retrieval wizard on mobile', async () => {
+    test('should launch Puppeteer automation without system browser', async () => {
+        plugin.settings.email = 'test@example.com';
+
+        await settingsTabInternals.handleAutomationLaunch('puppeteer');
+
+        expect(runOauthBrowserAutomation).toHaveBeenCalledWith(plugin, 'puppeteer', {
+            debug: false,
+            useSystemBrowser: false,
+        });
+        expect(exchangeOauthToken).toHaveBeenCalledWith(settingsTab, plugin, automationResult.oauth_token);
+    });
+
+    test('should block automation on mobile', async () => {
         Platform.isDesktopApp = false;
         Platform.isMobileApp = true;
-
         plugin.settings.email = 'test@example.com';
 
         const noticeMock = jest.fn();
         (Notice as jest.Mock).mockImplementation(noticeMock);
 
-        await settingsTabInternals.handleRetrieveToken();
+        await settingsTabInternals.handleAutomationLaunch('playwright');
 
-        expect(loadKeepTokenDesktop).not.toHaveBeenCalled();
-        expect(initRetrieveTokenMock).not.toHaveBeenCalled();
-        expect(noticeMock).toHaveBeenCalledWith('Token retrieval wizard is only available on desktop. Paste a token instead.');
+        expect(runOauthBrowserAutomation).not.toHaveBeenCalled();
+        expect(noticeMock).toHaveBeenCalledWith('Browser automation is only available on desktop.');
     });
 
-    test('should show notice when retrieving token without valid email', async () => {
+    test('should show notice when automation is triggered without valid email', async () => {
         plugin.settings.email = '';
 
         const noticeMock = jest.fn();
         (Notice as jest.Mock).mockImplementation(noticeMock);
 
-        await settingsTabInternals.handleRetrieveToken();
+        await settingsTabInternals.handleAutomationLaunch('playwright');
 
-        expect(noticeMock).toHaveBeenCalledWith('Please enter a valid email address before retrieving the token.');
+        expect(noticeMock).toHaveBeenCalledWith(
+            'Please enter a valid email address before launching browser automation.'
+        );
     });
 });

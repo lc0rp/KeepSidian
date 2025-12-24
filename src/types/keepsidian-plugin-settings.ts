@@ -20,6 +20,7 @@ export interface KeepSidianPluginSettings {
 	saveLocation: string;
 	oauthFlow: "desktop" | "webviewer";
 	oauthDebugMode: boolean;
+	oauthPlaywrightUseSystemBrowser: boolean;
 	subscriptionCache?: SubscriptionCache;
 	premiumFeatures: PremiumFeatureSettings;
 	gdriveToken?: string;
@@ -42,6 +43,7 @@ export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
 	saveLocation: "Google Keep",
 	oauthFlow: "desktop",
 	oauthDebugMode: false,
+	oauthPlaywrightUseSystemBrowser: true,
 	subscriptionCache: undefined,
 	premiumFeatures: DEFAULT_PREMIUM_FEATURES,
 	gdriveToken: undefined,

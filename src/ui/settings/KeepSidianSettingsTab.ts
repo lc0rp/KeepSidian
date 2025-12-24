@@ -3,9 +3,14 @@ import KeepSidianPlugin from "main";
 import { PluginSettingTab, App, Setting, Notice, setIcon, Platform } from "obsidian";
 import { exchangeOauthToken } from "../../integrations/google/keepToken";
 import { loadKeepTokenDesktop } from "../../integrations/google/keepTokenDesktopLoader";
+import { runOauthBrowserAutomation } from "@integrations/google/keepTokenBrowserAutomation";
 import type { IconName, ToggleComponent } from "obsidian";
 import { SubscriptionSettingsTab } from "./SubscriptionSettingsTab";
-import { logRetrievalWizardEvent, startRetrievalWizardSession } from "@integrations/google/retrievalSessionLogger";
+import {
+	endRetrievalWizardSession,
+	logRetrievalWizardEvent,
+	startRetrievalWizardSession,
+} from "@integrations/google/retrievalSessionLogger";
 
 export class KeepSidianSettingsTab extends PluginSettingTab {
 	private retrieveTokenWebView?: WebviewTag;
@@ -27,30 +32,30 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-        private isValidEmail(email: string): boolean {
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                return emailRegex.test(email);
-        }
+	private isValidEmail(email: string): boolean {
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		return emailRegex.test(email);
+	}
 
-        private isLikelyLongLivedToken(token?: string | null): boolean {
-                const trimmed = token?.trim();
-                if (!trimmed) {
-                        return false;
-                }
+	private isLikelyLongLivedToken(token?: string | null): boolean {
+		const trimmed = token?.trim();
+		if (!trimmed) {
+			return false;
+		}
 
-                const normalized = trimmed.toLowerCase();
-                if (normalized.includes("oauth2_")) {
-                        return false;
-                }
+		const normalized = trimmed.toLowerCase();
+		if (normalized.includes("oauth2_")) {
+			return false;
+		}
 
-                return trimmed.length >= 20;
-        }
+		return trimmed.length >= 20;
+	}
 
-        async display(): Promise<void> {
-                const { containerEl } = this;
-                containerEl.empty();
+	async display(): Promise<void> {
+		const { containerEl } = this;
+		containerEl.empty();
 
-                this.addSupportSection(containerEl);
+		this.addSupportSection(containerEl);
 		this.addEmailSetting(containerEl);
 		this.addSaveLocationSetting(containerEl);
 		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
@@ -62,8 +67,6 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		await this.addAutoSyncSettings(containerEl);
 		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
 		await this.addSubscriptionSettings(containerEl);
-		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
-		this.addAdvancedSettings(containerEl);
 		containerEl.createEl("hr", { cls: "keepsidian-settings-hr" });
 		this.addSupportSection(containerEl);
 	}
@@ -93,12 +96,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 
 		this.createSupportLink(linksContainer, "GitHub Issues", "https://github.com/lc0rp/KeepSidian/issues", "github");
 
-		this.createSupportLink(
-			linksContainer,
-			"Discord DM (@lc0rp)",
-			"https://discord.com/users/lc0rp",
-			"message-circle"
-		);
+		this.createSupportLink(linksContainer, "Discord DM (@lc0rp)", "https://discord.com/users/lc0rp", "message-circle");
 	}
 
 	private createSupportLink(parentEl: HTMLElement, label: string, href: string, icon: IconName): void {
@@ -142,83 +140,111 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			);
 	}
 
-        private addSyncTokenSetting(containerEl: HTMLElement): void {
-                new Setting(containerEl).setName("Configure sync token").setHeading();
-                const tokenSetting = new Setting(containerEl)
-                        .setName("Sync token")
-                        .setDesc(
-                                "This token authorizes access to your Google Keep data." +
-                                        (Platform.isMobileApp
-                                                ? " Paste a token retrieved on desktop (syncs via Obsidian) or follow the GitHub instructions."
-                                                : " Retrieve your token below or paste one from desktop.")
-                        );
+	private addSyncTokenSetting(containerEl: HTMLElement): void {
+		new Setting(containerEl).setName("Retrieve sync token").setHeading();
+		const tokenSetting = new Setting(containerEl)
+			.setName("Sync token")
+			.setDesc(
+				"This token authorizes access to your Google Keep data." +
+					(Platform.isMobileApp
+						? " Paste a token retrieved on desktop, or follow the GitHub instructions further down below."
+						: " Retrieve your token using the options below, or paste it directly here.")
+			);
 
-                const tokenStatus = tokenSetting.controlEl.createDiv(
-                        "keepsidian-token-status keepsidian-hidden"
-                );
-                const statusIcon = tokenStatus.createEl("span", {
-                        cls: "keepsidian-token-status__icon",
-                });
-                setIcon(statusIcon, "check-circle");
-                tokenStatus.createEl("span", {
-                        text: "token successfully retrieved",
-                        cls: "keepsidian-token-status__text",
-                });
+		const tokenStatus = tokenSetting.controlEl.createDiv("keepsidian-token-status keepsidian-hidden");
+		const statusIcon = tokenStatus.createEl("span", {
+			cls: "keepsidian-token-status__icon",
+		});
+		setIcon(statusIcon, "check-circle");
+		tokenStatus.createEl("span", {
+			text: "token successfully retrieved",
+			cls: "keepsidian-token-status__text",
+		});
 
-                const updateTokenStatus = (tokenValue: string) => {
-                        const hasValidToken = this.isLikelyLongLivedToken(tokenValue);
-                        if (hasValidToken) {
-                                tokenStatus.classList.remove("keepsidian-hidden");
-                                tokenSetting.settingEl.classList.add("keepsidian-token-valid");
-                        } else {
-                                tokenStatus.classList.add("keepsidian-hidden");
-                                tokenSetting.settingEl.classList.remove("keepsidian-token-valid");
-                        }
-                };
+		const updateTokenStatus = (tokenValue: string) => {
+			const hasValidToken = this.isLikelyLongLivedToken(tokenValue);
+			if (hasValidToken) {
+				tokenStatus.classList.remove("keepsidian-hidden");
+				tokenSetting.settingEl.classList.add("keepsidian-token-valid");
+			} else {
+				tokenStatus.classList.add("keepsidian-hidden");
+				tokenSetting.settingEl.classList.remove("keepsidian-token-valid");
+			}
+		};
 
-                tokenSetting.addText((text) => {
-                        text.setPlaceholder("Google Keep sync token.")
-                                .setValue(this.plugin.settings.token)
-                                .onChange(async (value) => {
-                                        this.plugin.settings.token = value;
-                                        await this.plugin.saveSettings();
-                                        updateTokenStatus(value);
-                                });
-                        text.inputEl.type = "password";
-                        text.inputEl.addEventListener("paste", this.handleTokenPaste.bind(this));
-                        const toggleButton = text.inputEl.parentElement?.createEl("button", {
-                                text: "Show",
-                        });
-                        toggleButton?.addEventListener("click", (e) => {
-                                e.preventDefault();
-                                if (text.inputEl.type === "password") {
-                                        text.inputEl.type = "text";
-                                        toggleButton.textContent = "Hide";
-                                } else {
-                                        text.inputEl.type = "password";
-                                        toggleButton.textContent = "Show";
-                                }
-                        });
+		tokenSetting.addText((text) => {
+			text
+				.setPlaceholder("Google Keep sync token.")
+				.setValue(this.plugin.settings.token)
+				.onChange(async (value) => {
+					this.plugin.settings.token = value;
+					await this.plugin.saveSettings();
+				});
+			text.inputEl.type = "password";
+			text.inputEl.addEventListener("paste", this.handleTokenPaste.bind(this));
+			const toggleButton = text.inputEl.parentElement?.createEl("button", {
+				text: "Show",
+			});
+			toggleButton?.addEventListener("click", (e) => {
+				e.preventDefault();
+				if (text.inputEl.type === "password") {
+					text.inputEl.type = "text";
+					toggleButton.textContent = "Hide";
+				} else {
+					text.inputEl.type = "password";
+					toggleButton.textContent = "Show";
+				}
+			});
 
-                        updateTokenStatus(this.plugin.settings.token);
-                });
-
-		const retrievalSetting = new Setting(containerEl).setName("Retrieve your sync token");
+			updateTokenStatus(this.plugin.settings.token);
+		});
 
 		if (Platform.isDesktopApp) {
-			retrievalSetting
+			const retrievalSetting = new Setting(containerEl)
+				.setName("Retrieval wizard (option 1)")
 				.setDesc(
-					'Get your token automatically using our "Retrieval wizard" or manually using the "Github KIM instructions".'
-				)
-				.addButton((button) =>
-					button.setButtonText("Retrieval wizard").onClick(this.handleRetrieveToken.bind(this))
+					'KeepSidian provides two wizards to help retrieve your token. Each one walks you through the retrieval process using a different browser automation tool. This first option uses playwright from Microsoft. You can also retrieve your token manually using the "Github KIM instructions" further down below.'
 				);
-		} else {
-			retrievalSetting.setDesc("Mobile: use a desktop-synced token or the GitHub KIM instructions below.");
-		}
 
+			retrievalSetting.addButton((button) =>
+				button.setButtonText("Launch wizard option 1").onClick(() => void this.handleAutomationLaunch("playwright"))
+			);
+
+			const puppeteerSetting = new Setting(containerEl)
+				.setName("Retrieval wizard (option 2)")
+				.setDesc(
+					'This second option uses puppeteer, a browser automation tool from Google. You can also retrieve your token manually using the "Github KIM instructions" below.'
+				);
+			puppeteerSetting.addButton((button) =>
+				button.setButtonText("Launch wizard option 2").onClick(() => void this.handleAutomationLaunch("puppeteer"))
+			);
+
+			const githubSetting = new Setting(containerEl)
+				.setName("Manual retrieval")
+				.setDesc(
+					'Prefer manual steps? Click the button to follow the GitHub KIM instructions, and paste the token into the "Sync token" field above.'
+				);
+			this.addGithubInstructionsLink(githubSetting);
+
+			new Setting(containerEl)
+				.setName("Enable debug logging")
+				.setDesc("Log retrieval steps to the console.")
+				.addToggle((toggle) => {
+					toggle.setValue(this.plugin.settings.oauthDebugMode ?? false).onChange(async (value) => {
+						this.plugin.settings.oauthDebugMode = value;
+						await this.plugin.saveSettings();
+					});
+				});
+		} else {
+			const retrievalSetting = new Setting(containerEl).setName("Retrieve your sync token");
+			retrievalSetting.setDesc("Mobile: use a desktop-synced token or the GitHub KIM instructions below.");
+			this.addGithubInstructionsLink(retrievalSetting);
+		}
+	}
+
+	private addGithubInstructionsLink(setting: Setting): void {
 		const githubInstructionsUrl = "https://github.com/djsudduth/keep-it-markdown";
-		const githubInstructionsLink = retrievalSetting.controlEl.createEl("a", {
+		const githubInstructionsLink = setting.controlEl.createEl("a", {
 			text: "🌎 Github KIM instructions",
 			attr: {
 				href: githubInstructionsUrl,
@@ -236,13 +262,9 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 
 		const oauthFlowSetting = new Setting(containerEl)
 			.setName("OAuth flow")
-			.setDesc(
-				"Choose how KeepSidian opens the Google login flow on desktop. Web Viewer opens a separate tab."
-			)
+			.setDesc("Choose how KeepSidian opens the Google login flow on desktop. Web Viewer opens a separate tab.")
 			.addDropdown((dropdown) => {
-				dropdown
-					.addOption("desktop", "Embedded panel (default)")
-					.addOption("webviewer", "Web Viewer tab");
+				dropdown.addOption("desktop", "Embedded panel (default)").addOption("webviewer", "Web Viewer tab");
 				dropdown.setValue(this.plugin.settings.oauthFlow ?? "desktop");
 				dropdown.onChange(async (value) => {
 					this.plugin.settings.oauthFlow = value as "desktop" | "webviewer";
@@ -257,17 +279,10 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			oauthFlowSetting.setDesc("Desktop only: OAuth flow selection is disabled on mobile.");
 		}
 
-		new Setting(containerEl)
-			.setName("Enable OAuth debug logging")
-			.setDesc("Logs OAuth token retrieval steps to the developer console.")
-			.addToggle((toggle) => {
-				toggle
-					.setValue(this.plugin.settings.oauthDebugMode ?? false)
-					.onChange(async (value) => {
-						this.plugin.settings.oauthDebugMode = value;
-						await this.plugin.saveSettings();
-					});
-			});
+		if (this.plugin.settings.oauthPlaywrightUseSystemBrowser !== true) {
+			this.plugin.settings.oauthPlaywrightUseSystemBrowser = true;
+			void this.plugin.saveSettings();
+		}
 	}
 
 	private async handleTokenPaste(event: ClipboardEvent): Promise<void> {
@@ -312,8 +327,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			}
 			if (
 				this.retrieveTokenGuide?.webviewContainer &&
-				typeof (this.retrieveTokenGuide.webviewContainer as HTMLElement & { show?: () => void }).show ===
-					"function"
+				typeof (this.retrieveTokenGuide.webviewContainer as HTMLElement & { show?: () => void }).show === "function"
 			) {
 				(this.retrieveTokenGuide.webviewContainer as HTMLElement & { show: () => void }).show();
 			}
@@ -334,12 +348,62 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		}
 	}
 
-	public updateRetrieveTokenInstructions(
-		step: number,
-		title: string,
-		message: string,
-		listItems: string[] = []
-	): void {
+	private async handleAutomationLaunch(engine: "puppeteer" | "playwright"): Promise<void> {
+		if (!this.plugin.settings.email || !this.isValidEmail(this.plugin.settings.email)) {
+			new Notice("Please enter a valid email address before launching browser automation.");
+			return;
+		}
+		if (!Platform.isDesktopApp) {
+			new Notice("Browser automation is only available on desktop.");
+			return;
+		}
+		const sessionMetadata = {
+			email: this.plugin.settings.email,
+			pluginVersion: this.plugin.manifest.version,
+			engine,
+			flow: "browser-automation",
+		};
+		await startRetrievalWizardSession(this.plugin, sessionMetadata);
+		await logRetrievalWizardEvent("info", "Browser automation button clicked", sessionMetadata);
+		new Notice(`Launching ${engine} login window...`);
+		try {
+			const useSystemBrowser = engine === "playwright" ? true : false;
+			if (engine === "playwright" && this.plugin.settings.oauthPlaywrightUseSystemBrowser !== true) {
+				this.plugin.settings.oauthPlaywrightUseSystemBrowser = true;
+				await this.plugin.saveSettings();
+			}
+			const result = await runOauthBrowserAutomation(this.plugin, engine, {
+				debug: this.plugin.settings.oauthDebugMode,
+				useSystemBrowser,
+			});
+			await logRetrievalWizardEvent("info", "Browser automation returned oauth token", {
+				engine,
+				tokenReceived: Boolean(result.oauth_token),
+			});
+			await exchangeOauthToken(this, this.plugin, result.oauth_token);
+			await endRetrievalWizardSession("success", {
+				engine,
+				flow: "browser-automation",
+			});
+		} catch (error) {
+			const rawMessage = error instanceof Error ? error.message : "Browser automation failed to capture a token.";
+			const message = rawMessage.includes("ENOENT")
+				? "Unable to launch browser automation. Please install Node.js or run the script manually."
+				: rawMessage;
+			new Notice(message);
+			await logRetrievalWizardEvent("error", "Browser automation failed", {
+				engine,
+				errorMessage: rawMessage,
+			});
+			await endRetrievalWizardSession("error", {
+				engine,
+				flow: "browser-automation",
+				reason: message,
+			});
+		}
+	}
+
+	public updateRetrieveTokenInstructions(step: number, title: string, message: string, listItems: string[] = []): void {
 		if (!this.retrieveTokenGuide) {
 			return;
 		}

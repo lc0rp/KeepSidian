@@ -104,6 +104,23 @@ function tsconfigPathsPlugin({ tsconfigPath }) {
 	};
 }
 
+function playwrightCoreDirPatchPlugin() {
+	const filter = /playwright-core[\\/]+lib[\\/]+server[\\/]+utils[\\/]+nodePlatform\.js$/;
+	return {
+		name: "playwright-core-dir-patch",
+		setup(build) {
+			build.onLoad({ filter }, async (args) => {
+				const contents = await fs.promises.readFile(args.path, "utf8");
+				const patched = contents.replace(
+					/const coreDir = .*require\.resolve\([^)]+\)\);/,
+					"const coreDir = import_path.default.dirname(__filename);"
+				);
+				return { contents: patched, loader: "js" };
+			});
+		},
+	};
+}
+
 const ___filename = fileURLToPath(import.meta.url);
 const ___dirname = path.dirname(___filename);
 const rootDir = path.resolve(___dirname, ".");
@@ -157,9 +174,32 @@ const context = await esbuild.context({
 	},
 });
 
+const automationContext = await esbuild.context({
+	banner: {
+		js: banner,
+	},
+	entryPoints: ["src/integrations/google/keepTokenBrowserAutomationDesktop.ts"],
+	bundle: true,
+	platform: "node",
+	external: ["obsidian", "electron", ...builtinModules],
+	format: "cjs",
+	target: "es2018",
+	logLevel: "info",
+	sourcemap: prod ? false : "inline",
+	treeShaking: true,
+	outdir: ".",
+	entryNames: "[name]",
+	plugins: [
+		tsconfigPathsPlugin({ tsconfigPath: path.resolve(rootDir, "tsconfig.json") }),
+		playwrightCoreDirPatchPlugin(),
+	],
+});
+
 if (prod) {
 	await context.rebuild();
+	await automationContext.rebuild();
 	process.exit(0);
 } else {
 	await context.watch();
+	await automationContext.watch();
 }

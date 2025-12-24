@@ -391,6 +391,44 @@ class MockSliderComponent {
 	}
 }
 
+class MockDropdownComponent {
+	private selectEl: HTMLSelectElement;
+
+	constructor(selectEl: HTMLSelectElement) {
+		this.selectEl = selectEl;
+	}
+
+	addOption(value: string, label: string): this {
+		const optionEl = document.createElement("option");
+		optionEl.value = value;
+		optionEl.textContent = label;
+		this.selectEl.appendChild(optionEl);
+		return this;
+	}
+
+	addOptions(options: Record<string, string>): this {
+		Object.entries(options).forEach(([value, label]) => {
+			this.addOption(value, label);
+		});
+		return this;
+	}
+
+	setValue(value: string): this {
+		this.selectEl.value = value;
+		return this;
+	}
+
+	onChange(callback: (value: string) => void): this {
+		this.selectEl.addEventListener("change", () => callback(this.selectEl.value));
+		return this;
+	}
+
+	setDisabled(disabled: boolean): this {
+		this.selectEl.disabled = disabled;
+		return this;
+	}
+}
+
 export class Setting {
 	private settingEl: EnhancedElement<"div">;
 	private infoEl: EnhancedElement<"div">;
@@ -488,6 +526,13 @@ export class Setting {
 		inputEl.type = "range";
 		this.controlEl.appendChild(inputEl);
 		callback(new MockSliderComponent(inputEl));
+		return this;
+	}
+
+	addDropdown(callback: (dropdown: MockDropdownComponent) => void): this {
+		const selectEl = document.createElement("select");
+		this.controlEl.appendChild(selectEl);
+		callback(new MockDropdownComponent(selectEl));
 		return this;
 	}
 
