@@ -15,7 +15,6 @@ If your plugin does not need CSS, delete this file.
 	padding: 8px;
 }
 
-
 .keepsidian-link-button {
 	display: inline-flex;
 	align-items: center;
@@ -104,7 +103,6 @@ If your plugin does not need CSS, delete this file.
 	font-weight: 700;
 }
 
-
 .keepsidian-modal-status {
 	color: var(--text-muted);
 }
@@ -176,7 +174,9 @@ If your plugin does not need CSS, delete this file.
 	background: var(--background-modifier-hover);
 	color: var(--text-accent);
 	text-decoration: none;
-	transition: background 0.2s ease, color 0.2s ease;
+	transition:
+		background 0.2s ease,
+		color 0.2s ease;
 }
 
 .keepsidian-support-link:hover {
@@ -197,6 +197,31 @@ If your plugin does not need CSS, delete this file.
 
 .keepsidian-support-text {
 	font-weight: 400;
+	font-size: var(--font-ui-small);
+}
+
+.keepsidian-token-status {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 4px;
+	margin-left: 10px;
+	color: var(--text-success, #4caf50);
+}
+
+.keepsidian-token-status__icon {
+	display: inline-flex;
+	align-items: baseline;
+	justify-content: center;
+	color: inherit;
+}
+
+.keepsidian-token-status__icon svg {
+	width: 0.8em;
+	height: 0.8em;
+}
+
+.keepsidian-token-status__text {
+	color: inherit;
 	font-size: var(--font-ui-small);
 }
 

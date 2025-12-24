@@ -37,6 +37,20 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		return emailRegex.test(email);
 	}
 
+	private isLikelyLongLivedToken(token?: string | null): boolean {
+		const trimmed = token?.trim();
+		if (!trimmed) {
+			return false;
+		}
+
+		const normalized = trimmed.toLowerCase();
+		if (normalized.includes("oauth2_")) {
+			return false;
+		}
+
+		return trimmed.length >= 20;
+	}
+
 	async display(): Promise<void> {
 		const { containerEl } = this;
 		containerEl.empty();
@@ -128,38 +142,63 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 
 	private addSyncTokenSetting(containerEl: HTMLElement): void {
 		new Setting(containerEl).setName("Retrieve sync token").setHeading();
-		new Setting(containerEl)
+		const tokenSetting = new Setting(containerEl)
 			.setName("Sync token")
 			.setDesc(
 				"This token authorizes access to your Google Keep data." +
 					(Platform.isMobileApp
 						? " Paste a token retrieved on desktop, or follow the GitHub instructions further down below."
 						: " Retrieve your token using the options below, or paste it directly here.")
-			)
-			.addText((text) => {
-				text
-					.setPlaceholder("Google Keep sync token.")
-					.setValue(this.plugin.settings.token)
-					.onChange(async (value) => {
-						this.plugin.settings.token = value;
-						await this.plugin.saveSettings();
-					});
-				text.inputEl.type = "password";
-				text.inputEl.addEventListener("paste", this.handleTokenPaste.bind(this));
-				const toggleButton = text.inputEl.parentElement?.createEl("button", {
-					text: "Show",
+			);
+
+		const tokenStatus = tokenSetting.nameEl.createDiv("keepsidian-token-status keepsidian-hidden");
+		const statusIcon = tokenStatus.createEl("span", {
+			cls: "keepsidian-token-status__icon",
+		});
+		setIcon(statusIcon, "check-circle");
+		tokenStatus.createEl("span", {
+			text: "Retrieved successfully",
+			cls: "keepsidian-token-status__text",
+		});
+
+		const updateTokenStatus = (tokenValue: string) => {
+			const hasValidToken = this.isLikelyLongLivedToken(tokenValue);
+			if (hasValidToken) {
+				tokenStatus.classList.remove("keepsidian-hidden");
+				tokenSetting.settingEl.classList.add("keepsidian-token-valid");
+			} else {
+				tokenStatus.classList.add("keepsidian-hidden");
+				tokenSetting.settingEl.classList.remove("keepsidian-token-valid");
+			}
+		};
+
+		tokenSetting.addText((text) => {
+			text
+				.setPlaceholder("Google Keep sync token.")
+				.setValue(this.plugin.settings.token)
+				.onChange(async (value) => {
+					this.plugin.settings.token = value;
+					await this.plugin.saveSettings();
+					updateTokenStatus(this.plugin.settings.token);
 				});
-				toggleButton?.addEventListener("click", (e) => {
-					e.preventDefault();
-					if (text.inputEl.type === "password") {
-						text.inputEl.type = "text";
-						toggleButton.textContent = "Hide";
-					} else {
-						text.inputEl.type = "password";
-						toggleButton.textContent = "Show";
-					}
-				});
+			text.inputEl.type = "password";
+			text.inputEl.addEventListener("paste", this.handleTokenPaste.bind(this));
+			const toggleButton = text.inputEl.parentElement?.createEl("button", {
+				text: "Show",
 			});
+			toggleButton?.addEventListener("click", (e) => {
+				e.preventDefault();
+				if (text.inputEl.type === "password") {
+					text.inputEl.type = "text";
+					toggleButton.textContent = "Hide";
+				} else {
+					text.inputEl.type = "password";
+					toggleButton.textContent = "Show";
+				}
+			});
+
+			updateTokenStatus(this.plugin.settings.token);
+		});
 
 		if (Platform.isDesktopApp) {
 			const retrievalSetting = new Setting(containerEl)

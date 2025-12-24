@@ -57,10 +57,10 @@ interface MockExtraButtonComponent {
 }
 
 interface MockSliderComponent {
-	setLimits: jest.Mock<MockSliderComponent, [number, number, number?]>;
-	setValue: jest.Mock<MockSliderComponent, [number]>;
-	setDynamicTooltip: jest.Mock<MockSliderComponent, [boolean?]>;
-	onChange: jest.Mock<MockSliderComponent, [ChangeHandler<number>]>;
+    setLimits: jest.Mock<MockSliderComponent, [number, number, number?]>;
+    setValue: jest.Mock<MockSliderComponent, [number]>;
+    setDynamicTooltip: jest.Mock<MockSliderComponent, [boolean?]>;
+    onChange: jest.Mock<MockSliderComponent, [ChangeHandler<number>]>;
 }
 
 interface MockDropdownComponent {
@@ -357,9 +357,9 @@ jest.mock("obsidian", () => {
 			} else {
 				this.settingEl.classList.remove("is-disabled");
 			}
-			const actionableEls = this.controlEl.querySelectorAll(
-				"input, button, select"
-			) as NodeListOf<HTMLElement & { disabled?: boolean }>;
+			const actionableEls = this.controlEl.querySelectorAll("input, button, select") as NodeListOf<
+				HTMLElement & { disabled?: boolean }
+			>;
 			actionableEls.forEach((element) => {
 				element.disabled = disabled;
 			});
@@ -499,9 +499,9 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		);
 	};
 
-	test("token field show/hide toggle and onChange save", async () => {
-		const container = tab.containerEl;
-		await tabInternals.addSyncTokenSetting(container);
+        test("token field show/hide toggle and onChange save", async () => {
+                const container = tab.containerEl;
+                await tabInternals.addSyncTokenSetting(container);
 
 		// Find the token input created by addText in sync token setting
 		const tokenInput = container.querySelector("input") as HTMLInputElement;
@@ -525,9 +525,24 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 
 		// Trigger onChange for token value save
 		tokenInput.value = "new-token";
-		tokenInput.dispatchEvent(new Event("input"));
-		expect(plugin.settings.token).toBe("new-token");
-	});
+                tokenInput.dispatchEvent(new Event("input"));
+                expect(plugin.settings.token).toBe("new-token");
+        });
+
+        test("shows a success indicator when a long-lived token is present", async () => {
+                plugin.settings.token = "long-lived-token-value-1234567890";
+
+                const container = tab.containerEl;
+                await tabInternals.addSyncTokenSetting(container);
+
+                const tokenStatus = container.querySelector(
+                        ".keepsidian-token-status"
+                ) as HTMLElement | null;
+
+                expect(tokenStatus).not.toBeNull();
+                expect(tokenStatus?.classList.contains("keepsidian-hidden")).toBe(false);
+                expect(tokenStatus?.textContent).toContain("token successfully retrieved");
+        });
 
 	test("retrieval wizard buttons launch Playwright and Puppeteer flows", async () => {
 		plugin.settings.email = "test@example.com";
