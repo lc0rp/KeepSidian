@@ -13,6 +13,7 @@ package-lock.json
 main.js
 keepTokenDesktop.js
 keepTokenDesktopWebViewer.js
+keepTokenBrowserAutomationDesktop.js
 *.js.map
 test-vault/
 *.zip
