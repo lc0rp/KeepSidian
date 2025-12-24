@@ -151,13 +151,13 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 						: " Retrieve your token using the options below, or paste it directly here.")
 			);
 
-		const tokenStatus = tokenSetting.controlEl.createDiv("keepsidian-token-status keepsidian-hidden");
+		const tokenStatus = tokenSetting.nameEl.createDiv("keepsidian-token-status keepsidian-hidden");
 		const statusIcon = tokenStatus.createEl("span", {
 			cls: "keepsidian-token-status__icon",
 		});
 		setIcon(statusIcon, "check-circle");
 		tokenStatus.createEl("span", {
-			text: "token successfully retrieved",
+			text: "Retrieved successfully",
 			cls: "keepsidian-token-status__text",
 		});
 
@@ -179,6 +179,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.token = value;
 					await this.plugin.saveSettings();
+					updateTokenStatus(this.plugin.settings.token);
 				});
 			text.inputEl.type = "password";
 			text.inputEl.addEventListener("paste", this.handleTokenPaste.bind(this));
