@@ -23,7 +23,7 @@ printf "1\n" | node scripts/release.mjs --dry-run
 
 ## Build artifact
 
-- Ensure `manifest.json` is in sync with the built `main.js`, `keepTokenDesktop.js`, and
-  `keepTokenDesktopWebViewer.js` before publishing.
-- Release artifacts should include both desktop bundles. The token wizard entrypoint will select
-  between them using the KeepSidian settings (`OAuth flow` under the advanced/debug section).
+- Ensure `manifest.json` is in sync with the built `main.js` and
+  `keepTokenBrowserAutomationDesktop.js` before publishing.
+- Release artifacts should include the browser automation bundle so desktop users can launch the
+  retrieval wizard.

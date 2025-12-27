@@ -6,11 +6,24 @@ Created: 2025-12-20 Source: "Controlling a Browser for Google Login in an Obsidi
 
 The PDF outlines multiple approaches for Google login and cookie access in Obsidian: embedded webview (Custom Frames /
 Web Viewer), external browser OAuth redirect, Electron BrowserWindow, automation via Puppeteer/Playwright, and OS-level
-automation. KeepSidian's current desktop flow uses an embedded Electron webview inside the settings tab and then tries
-to extract the "oauth_token" cookie via Electron session APIs and webRequest headers, with a manual DevTools fallback.
-This aligns with the embedded-webview approach but does not use the core Web Viewer and therefore misses some built-in
-capabilities and guardrails described in the PDF. It also still faces Google's embedded-webview restrictions, which can
-prevent the cookie from ever being set.
+automation. KeepSidian originally used an embedded Electron webview inside the settings tab and then tried to extract
+the "oauth_token" cookie via Electron session APIs and webRequest headers, with a manual DevTools fallback. As of
+2025-12-27, KeepSidian instead uses Playwright/Puppeteer automation to drive a real browser and capture the cookie.
+The legacy embedded-webview approach aligned with the PDF’s webview guidance but still faced Google’s embedded-webview
+restrictions, which could prevent the cookie from ever being set.
+
+## Status update (2025-12-27)
+
+KeepSidian now uses Playwright/Puppeteer browser automation launched from settings to drive a real browser window,
+overlay step-by-step instructions, and capture the OAuth cookie. The legacy embedded webview approach has been
+de-emphasized in favor of this more reliable automation flow.
+
+## Current KeepSidian desktop approach (browser automation)
+
+- Launches a real browser via Playwright or Puppeteer from the settings tab.
+- Injects on-page overlays to guide the user through sign-in and 2FA steps.
+- Reads the OAuth cookie from the browser context and exchanges it for a long-lived keep token.
+- Ships in the desktop-only `keepTokenBrowserAutomationDesktop.js` bundle.
 
 ## What the PDF recommends (highlights)
 
@@ -20,7 +33,7 @@ prevent the cookie from ever being set.
 - If staying embedded: use Electron session cookies API to read cookies from the webview's session.
 - Provide fallbacks for cases where Google blocks embedded login.
 
-## Current KeepSidian desktop approach (keepTokenDesktop.ts)
+## Legacy KeepSidian desktop approach (keepTokenDesktop.ts, pre-2025-12-27)
 
 - Creates a <webview> element in the settings tab (desktop-only), with:
   - `partition="persist:keepsidian"`
@@ -36,23 +49,21 @@ prevent the cookie from ever being set.
 
 1. Embedded webview approach (Custom Frames / Web Viewer)
 
-- Similarity: KeepSidian uses a webview tag and Electron session APIs to read cookies, matching the "Custom Frames" /
-  Web Viewer technique in the PDF.
-- Difference: KeepSidian does not leverage the core Web Viewer view; it embeds a custom webview inside settings, so it
-  may not benefit from Web Viewer-specific behavior or built-in access patterns.
+- Similarity: legacy KeepSidian used a webview tag and Electron session APIs to read cookies.
+- Difference: the current flow no longer relies on a custom embedded webview in settings.
 
 1. External browser OAuth redirect
 
-- KeepSidian does not use this. The PDF presents it as the most reliable and policy-compliant method.
+- KeepSidian uses an external, real browser via automation, but does not rely on a redirect callback flow.
 
 1. Electron BrowserWindow
 
-- KeepSidian does not open a dedicated BrowserWindow; it uses a webview embedded in settings. The PDF treats
+- KeepSidian does not open a dedicated BrowserWindow; it launches a real browser via automation. The PDF treats
   BrowserWindow as a viable alternative for better control and session access.
 
 1. Automation tooling (Puppeteer/Playwright)
 
-- KeepSidian does not use automation. The PDF suggests this as a robust but heavy option.
+- KeepSidian now uses automation via Playwright/Puppeteer to drive a real browser and capture cookies.
 
 ## Answers to the requested questions
 
@@ -91,4 +102,4 @@ prevent the cookie from ever being set.
 
 - No external OAuth redirect fallback.
 - No use of the core Web Viewer view (which is documented to provide cookie access).
-- Reliance on a single cookie name and embedded login URL, which may be brittle if Google changes the flow.
+- Reliance on a single cookie name, which may be brittle if Google changes the flow.

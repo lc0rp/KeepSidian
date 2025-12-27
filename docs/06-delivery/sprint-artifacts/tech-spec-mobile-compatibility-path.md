@@ -2,7 +2,14 @@
 
 **Created:** 2025-12-17  
 **Status:** Implemented (Needs Mobile QA)
-**Updated:** 2025-12-19
+**Updated:** 2025-12-27
+
+## Status update (2025-12-27)
+
+- Desktop token retrieval now uses Playwright/Puppeteer browser automation via
+  `keepTokenBrowserAutomationDesktop.js`.
+- The legacy embedded webview wizard remains desktop-only, but is no longer the primary retrieval
+  path.
 
 ## Overview
 
@@ -37,8 +44,8 @@ allows mobile users to sync using an already-synced token or manual token entry.
 - Obsidian plugin with esbuild bundling; externals include `obsidian`, `electron`.
 - Path aliases via tsconfig (`@app/*`, `@ui/*`, etc.).
 - Settings tab registered in `src/app/main.ts`; token wizard in
-  `src/ui/settings/KeepSidianSettingsTab.ts`; desktop-only token wizard in
-  `src/integrations/google/keepTokenDesktop.ts`.
+  `src/ui/settings/KeepSidianSettingsTab.ts`; desktop-only browser automation in
+  `src/integrations/google/keepTokenBrowserAutomationDesktop.ts`.
 - Platform detection available from `Platform` in `obsidian`.
 
 ### Files to Reference
@@ -47,8 +54,9 @@ allows mobile users to sync using an already-synced token or manual token entry.
 - `src/ui/settings/KeepSidianSettingsTab.ts` — settings UI + token wizard.
 - `src/integrations/google/keepToken.ts` — shared (mobile-safe) token exchange export.
 - `src/integrations/google/keepTokenExchange.ts` — token exchange implementation.
-- `src/integrations/google/keepTokenDesktop.ts` — desktop-only Electron webview OAuth flow.
-- `src/integrations/google/keepTokenDesktopLoader.ts` — desktop module loader.
+- `src/integrations/google/keepTokenBrowserAutomationDesktop.ts` — desktop-only Playwright/Puppeteer
+  automation flow.
+- `src/integrations/google/keepTokenBrowserAutomation.ts` — launcher entrypoint.
 - `esbuild.config.mjs` — bundling config (externalizes `electron`).
 - `docs/02-research/mobile-compatibility.md` — prior findings.
 
@@ -57,8 +65,8 @@ allows mobile users to sync using an already-synced token or manual token entry.
 - Use `Platform.isDesktopApp` / `Platform.isMobileApp` from Obsidian to branch UI/flows.
 - Keep token retrieval wizard desktop-only; on mobile, hide the button and surface manual token
   input.
-- Produce a second bundle (`keepTokenDesktop.js`) that contains all Electron webview logic; keep
-  `main.js` free of `require("electron")` and desktop-only wizard internals.
+- Produce a desktop-only bundle (`keepTokenBrowserAutomationDesktop.js`) that contains browser
+  automation logic; keep `main.js` free of `require("electron")` and desktop-only wizard internals.
 
 ## Implementation Plan
 
@@ -68,14 +76,18 @@ allows mobile users to sync using an already-synced token or manual token entry.
 - [x] Update `KeepSidianSettingsTab`:
   - [x] Render token retrieval wizard UI only when `Platform.isDesktopApp` is true.
   - [x] Ensure manual token text field is always available; add mobile-specific hint.
-  - [x] Only load token wizard code on desktop click via a loader (`keepTokenDesktopLoader`).
+  - [x] Only load token wizard code on desktop click via a loader (legacy webview) or the browser
+        automation launcher.
 - [x] Split token logic:
   - [x] Keep mobile-safe exchange code in `keepTokenExchange.ts` and re-export from `keepToken.ts`.
-  - [x] Move Electron/webview wizard logic to `keepTokenDesktop.ts`.
-  - [x] Ensure `main.js` contains no `require("electron")` (desktop code lives in `keepTokenDesktop.js`).
+  - [x] Isolate browser automation logic in `keepTokenBrowserAutomationDesktop.ts`.
+  - [x] Ensure `main.js` contains no `require("electron")` (desktop-only logic lives in
+        `keepTokenBrowserAutomationDesktop.js`).
 - [x] Build/release plumbing:
-  - [x] Update `esbuild.config.mjs` to build `main.js` and `keepTokenDesktop.js`.
-  - [x] Update `.github/workflows/release.yml` to ship `keepTokenDesktop.js` with releases.
+  - [x] Update `esbuild.config.mjs` to build `main.js` and
+        `keepTokenBrowserAutomationDesktop.js`.
+  - [x] Update `.github/workflows/release.yml` to ship
+        `keepTokenBrowserAutomationDesktop.js` with releases.
 - [x] Optional: add mobile notice text (wizard is desktop-only).
 - [x] Tests:
   - [x] Add tests for mobile guard paths and desktop loader usage.
@@ -86,12 +98,12 @@ allows mobile users to sync using an already-synced token or manual token entry.
 - [ ] Plugin loads without errors on Obsidian Mobile (iOS/Android) with Electron unavailable.
 - [ ] Settings view renders on mobile; sync token field editable; no token wizard button shown on
       mobile.
-- [ ] Desktop behavior unchanged: token wizard works via Electron webview; settings tab still
+- [ ] Desktop behavior unchanged: token wizard launches browser automation; settings tab still
       renders.
 - [ ] Sync/push flows operate on mobile when a token is present (manually set or synced from
       desktop).
 - [x] Main bundle safety: `main.js` contains no `require("electron")` (desktop-only logic is in
-      `keepTokenDesktop.js`).
+      `keepTokenBrowserAutomationDesktop.js`).
 
 ## Additional Context
 
@@ -123,8 +135,8 @@ allows mobile users to sync using an already-synced token or manual token entry.
 - `src/ui/settings/tests/KeepSidianSettingsTab.ui.test.ts`
 - `src/integrations/google/keepToken.ts`
 - `src/integrations/google/keepTokenExchange.ts`
-- `src/integrations/google/keepTokenDesktop.ts`
-- `src/integrations/google/keepTokenDesktopLoader.ts`
+- `src/integrations/google/keepTokenBrowserAutomationDesktop.ts`
+- `src/integrations/google/keepTokenBrowserAutomation.ts`
 - `src/integrations/google/tests/keepToken.test.ts`
 
 ### Test Summary

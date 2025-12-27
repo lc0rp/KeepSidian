@@ -141,8 +141,6 @@ const context = await esbuild.context({
 	},
 	entryPoints: [
 		"src/main.ts",
-		"src/integrations/google/keepTokenDesktop.ts",
-		"src/integrations/google/keepTokenDesktopWebViewer.ts",
 	],
 	bundle: true,
 	external: [

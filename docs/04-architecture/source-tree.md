@@ -6,9 +6,8 @@ This document maps the repository structure to the runtime responsibilities of t
 
 - `manifest.json`: Obsidian plugin metadata (id, name, min app version, version).
 - `main.js`: main plugin bundle shipped to Obsidian.
-- `keepTokenDesktop.js`: desktop-only OAuth webview wizard bundle, loaded on demand.
-- `keepTokenDesktopWebViewer.js`: Web Viewer-based OAuth wizard bundle, loaded on demand when the
-  desktop flow is switched to Web Viewer mode.
+- `keepTokenBrowserAutomationDesktop.js`: desktop-only browser automation bundle (Playwright or
+  Puppeteer), launched on demand from settings to capture OAuth cookies.
 - `styles.css`: plugin styles (status UI, modals, settings).
 - `package.json`: dev scripts, linting, tests, build pipeline.
 - `esbuild.config.mjs`: build entry (injects environment variables like `KEEPSIDIAN_SERVER_URL`).
@@ -29,6 +28,8 @@ This document maps the repository structure to the runtime responsibilities of t
   - `src/features/keep/io/`: attachment IO helpers.
 - `src/integrations/`: external boundaries (server API, token/OAuth helpers).
   - `src/integrations/server/keepApi.ts`: server contract (fetch + push).
+  - `src/integrations/google/keepTokenBrowserAutomationDesktop.ts`: Playwright/Puppeteer automation
+    flow that drives a real browser and overlays step-by-step instructions.
 - `src/services/`: cross-cutting utilities (HTTP wrapper, paths, errors, subscription).
 - `src/ui/`: settings UI and modals.
 - `src/schemas/`: runtime validation of server payloads (Zod).

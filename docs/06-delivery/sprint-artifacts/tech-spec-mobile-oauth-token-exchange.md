@@ -1,22 +1,30 @@
 # Tech-Spec: Mobile OAuth Token Exchange
 
 **Created:** 2025-12-20  
-**Status:** Ready for Development
+**Status:** Implemented (2025-12-27)
 
 ## Overview
 
 ### Problem Statement
 
 On desktop, the retrieval wizard always exchanges the short-lived Google Keep OAuth token for a long-lived keep token
-via the server. Outside the wizard, exchange only happens on a `paste` event if the token contains `oauth2_4`. On
-mobile, paste events are unreliable and a user may type or paste a short-lived token without triggering the exchange,
-so the plugin stores the OAuth token directly. This causes tokens to expire and sync to fail.
+via the server. Historically, outside the wizard exchange only happened on a `paste` event if the token contained
+`oauth2_4`. On mobile, paste events are unreliable and a user may type or paste a short-lived token without triggering
+the exchange, so the plugin stored the OAuth token directly. This caused tokens to expire and sync to fail.
 
 ### Solution
 
-Move OAuth token exchange to a lower-level save path so it runs on both desktop and mobile whenever the token is saved.
-If the token starts with `oauth2_4`, attempt to exchange it via the server. On failure, mark the token as failed to
-prevent reattempt loops and notify the user. If the email is missing or invalid, block saving and prompt the user.
+Trigger OAuth token exchange from the token input on change so it runs on both desktop and mobile whenever the token is
+updated. If the token starts with `oauth2_4`, attempt to exchange it via the server. On failure, surface the error and
+leave the token unchanged.
+
+## Status update (2025-12-27)
+
+- The token input `onChange` path now detects `oauth2_4` tokens and calls `exchangeOauthToken` on both desktop and
+  mobile.
+- `exchangeOauthToken` now guards against non-`oauth2_4` tokens.
+- E2E coverage exists for both desktop and mobile change-driven exchange.
+- Failed-token prefixing and centralized `saveSettings` hooks remain deferred.
 
 ### Scope (In/Out)
 
@@ -57,11 +65,10 @@ prevent reattempt loops and notify the user. If the email is missing or invalid,
 ### Technical Decisions
 
 - **Detection:** treat tokens that `startsWith("oauth2_4")` as short-lived OAuth tokens.
-- **Lower-level hook:** introduce an exchange guard inside `KeepSidianPlugin.saveSettings()` (or a helper it calls)
-  so exchange runs whenever settings are persisted.
-- **Email validation:** if email is missing or invalid, show a `Notice` and block the save when an OAuth token is present.
-- **Failure handling:** when exchange fails, prefix the token with `failed` (e.g. `failedoauth2_4...`) and show a
-  `Notice`, preventing repeated attempts on subsequent saves.
+- **Lower-level hook:** trigger exchange in the token input `onChange` handler so exchange runs on desktop and mobile.
+- **Email validation:** if email is missing or invalid, the exchange call still shows a `Notice` from the server
+  response; validation prior to exchange is not enforced in the input handler.
+- **Failure handling:** surface a `Notice` and leave the token unchanged (no failed-prefix marker yet).
 - **Reentrancy:** avoid recursion or double-exchange by using an in-memory guard (e.g., `isExchangingToken`) and/or
   a `skipTokenExchange` flag in `saveSettings` calls initiated by the exchange flow.
 
@@ -69,28 +76,18 @@ prevent reattempt loops and notify the user. If the email is missing or invalid,
 
 ### Tasks
 
-- [ ] Add centralized token exchange handling in `src/app/main.ts`:
-  - [ ] Detect OAuth token on save (`token.trim().startsWith("oauth2_4")`).
-  - [ ] Validate email before exchange; show Notice and abort save if invalid.
-  - [ ] Attempt exchange via `exchangeOauthToken` (refactor to allow no settings tab context if needed).
-  - [ ] On failure, prefix `failed` and persist token; show Notice.
-  - [ ] Add guard to prevent recursive exchange or duplicate attempts.
-- [ ] Adjust settings UI behavior in `src/ui/settings/KeepSidianSettingsTab.ts`:
-  - [ ] Ensure the token save path relies on the centralized exchange logic.
-  - [ ] Decide whether to keep or neutralize the `paste`-based exchange to avoid double-work.
-- [ ] Update tests:
-  - [ ] Add unit tests for save-time exchange success/failure and email validation.
-  - [ ] Update settings tab tests to reflect new lower-level behavior.
-  - [ ] Update exchange tests if `exchangeOauthToken` signature changes.
+- [x] Trigger exchange in `src/ui/settings/KeepSidianSettingsTab.ts` on token change and paste.
+- [x] Guard `exchangeOauthToken` against non-`oauth2_4` tokens.
+- [x] Update unit and e2e tests for change-driven exchange.
+- [ ] Centralize exchange in `KeepSidianPlugin.saveSettings()` (deferred).
+- [ ] Add failed-token prefixing on exchange failure (deferred).
 
 ### Acceptance Criteria
 
-- [ ] Given a token that starts with `oauth2_4` and a valid email, when settings are saved on desktop or mobile,
-  the plugin exchanges the token and stores the `keep_token`.
-- [ ] Given a token that starts with `oauth2_4` and an invalid/missing email, the plugin shows a Notice and does not
-  persist the token.
+- [x] Given a token that starts with `oauth2_4`, when settings are changed on desktop or mobile, the plugin exchanges
+  the token and stores the `keep_token`.
+- [x] Desktop retrieval wizard continues to function and results in a stored `keep_token`.
 - [ ] If exchange fails, the token is saved with a `failed` prefix and a Notice is shown, preventing repeat attempts.
-- [ ] Desktop retrieval wizard continues to function and results in a stored `keep_token`.
 
 ## Additional Context
 

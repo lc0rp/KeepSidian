@@ -18,6 +18,14 @@ KeepSidian is an Obsidian plugin (TypeScript) that syncs notes via a companion s
   - Push: `src/integrations/server/keepApi.ts` (`pushNotes`)
   - Update note frontmatter: `KeepSidianLastSyncedDate` is refreshed on success
 
+## Token retrieval (desktop)
+
+- Settings tab offers Playwright/Puppeteer automation buttons.
+- Automation launches `keepTokenBrowserAutomationDesktop.js` to drive a real browser, overlay
+  instructions, and return an OAuth cookie token.
+- `exchangeOauthToken` posts the short-lived OAuth token to the server and stores the long-lived
+  keep token in settings.
+
 ## Download filtering and pagination
 
 - Downloads page through notes using `offset`/`limit`.

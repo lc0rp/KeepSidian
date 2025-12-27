@@ -5,8 +5,6 @@ import { readFileSync, existsSync } from "fs";
 
 const REQUIRED_FILES = [
 	"main.js",
-	"keepTokenDesktop.js",
-	"keepTokenDesktopWebViewer.js",
 	"keepTokenBrowserAutomationDesktop.js",
 ];
 
@@ -39,18 +37,16 @@ if (process.exitCode) {
 const mainJs = readText("main.js");
 if (requireElectronPattern.test(mainJs)) {
 	fail(
-		'`main.js` contains `require("electron")`. This defeats the mobile-safe bundle split; move Electron-only code into keepTokenDesktop.'
+		'`main.js` contains `require("electron")`. This defeats the mobile-safe bundle split; move Electron-only code into a desktop-only bundle.'
 	);
 }
 
-// Sanity: the desktop bundles should exist. They *may* reference electron; that's expected.
-// We don't assert their contents beyond existence to avoid coupling to esbuild output.
-readText("keepTokenDesktop.js");
-readText("keepTokenDesktopWebViewer.js");
+// Sanity: the desktop automation bundle should exist. It *may* reference electron; that's expected.
+// We don't assert its contents beyond existence to avoid coupling to esbuild output.
 readText("keepTokenBrowserAutomationDesktop.js");
 
 if (!process.exitCode) {
 	console.log(
-		"Bundle verification passed: main.js has no require('electron'), keepTokenDesktop.js and keepTokenDesktopWebViewer.js present."
+		"Bundle verification passed: main.js has no require('electron'), keepTokenBrowserAutomationDesktop.js present."
 	);
 }

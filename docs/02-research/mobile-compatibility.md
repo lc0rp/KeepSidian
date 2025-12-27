@@ -1,22 +1,28 @@
-# KeepSidian Mobile Compatibility Report (2025-12-17, updated 2025-12-20)
+# KeepSidian Mobile Compatibility Report (2025-12-17, updated 2025-12-27)
 
 ## TL;DR
 
 - The plugin now loads on Obsidian Mobile after moving Electron-only wizard code into a desktop
   bundle.
-- Token retrieval still uses an Electron `<webview>` flow and remains desktop-only; mobile users
-  must paste a token captured on desktop.
+- Token retrieval now uses Playwright/Puppeteer browser automation on desktop; mobile users must
+  paste a token captured on desktop.
 - Core sync logic (pull/push via `requestUrl` + vault adapter) is mobile-friendly once a token is
   present.
 
-## Status update (2025-12-20)
+## Status update (2025-12-27)
 
-- Electron-only token wizard code now ships in `keepTokenDesktop.js` and is loaded on demand via the
-  desktop loader.
+- Browser automation now ships in `keepTokenBrowserAutomationDesktop.js` and is launched on demand
+  from settings (Playwright or Puppeteer).
 - Settings UI hides the retrieval wizard on mobile and allows manual token entry.
 - Build verification now ensures `main.js` ships without Electron `require` paths.
 
-## Desktop‑only blockers (original findings from 2025-12-17)
+## Desktop‑only blockers (current)
+
+- Browser automation depends on Node/Electron modules and Playwright/Puppeteer, which are not
+  available in the mobile runtime.
+- Launching and controlling a real browser window is a desktop-only capability.
+
+## Legacy desktop‑only blockers (2025-12-17 webview flow)
 
 - `src/app/main.ts` instantiates `KeepSidianSettingsTab`, which imports `electron` at module load.
   Obsidian Mobile ships without the Electron runtime, so the `require("electron")` call throws
@@ -48,8 +54,8 @@
   `localhost` is unreachable from mobile devices.
 - Background sync relies on timers (`setInterval`) and network availability; on iOS/Android, the app
   must stay foregrounded for timers to run reliably.
-- Large bundles include dev-only dependencies (playwright/puppeteer) that inflate install size; they
-  are not used at runtime but worth keeping dev-only to reduce mobile download footprint.
+- The browser automation bundle includes Playwright/Puppeteer dependencies and increases release
+  size; it should remain desktop-only and not load on mobile.
 
 ## Quick mitigation ideas (implemented)
 
