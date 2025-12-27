@@ -59,9 +59,16 @@ export async function exchangeOauthToken(
 	oauthToken: string
 ) {
 	try {
+		const trimmedToken = oauthToken.trim();
+		if (!trimmedToken.startsWith("oauth2_4")) {
+			logSessionEvent("warn", "Rejected non-oauth2_4 token exchange attempt", {
+				tokenSample: redactToken(trimmedToken),
+			});
+			throw new Error("OAuth token must start with oauth2_4");
+		}
 		logSessionEvent("info", "exchangeOauthToken invoked", {
 			email: plugin.settings.email,
-			tokenSample: redactToken(oauthToken),
+			tokenSample: redactToken(trimmedToken),
 		});
 		try {
 			logSessionEvent("debug", "Sending oauth_token to KeepSidian server", {
@@ -71,7 +78,7 @@ export async function exchangeOauthToken(
 				`${KEEPSIDIAN_SERVER_URL}/register`,
 				{
 					email: plugin.settings.email,
-					oauth_token: oauthToken,
+					oauth_token: trimmedToken,
 				},
 				{ "Content-Type": "application/json" }
 			);
@@ -114,4 +121,3 @@ export async function exchangeOauthToken(
 		throw error;
 	}
 }
-

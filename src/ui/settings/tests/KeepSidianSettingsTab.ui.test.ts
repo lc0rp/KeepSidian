@@ -523,10 +523,27 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		expect(tokenInput.type).toBe("password");
 		expect(showBtn.textContent).toBe("Show");
 
-		// Trigger onChange for token value save
-		tokenInput.value = "new-token";
+                // Trigger onChange for token value save
+                tokenInput.value = "new-token";
                 tokenInput.dispatchEvent(new Event("input"));
                 expect(plugin.settings.token).toBe("new-token");
+        });
+
+        test("oauth2_4 token input triggers exchange on change", async () => {
+                const container = tab.containerEl;
+                plugin.settings.token = "existing-token";
+                (exchangeOauthToken as jest.Mock).mockResolvedValue(undefined);
+                await tabInternals.addSyncTokenSetting(container);
+
+                const tokenInput = container.querySelector("input") as HTMLInputElement;
+                expect(tokenInput).toBeTruthy();
+
+                tokenInput.value = "oauth2_4/test-token";
+                tokenInput.dispatchEvent(new Event("input"));
+                await waitForAsync();
+
+                expect(exchangeOauthToken).toHaveBeenCalledWith(tab, plugin, "oauth2_4/test-token");
+                expect(plugin.settings.token).toBe("existing-token");
         });
 
         test("shows a success indicator when a long-lived token is present", async () => {
@@ -541,7 +558,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 
                 expect(tokenStatus).not.toBeNull();
                 expect(tokenStatus?.classList.contains("keepsidian-hidden")).toBe(false);
-                expect(tokenStatus?.textContent).toContain("token successfully retrieved");
+                expect(tokenStatus?.textContent).toContain("Retrieved successfully");
         });
 
 	test("retrieval wizard buttons launch Playwright and Puppeteer flows", async () => {

@@ -14,11 +14,13 @@ type ToggleClassPrototype = typeof HTMLElement.prototype & {
 
 type CreateElFunction = <K extends keyof HTMLElementTagNameMap>(
 	tagName: K,
-	options?: CreateElOptions
+	options?: CreateElOptions,
+	callback?: (el: EnhancedElement<K>) => void
 ) => EnhancedElement<K>;
 
 type EnhancableHTMLElement = HTMLElement & {
 	createEl?: CreateElFunction;
+	createDiv?: (options?: CreateElOptions, callback?: (el: EnhancedElement<"div">) => void) => EnhancedElement<"div">;
 	empty?: () => void;
 };
 
@@ -86,12 +88,27 @@ function enhanceElement<T extends HTMLElement>(element: T): T & EnhancableHTMLEl
 		enhanced.createEl = function createChild<K extends keyof HTMLElementTagNameMap>(
 			this: EnhancableHTMLElement,
 			tagName: K,
-			options?: CreateElOptions
+			options?: CreateElOptions,
+			callback?: (el: EnhancedElement<K>) => void
 		): EnhancedHTMLElementMap[K] {
 			const child = document.createElement(tagName) as HTMLElement;
 			applyOptions(child, options);
 			this.appendChild(child);
-			return enhanceElement(child) as EnhancedHTMLElementMap[K];
+			const enhancedChild = enhanceElement(child) as EnhancedHTMLElementMap[K];
+			if (callback) {
+				callback(enhancedChild);
+			}
+			return enhancedChild;
+		};
+	}
+
+	if (!enhanced.createDiv) {
+		enhanced.createDiv = function createDiv(
+			this: EnhancableHTMLElement,
+			options?: CreateElOptions,
+			callback?: (el: EnhancedElement<"div">) => void
+		): EnhancedElement<"div"> {
+			return (this.createEl as CreateElFunction)("div", options, callback);
 		};
 	}
 

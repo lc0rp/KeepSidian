@@ -177,6 +177,13 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 				.setPlaceholder("Google Keep sync token.")
 				.setValue(this.plugin.settings.token)
 				.onChange(async (value) => {
+					const trimmedValue = value.trim();
+					if (trimmedValue.startsWith("oauth2_4")) {
+						await exchangeOauthToken(this, this.plugin, trimmedValue);
+						text.inputEl.value = this.plugin.settings.token;
+						updateTokenStatus(this.plugin.settings.token);
+						return;
+					}
 					this.plugin.settings.token = value;
 					await this.plugin.saveSettings();
 					updateTokenStatus(this.plugin.settings.token);
@@ -288,9 +295,9 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 
 	private async handleTokenPaste(event: ClipboardEvent): Promise<void> {
 		const pastedText = event.clipboardData?.getData("text");
-		if (pastedText && pastedText.includes("oauth2_4")) {
+		if (pastedText && pastedText.trim().startsWith("oauth2_4")) {
 			event.preventDefault();
-			await exchangeOauthToken(this, this.plugin, pastedText);
+			await exchangeOauthToken(this, this.plugin, pastedText.trim());
 			this.display();
 		}
 		// If the text doesn't contain 'oauth2_4', we don't prevent the default paste behavior

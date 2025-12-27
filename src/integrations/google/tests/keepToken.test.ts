@@ -98,7 +98,7 @@ describe("Token Management", () => {
 
 		it("should successfully exchange OAuth token", async () => {
 			const mockKeepToken = "mock-keep-token";
-			const mockOAuthToken = "mock-oauth-token";
+			const mockOAuthToken = "oauth2_4/mock-oauth-token";
 
 			(obsidian.requestUrl as jest.Mock).mockResolvedValueOnce({
 				status: 200,
@@ -121,7 +121,7 @@ describe("Token Management", () => {
 			});
 
 			await expect(
-				exchangeOauthToken(settingsTab, plugin, "mock-oauth-token")
+				exchangeOauthToken(settingsTab, plugin, "oauth2_4/mock-oauth-token")
 			).rejects.toThrow("Server returned status 500");
 
 			expect(obsidian.Notice).toHaveBeenCalledWith(
@@ -138,8 +138,15 @@ describe("Token Management", () => {
 			});
 
 			await expect(
-				exchangeOauthToken(settingsTab, plugin, "mock-oauth-token")
+				exchangeOauthToken(settingsTab, plugin, "oauth2_4/mock-oauth-token")
 			).rejects.toThrow("Failed to parse server response: Error: Invalid response format");
+		});
+
+		it("should reject non-oauth2_4 tokens", async () => {
+			await expect(exchangeOauthToken(settingsTab, plugin, "not-an-oauth-token")).rejects.toThrow(
+				"OAuth token must start with oauth2_4"
+			);
+			expect(obsidian.requestUrl).not.toHaveBeenCalled();
 		});
 	});
 
