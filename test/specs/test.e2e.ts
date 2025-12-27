@@ -1,7 +1,12 @@
 import { browser, expect } from "@wdio/globals";
 
 describe("KeepSidian", function () {
+	const buttonByText = (label: string): string =>
+		`//*[self::button or @role="button"][normalize-space(.)="${label}"]`;
+
 	const openKeepSidianSettingsTab = async (): Promise<void> => {
+		await completeMobileOnboardingIfNeeded();
+
 		const settingsCommandId = await browser.execute(() => {
 			type ObsidianWindow = Window & {
 				app?: {
@@ -26,26 +31,12 @@ describe("KeepSidian", function () {
 
 		await browser.executeObsidianCommand(settingsCommandId);
 
-		await browser.waitUntil(
-			async () => (await browser.$$(".setting-tab-container, .modal.mod-settings")).length > 0,
-			{ timeout: 20000, interval: 200 }
-		);
-
-		const navItems = await browser.$$(".vertical-tab-nav-item");
-		const keepSidianNav = await (async () => {
-			for (const item of navItems) {
-				if ((await item.getText()).includes("KeepSidian")) {
-					return item;
-				}
+		await browser.executeObsidian(({ app }) => {
+			const settingManager = app?.setting;
+			if (settingManager?.openTabById) {
+				settingManager.openTabById("keepsidian");
 			}
-			return null;
-		})();
-
-		if (!keepSidianNav) {
-			throw new Error("Could not find KeepSidian in the settings navigation");
-		}
-
-		await keepSidianNav.click();
+		});
 
 		const emailSetting = browser.$(
 			'//*[contains(@class,"setting-item-name") and normalize-space(.)="Email"]'
@@ -54,44 +45,56 @@ describe("KeepSidian", function () {
 	};
 
 	const stubTokenExchange = async (keepToken: string): Promise<void> => {
-		await browser.execute((token) => {
-			const obsidianModule = (window as Window & { require?: (id: string) => unknown }).require?.("obsidian") as
-				| { requestUrl?: (options: { url?: string }) => Promise<unknown> }
-				| undefined;
-			if (!obsidianModule) {
-				throw new Error("Obsidian module not available in test context");
-			}
-			const original = obsidianModule.requestUrl;
-			(window as Window & { __keepsidianOriginalRequestUrl?: unknown }).__keepsidianOriginalRequestUrl = original;
-			obsidianModule.requestUrl = async (options: { url?: string }) => {
-				const url = typeof options?.url === "string" ? options.url : "";
-				if (url.includes("/register")) {
-					return { status: 200, json: { keep_token: token } };
-				}
-				if (typeof original === "function") {
-					return original(options);
-				}
-				return { status: 200, json: {} };
-			};
+		await browser.executeObsidian((_, token) => {
+			(window as Window & {
+				__keepsidianTestExchange?: (payload: { email?: string; oauth_token: string }) => {
+					keep_token: string;
+				};
+			}).__keepsidianTestExchange = () => ({ keep_token: token });
 		}, keepToken);
 	};
 
 	const restoreTokenExchange = async (): Promise<void> => {
-		await browser.execute(() => {
-			const obsidianModule = (window as Window & { require?: (id: string) => unknown }).require?.("obsidian") as
-				| { requestUrl?: (options: { url?: string }) => Promise<unknown> }
-				| undefined;
-			const original = (window as Window & { __keepsidianOriginalRequestUrl?: unknown })
-				.__keepsidianOriginalRequestUrl as ((options: { url?: string }) => Promise<unknown>) | undefined;
-			if (obsidianModule && typeof original === "function") {
-				obsidianModule.requestUrl = original;
-			}
+		await browser.executeObsidian(() => {
+			delete (window as Window & { __keepsidianTestExchange?: unknown }).__keepsidianTestExchange;
 		});
 	};
 
 	const isAndroid = (): boolean => {
 		const platform = (browser.capabilities as { platformName?: string }).platformName;
 		return typeof platform === "string" && platform.toLowerCase() === "android";
+	};
+
+	const completeMobileOnboardingIfNeeded = async (): Promise<void> => {
+		if (!isAndroid()) {
+			return;
+		}
+
+		const clickIfPresent = async (label: string): Promise<boolean> => {
+			const candidate = await browser.$(buttonByText(label));
+			if (await candidate.isExisting()) {
+				await candidate.click();
+				return true;
+			}
+			return false;
+		};
+
+		await browser.waitUntil(
+			async () => {
+				const clickedExistingVault = await clickIfPresent("Use my existing vault");
+				if (clickedExistingVault) {
+					return false;
+				}
+
+				const clickedSkipSync = await clickIfPresent("Continue without sync");
+				if (clickedSkipSync) {
+					return false;
+				}
+
+				return true;
+			},
+			{ timeout: 30000, interval: 500 }
+		);
 	};
 
 	before(async function () {
@@ -180,9 +183,7 @@ describe("KeepSidian", function () {
 		await openKeepSidianSettingsTab();
 		await stubTokenExchange("e2e-keep-token");
 
-		const tokenInput = browser.$(
-			'//*[contains(@class,"setting-item-name") and normalize-space(.)="Sync token"]/ancestor::*[contains(@class,"setting-item")]//input'
-		);
+		const tokenInput = browser.$('//input[@placeholder="Google Keep sync token."]');
 		await tokenInput.waitForExist({ timeout: 20000 });
 		await tokenInput.setValue("oauth2_4/e2e-token");
 
@@ -231,9 +232,7 @@ describe("KeepSidian", function () {
 		await openKeepSidianSettingsTab();
 		await stubTokenExchange("e2e-keep-token-mobile");
 
-		const tokenInput = browser.$(
-			'//*[contains(@class,"setting-item-name") and normalize-space(.)="Sync token"]/ancestor::*[contains(@class,"setting-item")]//input'
-		);
+		const tokenInput = browser.$('//input[@placeholder="Google Keep sync token."]');
 		await tokenInput.waitForExist({ timeout: 20000 });
 		await tokenInput.setValue("oauth2_4/e2e-token-mobile");
 

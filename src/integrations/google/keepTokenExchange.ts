@@ -44,6 +44,11 @@ interface TokenResponse {
 	[key: string]: unknown;
 }
 
+type TestExchangeHook = (payload: {
+	email?: string;
+	oauth_token: string;
+}) => Promise<TokenResponse | null> | TokenResponse | null;
+
 function isTokenResponse(obj: unknown): obj is TokenResponse {
 	return (
 		typeof obj === "object" &&
@@ -65,6 +70,26 @@ export async function exchangeOauthToken(
 				tokenSample: redactToken(trimmedToken),
 			});
 			throw new Error("OAuth token must start with oauth2_4");
+		}
+		const testExchangeHook = (
+			globalThis as unknown as {
+				__keepsidianTestExchange?: TestExchangeHook;
+			}
+		).__keepsidianTestExchange;
+		if (typeof testExchangeHook === "function") {
+			const result = await testExchangeHook({
+				email: plugin.settings.email,
+				oauth_token: trimmedToken,
+			});
+			if (result) {
+				if (!isTokenResponse(result)) {
+					throw new Error("Invalid test exchange response format");
+				}
+				plugin.settings.token = result.keep_token;
+				await plugin.saveSettings();
+				settingsTab.display();
+				return;
+			}
 		}
 		logSessionEvent("info", "exchangeOauthToken invoked", {
 			email: plugin.settings.email,
