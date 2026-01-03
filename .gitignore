@@ -56,5 +56,5 @@ bmad-custom-src
 
 # Reference materials
 .ref/
-.agents/
+.agents
 docs
