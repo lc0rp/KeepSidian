@@ -10,8 +10,6 @@ if you want to view the source, please visit the github repository of this plugi
 */
 `;
 
-const prod = process.argv[2] === "production";
-
 function loadEnvFile(filePath) {
 	if (!fs.existsSync(filePath)) {
 		return;
@@ -138,6 +136,7 @@ const resolvedServerUrl = String(process.env.KEEPSIDIAN_SERVER_URL ?? defaultSer
 const context = await esbuild.context({
 	banner: {
 		js: banner,
+	outfile: "main.js",
 	},
 	entryPoints: [
 		"src/main.ts",
@@ -193,11 +192,3 @@ const automationContext = await esbuild.context({
 	],
 });
 
-if (prod) {
-	await context.rebuild();
-	await automationContext.rebuild();
-	process.exit(0);
-} else {
-	await context.watch();
-	await automationContext.watch();
-}

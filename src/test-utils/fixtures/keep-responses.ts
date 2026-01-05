@@ -32,6 +32,16 @@ export const invalidResponseWrongNoteShape: unknown = {
   notes: [{ title: 123 }],
 };
 
+export const responseWithNullBlobUrl = {
+  notes: [
+    {
+      ...validPreNormalizedNote,
+      blob_urls: [null],
+    },
+  ],
+  total_notes: 1,
+};
+
 export const validFlags = {
   filter_notes: { terms: ["work", "idea"] },
   skip_notes: { terms: ["personal"] },

@@ -4,6 +4,7 @@ import {
   validEmptyResponsePage,
   invalidResponseMissingNotes,
   invalidResponseWrongNoteShape,
+  responseWithNullBlobUrl,
   validFlags,
   invalidFlagsMissingSuggestTagsFields,
   invalidFlagsWrongTermsType,
@@ -31,6 +32,11 @@ describe("GoogleKeepImportResponseSchema", () => {
     const res = GoogleKeepImportResponseSchema.safeParse(invalidResponseWrongNoteShape);
     expect(res.success).toBe(false);
   });
+
+  it("accepts blob_urls entries that are null", () => {
+    const res = GoogleKeepImportResponseSchema.safeParse(responseWithNullBlobUrl);
+    expect(res.success).toBe(true);
+  });
 });
 
 describe("PremiumFeatureFlagsSchema", () => {
@@ -50,4 +56,3 @@ describe("PremiumFeatureFlagsSchema", () => {
     expect(res.success).toBe(false);
   });
 });
-

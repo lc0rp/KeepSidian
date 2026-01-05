@@ -13,7 +13,7 @@ export const PreNormalizedNoteSchema = z.object({
   trashed: z.boolean().optional(),
   labels: z.array(z.string()).optional(),
   blobs: z.array(z.string()).optional(),
-  blob_urls: z.array(z.string()).optional(),
+  blob_urls: z.array(z.string().nullable()).optional(),
   blob_names: z.array(z.string()).optional(),
   media: z.array(z.string()).optional(),
   header: z.string().optional(),

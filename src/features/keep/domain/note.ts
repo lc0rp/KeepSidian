@@ -27,7 +27,7 @@ interface PreNormalizedNote {
 	trashed?: boolean;
 	labels?: string[];
 	blobs?: string[];
-	blob_urls?: string[];
+	blob_urls?: Array<string | null>;
 	blob_names?: string[];
 	media?: string[];
 	header?: string;
@@ -41,6 +41,13 @@ function normalizeDate(dateString?: string | null): Date | null {
 	return isNaN(date.getTime()) ? null : date;
 }
 
+function normalizeStringArray(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter((item): item is string => typeof item === "string");
+}
+
 function normalizeNote(note: PreNormalizedNote): NormalizedNote {
 	const normalizedNote: NormalizedNote = {
 		title: note.title?.trim() || "",
@@ -49,11 +56,11 @@ function normalizeNote(note: PreNormalizedNote): NormalizedNote {
 		updated: normalizeDate(note.updated) || null,
 		archived: note.archived || false,
 		trashed: note.trashed || false,
-		labels: Array.isArray(note.labels) ? note.labels : [],
-		blobs: Array.isArray(note.blobs) ? note.blobs : [],
-		blob_urls: Array.isArray(note.blob_urls) ? note.blob_urls : [],
-		blob_names: Array.isArray(note.blob_names) ? note.blob_names : [],
-		media: Array.isArray(note.media) ? note.media : [],
+		labels: normalizeStringArray(note.labels),
+		blobs: normalizeStringArray(note.blobs),
+		blob_urls: normalizeStringArray(note.blob_urls),
+		blob_names: normalizeStringArray(note.blob_names),
+		media: normalizeStringArray(note.media),
 		header: note.header || "",
 		frontmatter: "",
 		frontmatterDict: {},

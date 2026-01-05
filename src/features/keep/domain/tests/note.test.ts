@@ -65,6 +65,22 @@ describe("normalizeNote", () => {
 		expect(normalizedNote.header).toBe("header");
 	});
 
+	it("should drop null blob_urls entries", () => {
+		const inputNote = {
+			title: "Note",
+			blob_urls: ["https://a.test/file.png", null, "https://b.test/file.png"] as Array<
+				string | null
+			>,
+		};
+
+		const normalizedNote: NormalizedNote = normalizeNote(inputNote);
+
+		expect(normalizedNote.blob_urls).toEqual([
+			"https://a.test/file.png",
+			"https://b.test/file.png",
+		]);
+	});
+
 	it("should handle a note without frontmatter", () => {
 		const inputNote = {
 			title: "Simple Note",
