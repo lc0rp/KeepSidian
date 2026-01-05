@@ -170,8 +170,6 @@ const context = await esbuild.context({
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
-	outdir: ".",
-	entryNames: "[name]",
 	plugins: [tsconfigPathsPlugin({ tsconfigPath: path.resolve(rootDir, "tsconfig.json") })],
 	define: {
 		"process.env.KEEPSIDIAN_SERVER_URL": JSON.stringify(resolvedServerUrl),
