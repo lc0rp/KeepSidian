@@ -230,6 +230,53 @@ const updateEnvProduction = (version, { dryRun = false } = {}) => {
 	return { changed: true, url };
 };
 
+const monitorReleaseRun = async (version, { dryRun = false } = {}) => {
+	const workflowName = "Release Keepsidian plugin";
+	const tag = version;
+
+	if (dryRun) {
+		console.log(
+			`[dry-run] Would monitor GitHub Actions workflow "${workflowName}" for ${tag}`
+		);
+		return;
+	}
+
+	try {
+		runCapture("gh --version");
+	} catch {
+		console.warn("GitHub CLI (gh) not available; skipping workflow monitoring.");
+		return;
+	}
+
+	try {
+		const payload = runCapture(
+			`gh run list --workflow "${workflowName}" --branch ${tag} --limit 1 --json databaseId,status,conclusion`
+		);
+		const runs = JSON.parse(payload);
+		const latest = runs[0];
+
+		if (!latest) {
+			console.warn(`No GitHub Actions run found for ${tag}.`);
+			return;
+		}
+
+		if (latest.status === "completed") {
+			const conclusion = latest.conclusion || "unknown";
+			if (conclusion !== "success") {
+				console.error(`Release workflow completed with conclusion: ${conclusion}`);
+				process.exit(1);
+			}
+			console.log(`Release workflow completed: ${conclusion}.`);
+			return;
+		}
+
+		console.log(`Monitoring GitHub Actions run ${latest.databaseId} for ${tag}...`);
+		run(`gh run watch ${latest.databaseId} --exit-status`);
+	} catch {
+		console.warn("Unable to monitor GitHub Actions release run; check it manually.");
+	}
+};
+
 const determineNextVersion = async (currentVersion) => {
 	const parsed = parseVersion(currentVersion);
 	const alphaBetaChoice = await promptAlphaBetaChoice(currentVersion);
@@ -310,10 +357,14 @@ const main = async () => {
 	}
 
 	if (isDryRun) {
-		console.log(`[dry-run] Would bump version via npm version ${nextVersion} --force`);
+		console.log(
+			`[dry-run] Would bump version via npm version ${nextVersion} --force --no-git-tag-version`
+		);
+		console.log(`[dry-run] Would tag release ${nextVersion}`);
 	} else {
 		console.log(`Bumping version to ${nextVersion}...`);
-		run(`npm version ${nextVersion} --force`);
+		run(`npm version ${nextVersion} --force --no-git-tag-version`);
+		run(`git tag -a "${nextVersion}" -m "${nextVersion}"`);
 	}
 
 	const updatedVersion = isDryRun
@@ -327,6 +378,8 @@ const main = async () => {
 		console.log("Pushing commit and tags to remote...");
 		run("git push --follow-tags");
 	}
+
+	await monitorReleaseRun(updatedVersion, { dryRun: isDryRun });
 
 	console.log("Release process completed successfully.");
 };
