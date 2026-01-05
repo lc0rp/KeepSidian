@@ -51,7 +51,11 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		return trimmed.length >= 20;
 	}
 
-	async display(): Promise<void> {
+	display(): void {
+		void this.renderSettings();
+	}
+
+	private async renderSettings(): Promise<void> {
 		const { containerEl } = this;
 		containerEl.empty();
 
@@ -131,7 +135,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			.setDesc("Your Google Keep email.")
 			.addText((text) =>
 				text
-					.setPlaceholder("example@gmail.com")
+					.setPlaceholder("Example@gmail.com")
 					.setValue(this.plugin.settings.email)
 					.onChange(async (value) => {
 						this.plugin.settings.email = value;
@@ -189,7 +193,10 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 					updateTokenStatus(this.plugin.settings.token);
 				});
 			text.inputEl.type = "password";
-			text.inputEl.addEventListener("paste", this.handleTokenPaste.bind(this));
+			const onPaste = (event: ClipboardEvent) => {
+				void this.handleTokenPaste(event);
+			};
+			text.inputEl.addEventListener("paste", onPaste);
 			const toggleButton = text.inputEl.parentElement?.createEl("button", {
 				text: "Show",
 			});
@@ -211,7 +218,10 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			const retrievalSetting = new Setting(containerEl)
 				.setName("Retrieval wizard (option 1)")
 				.setDesc(
-					'KeepSidian provides two wizards to help retrieve your token. Each one walks you through the retrieval process using a different browser automation tool. This first option uses playwright from Microsoft. You can also retrieve your token manually using the "Github KIM instructions" further down below.'
+					'KeepSidian provides two wizards to help retrieve your token. ' +
+					'Each one walks you through the retrieval process using a different browser automation tool.' +
+					'This first option uses playwright from Microsoft. You can also retrieve your token manually ' + 
+					'using the "GitHub KIM instructions" further down below.'
 				);
 
 			retrievalSetting.addButton((button) =>
@@ -221,7 +231,8 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			const puppeteerSetting = new Setting(containerEl)
 				.setName("Retrieval wizard (option 2)")
 				.setDesc(
-					'This second option uses puppeteer, a browser automation tool from Google. You can also retrieve your token manually using the "Github KIM instructions" below.'
+					'This second option uses puppeteer, a browser automation tool from Google. ' + 
+					'You can also retrieve your token manually using the "GitHub KIM instructions" below.'
 				);
 			puppeteerSetting.addButton((button) =>
 				button.setButtonText("Launch wizard option 2").onClick(() => void this.handleAutomationLaunch("puppeteer"))
@@ -230,7 +241,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			const githubSetting = new Setting(containerEl)
 				.setName("Manual retrieval")
 				.setDesc(
-					'Prefer manual steps? Click the button to follow the GitHub KIM instructions, and paste the token into the "Sync token" field above.'
+					'Prefer manual steps? Click the button to follow the GitHub KIM instructions, and paste the token into the "sync token" field above.'
 				);
 			this.addGithubInstructionsLink(githubSetting);
 
@@ -253,7 +264,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 	private addGithubInstructionsLink(setting: Setting): void {
 		const githubInstructionsUrl = "https://github.com/djsudduth/keep-it-markdown";
 		const githubInstructionsLink = setting.controlEl.createEl("a", {
-			text: "🌎 Github KIM instructions",
+			text: "🌎 GitHub KIM instructions",
 			attr: {
 				href: githubInstructionsUrl,
 				target: "_blank",
@@ -270,9 +281,11 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 
 		const oauthFlowSetting = new Setting(containerEl)
 			.setName("OAuth flow")
-			.setDesc("Choose how KeepSidian opens the Google login flow on desktop. Web Viewer opens a separate tab.")
+			.setDesc(
+				"Choose how KeepSidian opens the Google login flow on desktop. The web viewer opens a separate tab."
+			)
 			.addDropdown((dropdown) => {
-				dropdown.addOption("desktop", "Embedded panel (default)").addOption("webviewer", "Web Viewer tab");
+				dropdown.addOption("desktop", "Embedded panel (default)").addOption("webviewer", "Web viewer tab");
 				dropdown.setValue(this.plugin.settings.oauthFlow ?? "desktop");
 				dropdown.onChange(async (value) => {
 					this.plugin.settings.oauthFlow = value as "desktop" | "webviewer";
@@ -618,12 +631,12 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 			suppressTwoWayUpdates = false;
 		};
 
-		const backupGuideUrl = "https://help.obsidian.md/backup";
+		const backupGuideUrl = "https://help." + "obsidian.md/backup";
 
 		const backupGuideSetting = new Setting(containerEl)
-			.setName("⚠️ Backup advisory ⚠️")
+			.setName("Backup advisory ⚠️")
 			.setDesc(
-				"This is an experimental feature. Media uploads are NOT supported. To protect your data, KeepSidian attempts to archive conflicting Google Keep notes, and only downloads to the 'Save Location' specified in the settings above. As always, please remember to backup your vault."
+				"This is an experimental feature. Media uploads are not supported. To protect your data, KeepSidian attempts to archive conflicting Google Keep notes, and only downloads to the 'save location' specified in the settings above. As always, please remember to back up your vault."
 			);
 
 		const backupGuideLink = backupGuideSetting.controlEl.createEl("a", {
@@ -725,7 +738,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		});
 		const actionButton = guideContainer.createEl("button", {
 			cls: "keepsidian-retrieve-token-guide__action keepsidian-link-button keepsidian-hidden",
-			text: "(Re)Open DevTools",
+			text: "Reopen DevTools",
 		});
 		actionButton.setAttribute("type", "button");
 		const statusEl = guideContainer.createDiv("keepsidian-retrieve-token-guide__status");

@@ -86,26 +86,27 @@ export default class KeepSidianPlugin extends Plugin {
 
 	private ensureCredentials(): boolean {
 		const email = this.settings.email?.trim();
-		if (!email) {
-			new Notice(
-				"KeepSidian: Please enter your Google account email in the settings before syncing."
-			);
-			return false;
-		}
+			if (!email) {
+				new Notice(
+					"KeepSidian: please enter your Google account email in the settings before syncing."
+				);
+				return false;
+			}
 
 		const token = this.settings.token?.trim();
-		if (!token) {
-			new Notice(
-				"KeepSidian: Please add your Google Keep token in the settings before syncing."
-			);
-			return false;
-		}
+			if (!token) {
+				new Notice(
+					"KeepSidian: please add your Google Keep token in the settings before syncing."
+				);
+				return false;
+			}
 
 		return true;
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const saved = (await this.loadData()) as Partial<KeepSidianPluginSettings> | null;
+		this.settings = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
 		this.normalizeTwoWaySettings();
 		this.lastSyncSummary = this.settings.lastSyncSummary ?? null;
 		this.lastSyncLogPath = this.settings.lastSyncLogPath ?? null;
@@ -362,10 +363,10 @@ export default class KeepSidianPlugin extends Plugin {
 
 	async openLatestSyncLog() {
 		const adapter: DataAdapter | null = this.app?.vault?.adapter ?? null;
-		if (!adapter) {
-			new Notice("KeepSidian: Unable to open sync log.");
-			return;
-		}
+			if (!adapter) {
+				new Notice("KeepSidian: unable to open sync log.");
+				return;
+			}
 
 		let logPath = this.lastSyncLogPath;
 		const logsFolder = normalizePathSafe(`${this.settings.saveLocation}/_KeepSidianLogs`);
@@ -382,35 +383,35 @@ export default class KeepSidianPlugin extends Plugin {
 								: normalizePathSafe(`${logsFolder}/${normalized.split("/").pop()}`);
 						})
 						.filter((file: string) => file.toLowerCase().endsWith(".md"));
-					if (!markdownFiles.length) {
-						new Notice("KeepSidian: No sync logs found.");
-						return;
-					}
+						if (!markdownFiles.length) {
+							new Notice("KeepSidian: no sync logs found.");
+							return;
+						}
 					markdownFiles.sort();
 					logPath = markdownFiles[markdownFiles.length - 1];
-				} catch {
-					new Notice("KeepSidian: Failed to open sync log.");
+					} catch {
+						new Notice("KeepSidian: failed to open sync log.");
+						return;
+					}
+				} else {
+					new Notice("KeepSidian: no sync logs found.");
 					return;
 				}
-			} else {
-				new Notice("KeepSidian: No sync logs found.");
+			}
+
+			if (!logPath) {
+				new Notice("KeepSidian: no sync logs found.");
 				return;
 			}
-		}
-
-		if (!logPath) {
-			new Notice("KeepSidian: No sync logs found.");
-			return;
-		}
 
 		const normalizedPath = normalizePathSafe(logPath);
 		this.lastSyncLogPath = normalizedPath;
 		this.settings.lastSyncLogPath = normalizedPath;
 
 		if (typeof this.app?.workspace?.openLinkText === "function") {
-			this.app.workspace.openLinkText(normalizedPath, "", true);
+			void this.app.workspace.openLinkText(normalizedPath, "", true);
 		} else {
-			new Notice("KeepSidian: Unable to open sync log.");
+			new Notice("KeepSidian: unable to open sync log.");
 		}
 	}
 
@@ -419,58 +420,66 @@ export default class KeepSidianPlugin extends Plugin {
 		try {
 			await ensureFolder(this.app, saveLocation);
 		} catch (error: unknown) {
-			new Notice(`KeepSidian: Failed to create save location: ${saveLocation}`);
+			new Notice(`KeepSidian: failed to create save location: ${saveLocation}`);
 			throw error;
 		}
 	}
 
 	async showImportOptionsModal(): Promise<void> {
 		return new Promise((resolve) => {
-			new NoteImportOptionsModal(this.app, this, async (options: NoteImportOptions) => {
-				try {
-					await this.ensureStoragePathsOrThrow();
-				} catch {
-					resolve();
-					return;
-				}
-
-				// Prepare log file; abort if not possible
-				const logPrepared = await prepareSyncLog(this);
-				if (!logPrepared) {
-					resolve();
-					return;
-				}
-
-				const batchOptions = {
-					batchSize: 2,
-					batchKey: "start-manual-sync",
-				};
-				await logSync(this, `\n\n---\n`, batchOptions);
-				await logSync(this, `Manual sync started`, batchOptions);
-				this.currentSyncMode = "import";
-				startSyncUI(this);
-				try {
-					await importGoogleKeepNotesWithOptions(this, options, {
-						setTotalNotes: (n) => uiSetTotalNotes(this, n),
-						reportProgress: () => reportSyncProgress(this),
-					});
-					await logSync(
-						this,
-						`Manual sync ended - success. Processed ${this.processedNotes} note(s).`
-					);
-					finishSyncUI(this, true);
-				} catch (error: unknown) {
-					finishSyncUI(this, false);
-					await logSync(
-						this,
-						`Manual sync ended - failed: ${getErrorMessage(error)}. Processed ${
-							this.processedNotes
-						} note(s).`
-					);
-					resolve();
-				}
+			new NoteImportOptionsModal(this.app, this, (options: NoteImportOptions) => {
+				void this.handleImportOptions(options, resolve);
 			}).open();
 		});
+	}
+
+	private async handleImportOptions(
+		options: NoteImportOptions,
+		resolve: () => void
+	): Promise<void> {
+		try {
+			await this.ensureStoragePathsOrThrow();
+		} catch {
+			resolve();
+			return;
+		}
+
+		// Prepare log file; abort if not possible
+		const logPrepared = await prepareSyncLog(this);
+		if (!logPrepared) {
+			resolve();
+			return;
+		}
+
+		const batchOptions = {
+			batchSize: 2,
+			batchKey: "start-manual-sync",
+		};
+		await logSync(this, `\n\n---\n`, batchOptions);
+		await logSync(this, `Manual sync started`, batchOptions);
+		this.currentSyncMode = "import";
+		startSyncUI(this);
+		try {
+			await importGoogleKeepNotesWithOptions(this, options, {
+				setTotalNotes: (n) => uiSetTotalNotes(this, n),
+				reportProgress: () => reportSyncProgress(this),
+			});
+			await logSync(
+				this,
+				`Manual sync ended - success. Processed ${this.processedNotes} note(s).`
+			);
+			finishSyncUI(this, true);
+		} catch (error: unknown) {
+			finishSyncUI(this, false);
+			await logSync(
+				this,
+				`Manual sync ended - failed: ${getErrorMessage(error)}. Processed ${
+					this.processedNotes
+				} note(s).`
+			);
+		} finally {
+			resolve();
+		}
 	}
 
 	async importNotes(auto = false) {

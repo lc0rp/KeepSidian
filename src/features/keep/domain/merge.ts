@@ -7,9 +7,10 @@ export function mergeNoteText(
 
 	const m = existingLines.length;
 	const n = incomingLines.length;
-	const lcsMatrix: number[][] = Array.from({ length: m + 1 }, () =>
-		Array(n + 1).fill(0)
-	);
+	const lcsMatrix: number[][] = [];
+	for (let row = 0; row <= m; row++) {
+		lcsMatrix[row] = new Array<number>(n + 1).fill(0);
+	}
 
 	for (let i = m - 1; i >= 0; i--) {
 		for (let j = n - 1; j >= 0; j--) {

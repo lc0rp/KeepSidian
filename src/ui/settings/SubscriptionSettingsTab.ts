@@ -38,11 +38,11 @@ export class SubscriptionSettingsTab {
 		const includeSetting = new Setting(containerEl)
 			.setName("Only include notes containing")
 			.setDesc("Terms to include (comma-separated)." + descSuffix)
-			.addText((text) =>
-				text
-					.setPlaceholder("term1, term2, ...")
-					.setValue(premiumFeatureValues.includeNotesTerms.join(", "))
-					.onChange(async (value) => {
+				.addText((text) =>
+					text
+						.setPlaceholder("Term 1, term 2, ...")
+						.setValue(premiumFeatureValues.includeNotesTerms.join(", "))
+						.onChange(async (value) => {
 						premiumFeatureValues.includeNotesTerms = value
 							.split(",")
 							.map((k) => k.trim())
@@ -54,11 +54,11 @@ export class SubscriptionSettingsTab {
 		const excludeSetting = new Setting(containerEl)
 			.setName("Exclude notes containing")
 			.setDesc("Terms to skip (comma-separated)." + descSuffix)
-			.addText((text) =>
-				text
-					.setPlaceholder("term1, term2, ...")
-					.setValue(premiumFeatureValues.excludeNotesTerms.join(", "))
-					.onChange(async (value) => {
+				.addText((text) =>
+					text
+						.setPlaceholder("Term 1, term 2, ...")
+						.setValue(premiumFeatureValues.excludeNotesTerms.join(", "))
+						.onChange(async (value) => {
 						premiumFeatureValues.excludeNotesTerms = value
 							.split(",")
 							.map((k) => k.trim())
@@ -109,11 +109,11 @@ export class SubscriptionSettingsTab {
 		const tagPrefixSetting = new Setting(containerEl)
 			.setName("Tag prefix")
 			.setDesc("Prefix to identify generated tags (leave empty for none)." + descSuffix)
-			.addText((text) =>
-				text
-					.setValue(premiumFeatureValues.tagPrefix)
-					.setPlaceholder("auto-")
-					.onChange(async (value) => {
+				.addText((text) =>
+					text
+						.setValue(premiumFeatureValues.tagPrefix)
+						.setPlaceholder("Auto-")
+						.onChange(async (value) => {
 						premiumFeatureValues.tagPrefix = value;
 					})
 			)
@@ -172,7 +172,7 @@ export class SubscriptionSettingsTab {
 
 		const subscribeUrl = `${KEEPSIDIAN_SERVER_URL}/subscribe`;
 		const subscribeLink = subscribeSetting.controlEl.createEl("a", {
-			text: "🌎 Support this project",
+			text: "🌎 support this project",
 			attr: {
 				href: subscribeUrl,
 				target: "_blank",
@@ -195,18 +195,18 @@ export class SubscriptionSettingsTab {
 				"Get access to advanced features like two-way sync, title suggestions, and automatic tag creation."
 			)
 			.addExtraButton((button) =>
-				button
-					.setIcon("refresh")
-					.setTooltip("Check subscription status")
-					.onClick(async () => {
-						await this.plugin.subscriptionService.checkSubscription();
-						this.display();
-					})
-			);
+					button
+						.setIcon("refresh")
+						.setTooltip("Check subscription status")
+						.onClick(async () => {
+							await this.plugin.subscriptionService.checkSubscription();
+							void this.display();
+						})
+				);
 
 		// Show subscription details
 		new Setting(containerEl)
-			.setName("✅ Active subscription")
+			.setName("✅ active subscription")
 			.setDesc("Your subscription is active. You can configure your premium settings below.");
 
 		if (subscriptionInfo?.plan_details) {

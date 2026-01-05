@@ -3,7 +3,7 @@ import os from "os";
 import path from "path";
 import pcrImport from "puppeteer-chromium-resolver";
 import { chromium } from "playwright";
-import type { Browser, BrowserContext, Page } from "playwright";
+import type { Browser } from "playwright";
 import type KeepSidianPlugin from "main";
 import { logRetrievalWizardEvent } from "./retrievalSessionLogger";
 

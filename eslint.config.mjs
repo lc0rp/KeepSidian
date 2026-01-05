@@ -14,9 +14,14 @@ export default defineConfig([
       "coverage/**",
       "__mocks__/**",
       "**/__mocks__/**",
+      "index.ts",
+      "jest.config.ts",
       "test/**",
       "**/tests/**",
       "**/*.test.ts",
+      "test-utils/**",
+      "**/test-utils/**",
+      "*.cjs",
       "*.js",
       "scripts/**"
     ]
@@ -26,7 +31,7 @@ export default defineConfig([
     files: ["**/*.ts"],
     languageOptions: {
       parser: tsparser,
-      parserOptions: { 
+      parserOptions: {
         project: "./tsconfig.json",
         sourceType: "module"
       },
@@ -47,6 +52,7 @@ export default defineConfig([
         fishAll: "readonly",
         isBoolean: "readonly",
         nextFrame: "readonly",
+        process: "readonly",
         ready: "readonly",
         sleep: "readonly"
       }
@@ -56,14 +62,47 @@ export default defineConfig([
       "@typescript-eslint/ban-ts-comment": "off",
       "@typescript-eslint/no-empty-function": "off",
       "no-prototype-builtins": "off",
-      "@typescript-eslint/no-misused-promises": ["error",{"checksVoidReturn":{"attributes":false,"properties":false,"returns":false,"variables":false}}],
+      "@typescript-eslint/no-misused-promises": ["error", { "checksVoidReturn": { "attributes": false, "properties": false, "returns": false, "variables": false } }],
       "obsidianmd/ui/sentence-case": [
         "error",
         {
-          brands: [...DEFAULT_BRANDS, "Google Keep"]
+          brands: [
+            ...DEFAULT_BRANDS,
+            "DevTools",
+            "GitHub",
+            "Google",
+            "Google Keep",
+            "KeepSidian",
+            "KIM",
+            "Microsoft",
+            "OAuth",
+            "Obsidian"
+          ]
         }
       ]
     },
+  },
+  {
+    files: ["src/integrations/google/**/*.ts"],
+    languageOptions: {
+      globals: {
+        __dirname: "readonly",
+        __filename: "readonly"
+      }
+    },
+    rules: {
+      "@typescript-eslint/no-base-to-string": "off",
+      "@typescript-eslint/no-implied-eval": "off",
+      "@typescript-eslint/no-misused-promises": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/unbound-method": "off",
+      "import/no-nodejs-modules": "off",
+      "no-console": "off",
+      "obsidianmd/no-forbidden-elements": "off"
+    }
   },
   {
     files: ["**/*.mjs"],

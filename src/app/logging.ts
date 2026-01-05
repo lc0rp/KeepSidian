@@ -63,7 +63,7 @@ async function writeLogEntries(plugin: KeepSidianPlugin, entries: string[]) {
 			if (!isTest) {
 				console.error("Failed to write sync log:", e);
 			}
-			new Notice("KeepSidian: Failed to write sync log.");
+				new Notice("KeepSidian: failed to write sync log.");
 		} catch {
 			/* empty */
 		}

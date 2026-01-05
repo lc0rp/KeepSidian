@@ -41,6 +41,7 @@ type KeepSidianSettingsTabInternals = {
 	isValidEmail(email: string): boolean;
 	handleTokenPaste(event: ClipboardEvent): Promise<void>;
 	handleAutomationLaunch(engine: 'puppeteer' | 'playwright'): Promise<void>;
+	renderSettings(): Promise<void>;
 };
 
 jest.mock('../../modals/NoteImportOptionsModal', () => ({
@@ -208,7 +209,7 @@ const mockSubscriptionService = () => {
         const spyCreateRetrieveTokenWebView = jest.spyOn(settingsTabInternals, 'createRetrieveTokenWebView');
         const spyAddSupportSection = jest.spyOn(settingsTabInternals, 'addSupportSection');
 
-        await settingsTab.display();
+        await settingsTabInternals.renderSettings();
 
         expect(spyAddEmailSetting).toHaveBeenCalled();
         expect(spyAddSyncTokenSetting).toHaveBeenCalled();
@@ -224,7 +225,7 @@ const mockSubscriptionService = () => {
 
         const spyCreateRetrieveTokenWebView = jest.spyOn(settingsTabInternals, 'createRetrieveTokenWebView');
 
-        await settingsTab.display();
+        await settingsTabInternals.renderSettings();
 
         expect(spyCreateRetrieveTokenWebView).not.toHaveBeenCalled();
     });

@@ -309,7 +309,7 @@ describe("KeepSidianPlugin", () => {
 			await plugin.openLatestSyncLog();
 
 			expect(Notice).toHaveBeenCalledWith(
-				"KeepSidian: No sync logs found."
+				"KeepSidian: no sync logs found."
 			);
 			expect(
 				plugin.app.workspace.openLinkText as jest.Mock
@@ -534,7 +534,7 @@ describe("KeepSidianPlugin", () => {
 			await plugin.importNotes();
 
 			expect(notice).toHaveBeenCalledWith(
-				`KeepSidian: Failed to create save location: ${saveLocation}`
+				`KeepSidian: failed to create save location: ${saveLocation}`
 			);
 			expect(importSpy).not.toHaveBeenCalled();
 		});
@@ -632,7 +632,7 @@ describe("KeepSidianPlugin", () => {
 			}
 
 			expect(notice).toHaveBeenCalledWith(
-				"KeepSidian: Failed to write sync log."
+				"KeepSidian: failed to write sync log."
 			);
 		});
 

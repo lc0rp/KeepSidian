@@ -20,7 +20,7 @@ type MenuWithPositioning = Menu & {
 type NoticeWithControls = Notice & {
 	setMessage?: (message: string) => void;
 	hide?: () => void;
-	noticeEl?: HTMLElement;
+	messageEl?: HTMLElement;
 };
 
 const SYNC_NOTICE_PREFIX = "Syncing Google Keep Notes...";
@@ -81,8 +81,8 @@ function updateProgressNotice(plugin: KeepSidianPlugin) {
 		);
 		return;
 	}
-	if (noticeControls?.noticeEl) {
-		noticeControls.noticeEl.textContent = formatSyncNoticeMessage(
+	if (noticeControls?.messageEl) {
+		noticeControls.messageEl.textContent = formatSyncNoticeMessage(
 			plugin.processedNotes,
 			plugin.totalNotes
 		);
@@ -170,12 +170,12 @@ function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 	});
 
 	menu.addItem((item) => {
-		item.setTitle("Download from Google Keep")
-			.setDisabled(syncing)
-			.onClick(() => {
-				plugin.importNotes();
-			});
-	});
+			item.setTitle("Download from Google Keep")
+				.setDisabled(syncing)
+				.onClick(() => {
+					void plugin.importNotes();
+				});
+		});
 
 	menu.addItem((item) => {
 		item.setTitle(createMenuTitleWithHint(plugin, "Upload to Google Keep", gateHint))
@@ -208,7 +208,7 @@ function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
 
 	menu.addItem((item) => {
 		item.setTitle("Open sync log file").onClick(() => {
-			plugin.openLatestSyncLog();
+			void plugin.openLatestSyncLog();
 		});
 	});
 
@@ -313,7 +313,9 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 		const hideNotice = noticeControls?.hide;
 		if (hideNotice) {
 			const delay = success ? 4000 : 10000;
-			setTimeout(() => hideNotice.call(noticeControls), delay);
+			setTimeout(() => {
+				hideNotice.call(noticeControls);
+			}, delay);
 		}
 	}
 	const totalValue = plugin.totalNotes ?? undefined;

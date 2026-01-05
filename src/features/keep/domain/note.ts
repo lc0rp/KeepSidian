@@ -99,7 +99,7 @@ function extractFrontmatter(
 					// Convert key to PascalCase
 					const pascalKey = key.replace(
 						/(^|-)([a-z])/g,
-						(match, p1, p2) => p2.toUpperCase()
+						(_match: string, _p1: string, p2: string) => p2.toUpperCase()
 					);
 					acc[pascalKey] = value.trim();
 				}

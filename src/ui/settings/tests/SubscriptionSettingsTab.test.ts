@@ -471,7 +471,7 @@ describe("SubscriptionSettingsTab", () => {
 
 			await subscriptionTab.display();
 
-			expect(containerEl.textContent).toContain("✅ Active subscription");
+			expect(containerEl.textContent).toContain("✅ active subscription");
 			expect(containerEl.textContent).toContain("Auto-tags");
 			expect(containerEl.textContent).not.toContain("requires a subscription");
 		});

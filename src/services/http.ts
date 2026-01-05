@@ -10,14 +10,14 @@ export interface HttpRequestOptions extends HttpOptions {
 	body?: unknown;
 }
 
-type JsonCallable = (this: ResponseLike) => unknown | Promise<unknown>;
+type JsonCallable = (this: ResponseLike) => unknown;
 type ArrayBufferCallable = (this: ResponseLike) => ArrayBuffer | Promise<ArrayBuffer>;
 
 interface ResponseLike {
 	status?: number;
 	headers?: Record<string, string>;
 	text?: string;
-	json?: unknown | JsonCallable;
+	json?: unknown;
 	arrayBuffer?: ArrayBuffer | ArrayBufferCallable;
 }
 
@@ -34,8 +34,8 @@ const callIfFunction = async <T>(
 ): Promise<{ hasValue: boolean; result?: T }> => {
 	if (typeof value === "function") {
 		const callable = value as JsonCallable | ArrayBufferCallable;
-		const result = await callable.call(response);
-		return { hasValue: true, result: result as T };
+		const result = (await callable.call(response)) as T;
+		return { hasValue: true, result };
 	}
 	return { hasValue: false };
 };
@@ -143,9 +143,15 @@ export async function httpGetArrayBuffer(
 			try {
 				const text = getTextSafely(responseLike);
 				if (text) {
-					const errJson = JSON.parse(text);
-					if (errJson && (errJson.error || errJson.message)) {
-						errMsg = errJson.error || errJson.message;
+					const errJson = JSON.parse(text) as { error?: unknown; message?: unknown };
+					const candidateMessage =
+						typeof errJson?.error === "string"
+							? errJson.error
+							: typeof errJson?.message === "string"
+								? errJson.message
+								: undefined;
+					if (candidateMessage) {
+						errMsg = candidateMessage;
 					}
 				}
 			} catch {

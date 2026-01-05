@@ -10,6 +10,8 @@ if you want to view the source, please visit the github repository of this plugi
 */
 `;
 
+const prod = process.argv.includes("production");
+
 function loadEnvFile(filePath) {
 	if (!fs.existsSync(filePath)) {
 		return;
@@ -123,21 +125,26 @@ const ___filename = fileURLToPath(import.meta.url);
 const ___dirname = path.dirname(___filename);
 const rootDir = path.resolve(___dirname, ".");
 
-const envFiles = [path.resolve(rootDir, ".env"), path.resolve(rootDir, prod ? ".env.production" : ".env.development")];
+const envFiles = [
+	path.resolve(rootDir, ".env"),
+	path.resolve(rootDir, prod ? ".env.production" : ".env.development"),
+];
 
 for (const candidate of envFiles) {
 	loadEnvFile(candidate);
 }
 
-const defaultServerUrl = prod ? "https://keepsidianserver-i55qr5tvea-uc.a.run.app" : "http://localhost:8080";
+const defaultServerUrl = prod
+	? "https://keepsidianserver-i55qr5tvea-uc.a.run.app"
+	: "http://localhost:8080";
 
 const resolvedServerUrl = String(process.env.KEEPSIDIAN_SERVER_URL ?? defaultServerUrl).replace(/\/$/, "");
 
 const context = await esbuild.context({
 	banner: {
 		js: banner,
-	outfile: "main.js",
 	},
+	outfile: "main.js",
 	entryPoints: [
 		"src/main.ts",
 	],
@@ -192,3 +199,13 @@ const automationContext = await esbuild.context({
 	],
 });
 
+if (prod) {
+	await context.rebuild();
+	await automationContext.rebuild();
+	await context.dispose();
+	await automationContext.dispose();
+} else {
+	await context.watch();
+	await automationContext.watch();
+	console.log("Watching for changes...");
+}

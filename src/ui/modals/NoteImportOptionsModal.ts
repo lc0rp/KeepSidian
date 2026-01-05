@@ -27,7 +27,7 @@ export class NoteImportOptionsModal extends Modal {
 
 	async onOpen() {
 		const { contentEl } = this;
-		contentEl.createEl("h2", { text: "Import Options" });
+		contentEl.createEl("h2", { text: "Import options" });
 		contentEl.createEl("p", {
 			text: "Thanks for supporting KeepSidian! Update the premium options for this import below.",
 		});

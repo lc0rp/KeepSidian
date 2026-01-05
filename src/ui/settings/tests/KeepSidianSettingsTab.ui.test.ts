@@ -351,18 +351,24 @@ jest.mock("obsidian", () => {
 			this.settingEl.classList.add("setting-heading");
 			return this;
 		}
-		setDisabled(disabled: boolean) {
-			if (disabled) {
-				this.settingEl.classList.add("is-disabled");
-			} else {
-				this.settingEl.classList.remove("is-disabled");
+			setDisabled(disabled: boolean) {
+				if (disabled) {
+					this.settingEl.classList.add("is-disabled");
+				} else {
+					this.settingEl.classList.remove("is-disabled");
+				}
+				const actionableEls = this.controlEl.querySelectorAll("input, button, select");
+				actionableEls.forEach((element) => {
+					if (
+						element instanceof HTMLInputElement ||
+						element instanceof HTMLButtonElement ||
+						element instanceof HTMLSelectElement
+					) {
+						element.disabled = disabled;
+					}
+				});
+				return this;
 			}
-			const actionableEls = this.controlEl.querySelectorAll("input, button, select");
-			actionableEls.forEach((element) => {
-				element.disabled = disabled;
-			});
-			return this;
-		}
 
 		addText(cb: (text: MockTextComponent) => void) {
 			const inputEl = document.createElement("input");
@@ -482,20 +488,19 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 	};
 
-	const findSettingByLabel = (
-		container: HTMLElement,
-		label: string
-	): HTMLElementWithCreateEl | null => {
-		const items = Array.from(
-			container.querySelectorAll(".setting-item")
-		);
-		return (
-			items.find((item) => {
+		const findSettingByLabel = (
+			container: HTMLElement,
+			label: string
+		): HTMLElementWithCreateEl | null => {
+			const items = Array.from(
+				container.querySelectorAll(".setting-item")
+			);
+			const match = items.find((item) => {
 				const nameEl = item.querySelector(".setting-item-name");
 				return nameEl?.textContent === label;
-			}) ?? null
-		);
-	};
+			});
+			return match ? (match as HTMLElementWithCreateEl) : null;
+		};
 
         test("token field show/hide toggle and onChange save", async () => {
                 const container = tab.containerEl;

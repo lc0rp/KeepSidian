@@ -248,7 +248,7 @@ describe("NoteImportOptionsModal", () => {
 
 		await modal.onOpen();
 
-		expect(modal.contentEl.textContent).toContain("Import Options");
+		expect(modal.contentEl.textContent).toContain("Import options");
 		const { SubscriptionSettingsTab } = await import("../../settings/SubscriptionSettingsTab");
 		expect(SubscriptionSettingsTab.displayPremiumFeatures).toHaveBeenCalled();
 

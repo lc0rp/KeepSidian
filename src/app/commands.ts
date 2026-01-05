@@ -1,9 +1,9 @@
 import type KeepSidianPlugin from "@app/main";
 
 export function registerRibbonIcon(plugin: KeepSidianPlugin) {
-	plugin.addRibbonIcon(
-		"folder-sync",
-		"KeepSidian: Perform two-way sync",
+		plugin.addRibbonIcon(
+			"folder-sync",
+			"KeepSidian: perform two-way sync",
 		async (_evt: MouseEvent) => {
 			const gate = await plugin.requireTwoWaySafeguards();
 			if (!gate.allowed) {
