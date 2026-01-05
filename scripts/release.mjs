@@ -277,6 +277,75 @@ const monitorReleaseRun = async (version, { dryRun = false } = {}) => {
 	}
 };
 
+const getRepoSlug = () => {
+	try {
+		const origin = runCapture("git config --get remote.origin.url").trim();
+		if (!origin) {
+			return null;
+		}
+
+		const sshMatch = origin.match(/:(.+?)(?:\.git)?$/);
+		if (sshMatch && sshMatch[1]) {
+			return sshMatch[1];
+		}
+
+		const httpsMatch = origin.match(/github\.com\/(.+?)(?:\.git)?$/);
+		if (httpsMatch && httpsMatch[1]) {
+			return httpsMatch[1];
+		}
+	} catch {
+		// ignore
+	}
+
+	return null;
+};
+
+const publishDraftRelease = async (version, { dryRun = false } = {}) => {
+	const repo = getRepoSlug() ?? "lc0rp/KeepSidian";
+
+	if (dryRun) {
+		console.log(`[dry-run] Would publish GitHub release for ${version}`);
+		return;
+	}
+
+	try {
+		runCapture("gh --version");
+	} catch {
+		console.warn("GitHub CLI (gh) not available; skipping release publish.");
+		return;
+	}
+
+	try {
+		const payload = runCapture(`gh api repos/${repo}/releases?per_page=100`);
+		const releases = JSON.parse(payload);
+		const matching = releases.filter((release) => release.tag_name === version);
+		const published = matching.find((release) => release.draft === false);
+		const draft = matching.find((release) => release.draft === true);
+
+		if (published) {
+			console.log(`Release ${version} already published.`);
+			return;
+		}
+
+		if (!draft) {
+			console.warn(`No draft release found for ${version}.`);
+			return;
+		}
+
+		if (!draft.assets || draft.assets.length === 0) {
+			console.error(`Draft release ${version} has no assets; not publishing.`);
+			process.exit(1);
+		}
+
+		run(
+			`gh api -X PATCH repos/${repo}/releases/${draft.id} -f draft=false -f prerelease=true -f name=${version}`
+		);
+		console.log(`Published release ${version}.`);
+	} catch {
+		console.warn("Unable to publish draft release; check it manually.");
+	}
+};
+
 const determineNextVersion = async (currentVersion) => {
 	const parsed = parseVersion(currentVersion);
 	const alphaBetaChoice = await promptAlphaBetaChoice(currentVersion);
@@ -380,6 +449,7 @@ const main = async () => {
 	}
 
 	await monitorReleaseRun(updatedVersion, { dryRun: isDryRun });
+	await publishDraftRelease(updatedVersion, { dryRun: isDryRun });
 
 	console.log("Release process completed successfully.");
 };
