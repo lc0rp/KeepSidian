@@ -79,9 +79,9 @@ describe("SyncProgressModal", () => {
 		expect(internal.buttons.uploadOnly?.disabled).toBe(false);
 
 		internal.buttons.twoWay?.click();
-		await (modalOptions.requireTwoWayGate as jest.Mock).mock.results[0].value;
+		await (modalOptions.requireTwoWayGate).mock.results[0].value;
 		internal.buttons.uploadOnly?.click();
-		await (modalOptions.requireTwoWayGate as jest.Mock).mock.results[1].value;
+		await (modalOptions.requireTwoWayGate).mock.results[1].value;
 
 		expect(modalOptions.requireTwoWayGate).toHaveBeenCalledTimes(2);
 		expect(modalOptions.showTwoWayGateNotice).not.toHaveBeenCalled();

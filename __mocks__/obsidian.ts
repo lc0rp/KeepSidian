@@ -621,7 +621,7 @@ export class ProgressBarComponent {
 
 	if (!enhancedFragment.createDiv) {
 		enhancedFragment.createDiv = function (options?: CreateElOptions): EnhancedElement<"div"> {
-			return enhancedFragment.createEl!("div", options);
+			return enhancedFragment.createEl("div", options);
 		};
 	}
 

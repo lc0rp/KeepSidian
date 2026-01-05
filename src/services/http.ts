@@ -137,7 +137,7 @@ export async function httpGetArrayBuffer(
 	const responseLike = asResponseLike(response);
 	const statusRaw = responseLike.status;
 	if (typeof statusRaw === "number") {
-		const status = statusRaw as number;
+		const status = statusRaw;
 		if (status < 200 || status >= 300) {
 			let errMsg = `Server returned status ${status}`;
 			try {

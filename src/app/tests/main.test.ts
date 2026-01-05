@@ -415,7 +415,7 @@ describe("KeepSidianPlugin", () => {
 				await runTick.call(plugin);
 				await flushMicrotasks();
 				const gatingMessages = logSyncSpy.mock.calls
-					.map(([, message]) => message as string)
+					.map(([, message]) => message)
 					.filter((message) =>
 						message.includes("Auto sync skipped uploads")
 					);
@@ -665,7 +665,7 @@ describe("KeepSidianPlugin", () => {
 			);
 			await plugin.importNotes(false);
 
-			const writes = (write as jest.Mock).mock.calls.map((c) => c[1]);
+			const writes = (write).mock.calls.map((c) => c[1]);
 			expect(
 				writes.some((c: string) => c.includes("Manual sync started"))
 			).toBe(true);
@@ -708,7 +708,7 @@ describe("KeepSidianPlugin", () => {
 			);
 			await plugin.importNotes(true);
 
-			const writes = (write as jest.Mock).mock.calls.map((c) => c[1]);
+			const writes = (write).mock.calls.map((c) => c[1]);
 			expect(
 				writes.some((c: string) => c.includes("Auto sync started"))
 			).toBe(true);

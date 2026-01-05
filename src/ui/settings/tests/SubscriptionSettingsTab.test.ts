@@ -521,7 +521,7 @@ describe("SubscriptionSettingsTab", () => {
 
 			const subscribeLink = containerEl.querySelector(
 				'a[data-keepsidian-link="subscribe"]'
-			) as HTMLAnchorElement | null;
+			);
 			expect(subscribeLink).not.toBeNull();
 			expect(subscribeLink?.getAttribute("href")).toBe("https://keepsidian.com/subscribe");
 			expect(subscribeLink?.getAttribute("target")).toBe("_blank");

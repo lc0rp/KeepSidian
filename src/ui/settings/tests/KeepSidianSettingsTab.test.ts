@@ -81,7 +81,7 @@ const createElImpl = function createEl(
 	if (typeof opts === 'string') {
 		element.className = opts;
 	} else if (opts && typeof opts === 'object') {
-		const options = opts as CreateElOptions;
+		const options = opts;
 		if (typeof options.text === 'string') {
 			element.textContent = options.text;
 		} else if (options.text instanceof DocumentFragment) {

@@ -7,7 +7,19 @@ import globals from "globals";
 
 export default defineConfig([
   {
-    ignores: ["main.js", "node_modules/**", "dist/**", "coverage/**", "*.js", "scripts/**"]
+    ignores: [
+      "main.js",
+      "node_modules/**",
+      "dist/**",
+      "coverage/**",
+      "__mocks__/**",
+      "**/__mocks__/**",
+      "test/**",
+      "**/tests/**",
+      "**/*.test.ts",
+      "*.js",
+      "scripts/**"
+    ]
   },
   ...obsidianmd.configs.recommended,
   {

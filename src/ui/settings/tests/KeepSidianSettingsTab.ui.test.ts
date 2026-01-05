@@ -271,7 +271,7 @@ jest.mock("obsidian", () => {
 		if (typeof opts === "string") {
 			elementWithCreate.className = opts;
 		} else if (opts && typeof opts === "object") {
-			const options = opts as CreateElOptions;
+			const options = opts;
 			if (typeof options.text === "string") {
 				elementWithCreate.textContent = options.text;
 			} else if (options.text instanceof DocumentFragment) {
@@ -357,9 +357,7 @@ jest.mock("obsidian", () => {
 			} else {
 				this.settingEl.classList.remove("is-disabled");
 			}
-			const actionableEls = this.controlEl.querySelectorAll("input, button, select") as NodeListOf<
-				HTMLElement & { disabled?: boolean }
-			>;
+			const actionableEls = this.controlEl.querySelectorAll("input, button, select");
 			actionableEls.forEach((element) => {
 				element.disabled = disabled;
 			});
@@ -490,10 +488,10 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 	): HTMLElementWithCreateEl | null => {
 		const items = Array.from(
 			container.querySelectorAll(".setting-item")
-		) as HTMLElementWithCreateEl[];
+		);
 		return (
 			items.find((item) => {
-				const nameEl = item.querySelector(".setting-item-name") as HTMLElement | null;
+				const nameEl = item.querySelector(".setting-item-name");
 				return nameEl?.textContent === label;
 			}) ?? null
 		);
@@ -554,7 +552,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 
                 const tokenStatus = container.querySelector(
                         ".keepsidian-token-status"
-                ) as HTMLElement | null;
+                );
 
                 expect(tokenStatus).not.toBeNull();
                 expect(tokenStatus?.classList.contains("keepsidian-hidden")).toBe(false);
@@ -608,7 +606,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 
 		const githubLink = container.querySelector(
 			'a[data-keepsidian-link="github-instructions"]'
-		) as HTMLAnchorElement | null;
+		);
 		expect(githubLink).not.toBeNull();
 		expect(githubLink?.getAttribute("href")).toBe(
 			"https://github.com/djsudduth/keep-it-markdown"
@@ -649,7 +647,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		await tabInternals.addAutoSyncSettings(container);
 		const textInputs = Array.from(container.querySelectorAll("input")).filter(
 			(i) => i.type === "text"
-		) as HTMLInputElement[];
+		);
 		const intervalInput = textInputs[textInputs.length - 1];
 
 		plugin.settings.autoSyncEnabled = true;
@@ -717,7 +715,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 
 		const backupLink = container.querySelector(
 			'a[data-keepsidian-link="obsidian-backup-guide"]'
-		) as HTMLAnchorElement | null;
+		);
 		expect(backupLink).not.toBeNull();
 		expect(backupLink?.textContent).toBe("🌎 Obsidian backup guide");
 		expect(backupLink?.getAttribute("target")).toBe("_blank");

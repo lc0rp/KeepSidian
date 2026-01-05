@@ -779,7 +779,7 @@ const runPuppeteerFlow = async (
 				if (target.type() !== "page") {
 					return;
 				}
-				const nextPage = (await target.page()) as AutomationPage | null;
+				const nextPage = (await target.page());
 				if (nextPage) {
 					await setActivePage(nextPage);
 				}
@@ -971,8 +971,8 @@ const runPlaywrightFlow = async (
 		const context = (await browser.newContext({
 			viewport: null,
 			userAgent: DEFAULT_USER_AGENT,
-		})) as BrowserContext;
-		const page = (await context.newPage()) as Page;
+		}));
+		const page = (await context.newPage());
 		let activePage: AutomationPage = page;
 		const attachedPages = new Set<AutomationPage>();
 		let overlayPayload: OverlayPayload | null = buildOverlayPayload(null, email);

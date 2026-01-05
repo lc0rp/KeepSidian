@@ -96,7 +96,7 @@ describe("status bar gating", () => {
 			.mockImplementation(() => {});
 
 		const menu = triggerStatusMenu();
-		const items = menu.items as MenuItemMock[];
+		const items = menu.items;
 
 		const twoWayItem = items.find((item: MenuItemMock) =>
 			getMenuTitleText(item.title).startsWith("Two-way sync")
@@ -141,7 +141,7 @@ describe("status bar gating", () => {
 			.mockResolvedValue(undefined);
 
 		const menu = triggerStatusMenu();
-		const items = menu.items as MenuItemMock[];
+		const items = menu.items;
 		const twoWayItem = items.find((item: MenuItemMock) =>
 			getMenuTitleText(item.title) === "Two-way sync"
 		);
