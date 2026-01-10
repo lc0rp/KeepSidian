@@ -151,6 +151,17 @@ have done so, we shall generate a token that will be used to access your Google 
 
 **PRIVACY NOTE**: THIS TOKEN IS ONLY STORED ON YOUR COMPUTER.
 
+## Mobile compatibility (v2.0.3+)
+
+Starting with v2.0.3, KeepSidian can be used on mobile. A community member takes Google Keep notes
+on the go from their smartwatch, then uses KeepSidian on their phone to sync those notes into
+Obsidian.
+
+KeepSidian on mobile still requires a sync token, but it does not include the token retrieval
+wizard. The easiest path is to retrieve the token on desktop, copy it, paste it into a temporary
+Google Keep note, then open that note on your phone and copy/paste the token into KeepSidian
+settings. Any other reliable copy/paste method between desktop and phone works too.
+
 ## Frontmatter
 
 The plugin adds the following frontmatter to each synced note:
