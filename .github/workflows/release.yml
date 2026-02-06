@@ -17,6 +17,17 @@ jobs:
         with:
           node-version: "18.x"
 
+      - name: Verify backend URL
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          url="https://${tag}---keepsidianserver-i55qr5tvea-uc.a.run.app/subscribe"
+          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url")
+          if [ "$status" != "200" ]; then
+            echo "Backend URL not live: $url (status $status)"
+            exit 1
+          fi
+          echo "Backend URL live: $url"
+
       - name: Build plugin
         run: |
           npm install

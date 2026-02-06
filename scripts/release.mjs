@@ -155,6 +155,45 @@ const toVersionTag = (version) => `v${version.split(".").join("-")}`;
 const getProductionUrlForVersion = (version) =>
 	`https://${toVersionTag(version)}---keepsidianserver-i55qr5tvea-uc.a.run.app/`;
 
+const BACKEND_CHECK_PATH = "/subscribe";
+const BACKEND_CHECK_TIMEOUT_MS = 10_000;
+
+const checkBackendUrl = async (version, { dryRun = false } = {}) => {
+	const baseUrl = getProductionUrlForVersion(version).replace(/\/$/, "");
+	const checkUrl = `${baseUrl}${BACKEND_CHECK_PATH}`;
+
+	if (dryRun) {
+		console.log(`[dry-run] Would verify backend URL is live: ${checkUrl}`);
+		return;
+	}
+
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), BACKEND_CHECK_TIMEOUT_MS);
+
+	try {
+		const response = await fetch(checkUrl, {
+			method: "GET",
+			redirect: "follow",
+			signal: controller.signal,
+		});
+
+		if (!response.ok) {
+			throw new Error(`Backend URL check failed: ${checkUrl} returned ${response.status}.`);
+		}
+
+		console.log(`Backend URL check passed: ${checkUrl} → ${response.status}`);
+	} catch (error) {
+		if (error?.name === "AbortError") {
+			throw new Error(
+				`Backend URL check timed out after ${BACKEND_CHECK_TIMEOUT_MS}ms: ${checkUrl}`
+			);
+		}
+		throw new Error(`Backend URL check failed for ${checkUrl}: ${error}`);
+	} finally {
+		clearTimeout(timeoutId);
+	}
+};
+
 const updateEnvProduction = (version, { dryRun = false } = {}) => {
 	const envContent = readFileSync(ENV_FILE_PATH, "utf8");
 	const lineEnding = envContent.includes("\r\n") ? "\r\n" : "\n";
@@ -400,6 +439,7 @@ const main = async () => {
 
 	console.log(`Preparing release for version ${nextVersion} (${releaseTypeLabel}).`);
 	const { changed: envChanged } = updateEnvProduction(nextVersion, { dryRun: isDryRun });
+	await checkBackendUrl(nextVersion, { dryRun: isDryRun });
 
 	if (isDryRun) {
 		console.log("[dry-run] Would run: npm run build");
