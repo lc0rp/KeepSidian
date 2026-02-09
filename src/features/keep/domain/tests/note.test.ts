@@ -25,6 +25,14 @@ describe("extractFrontmatter", () => {
 
 		expect(frontmatterDict).toEqual({ KebabKey: "value" });
 	});
+
+	it("should preserve body content after additional frontmatter delimiters", () => {
+		const text = "---\nkey: value\n---\nLine 1\n---\nLine 2";
+		const [frontmatter, body] = extractFrontmatter(text);
+
+		expect(frontmatter).toBe("key: value");
+		expect(body).toBe("Line 1\n---\nLine 2");
+	});
 });
 
 describe("normalizeNote", () => {

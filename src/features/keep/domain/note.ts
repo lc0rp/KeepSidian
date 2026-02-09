@@ -83,10 +83,14 @@ function extractFrontmatter(
 	let frontmatter = "";
 	let frontmatterDict = {};
 	let textWithoutFrontmatter = text;
-	const splitText = text?.split("---");
-	if (splitText && splitText.length > 2) {
-		frontmatter = splitText[1].trim();
-		textWithoutFrontmatter = splitText[2].trim();
+	const frontmatterMatch = text.match(
+		/^---\s*\r?\n([\s\S]*?)\r?\n---\s*\r?\n?/
+	);
+	if (frontmatterMatch) {
+		frontmatter = frontmatterMatch[1].trim();
+		textWithoutFrontmatter = text
+			.slice(frontmatterMatch[0].length)
+			.trim();
 	}
 
 	// Split frontmatter into key value pairs
