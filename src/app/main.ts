@@ -38,6 +38,15 @@ interface TwoWayGateResult {
 	reasons: string[];
 }
 
+interface SecretStorageAdapter {
+	setSecret: (id: string, secret: string) => void;
+	getSecret: (id: string) => string | null;
+}
+
+const SYNC_TOKEN_SECRET_ID = "google-sync-token";
+const GDRIVE_TOKEN_SECRET_ID = "google-drive-access-token";
+const GDRIVE_REFRESH_TOKEN_SECRET_ID = "google-drive-refresh-token";
+
 export default class KeepSidianPlugin extends Plugin {
 	settings: KeepSidianPluginSettings;
 	subscriptionService: SubscriptionService;
@@ -57,6 +66,146 @@ export default class KeepSidianPlugin extends Plugin {
 	private isSyncing = false;
 	private subscriptionActive: boolean | null = null;
 	private lastAutoSyncGateReasons: string[] | null = null;
+
+	private getSecretStorage(): SecretStorageAdapter | null {
+		const candidate = (this.app as unknown as { secretStorage?: unknown }).secretStorage;
+		if (!candidate || typeof candidate !== "object") {
+			return null;
+		}
+		const storage = candidate as Partial<SecretStorageAdapter>;
+		if (typeof storage.setSecret !== "function" || typeof storage.getSecret !== "function") {
+			return null;
+		}
+		return storage as SecretStorageAdapter;
+	}
+
+	private getSecret(secretId: string): string | null {
+		const storage = this.getSecretStorage();
+		if (!storage) {
+			return null;
+		}
+		try {
+			return storage.getSecret(secretId);
+		} catch {
+			return null;
+		}
+	}
+
+	private setSecret(secretId: string, value: string): boolean {
+		const storage = this.getSecretStorage();
+		if (!storage) {
+			return false;
+		}
+		try {
+			storage.setSecret(secretId, value);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	private hydrateSyncTokenFromSecretStorage(): boolean {
+		const secretStorage = this.getSecretStorage();
+		if (!secretStorage) {
+			return false;
+		}
+
+		let changed = false;
+		this.settings.syncTokenSecretId = this.settings.syncTokenSecretId || SYNC_TOKEN_SECRET_ID;
+		const trimmedToken = this.settings.token?.trim() ?? "";
+
+		if (trimmedToken.length > 0) {
+			if (this.setSecret(this.settings.syncTokenSecretId, trimmedToken)) {
+				this.settings.token = trimmedToken;
+				changed = true;
+			}
+		} else {
+			const secretToken = this.getSecret(this.settings.syncTokenSecretId);
+			if (typeof secretToken === "string" && secretToken.trim().length > 0) {
+				this.settings.token = secretToken;
+				changed = true;
+			}
+		}
+
+		return changed;
+	}
+
+	private hydrateDriveSecretsFromSecretStorage(): boolean {
+		const secretStorage = this.getSecretStorage();
+		if (!secretStorage) {
+			return false;
+		}
+
+		let changed = false;
+		this.settings.gdriveTokenSecretId =
+			this.settings.gdriveTokenSecretId || GDRIVE_TOKEN_SECRET_ID;
+		this.settings.gdriveRefreshTokenSecretId =
+			this.settings.gdriveRefreshTokenSecretId || GDRIVE_REFRESH_TOKEN_SECRET_ID;
+
+		const trimmedDriveToken = this.settings.gdriveToken?.trim() ?? "";
+		if (trimmedDriveToken.length > 0) {
+			if (this.setSecret(this.settings.gdriveTokenSecretId, trimmedDriveToken)) {
+				this.settings.gdriveToken = trimmedDriveToken;
+				changed = true;
+			}
+		} else {
+			const driveToken = this.getSecret(this.settings.gdriveTokenSecretId);
+			if (typeof driveToken === "string" && driveToken.trim().length > 0) {
+				this.settings.gdriveToken = driveToken;
+				changed = true;
+			}
+		}
+
+		const trimmedRefreshToken = this.settings.gdriveRefreshToken?.trim() ?? "";
+		if (trimmedRefreshToken.length > 0) {
+			if (this.setSecret(this.settings.gdriveRefreshTokenSecretId, trimmedRefreshToken)) {
+				this.settings.gdriveRefreshToken = trimmedRefreshToken;
+				changed = true;
+			}
+		} else {
+			const refreshToken = this.getSecret(this.settings.gdriveRefreshTokenSecretId);
+			if (typeof refreshToken === "string" && refreshToken.trim().length > 0) {
+				this.settings.gdriveRefreshToken = refreshToken;
+				changed = true;
+			}
+		}
+
+		return changed;
+	}
+
+	private persistSensitiveSettingsToSecretStorage(): void {
+		if (!this.getSecretStorage()) {
+			return;
+		}
+
+		this.settings.syncTokenSecretId = this.settings.syncTokenSecretId || SYNC_TOKEN_SECRET_ID;
+		this.settings.gdriveTokenSecretId =
+			this.settings.gdriveTokenSecretId || GDRIVE_TOKEN_SECRET_ID;
+		this.settings.gdriveRefreshTokenSecretId =
+			this.settings.gdriveRefreshTokenSecretId || GDRIVE_REFRESH_TOKEN_SECRET_ID;
+
+		void this.setSecret(this.settings.syncTokenSecretId, this.settings.token?.trim() ?? "");
+		void this.setSecret(
+			this.settings.gdriveTokenSecretId,
+			this.settings.gdriveToken?.trim() ?? ""
+		);
+		void this.setSecret(
+			this.settings.gdriveRefreshTokenSecretId,
+			this.settings.gdriveRefreshToken?.trim() ?? ""
+		);
+	}
+
+	private buildPersistedSettings(): KeepSidianPluginSettings {
+		if (!this.getSecretStorage()) {
+			return this.settings;
+		}
+		return {
+			...this.settings,
+			token: "",
+			gdriveToken: undefined,
+			gdriveRefreshToken: undefined,
+		};
+	}
 
 	async onload() {
 		await this.loadSettings();
@@ -107,9 +256,14 @@ export default class KeepSidianPlugin extends Plugin {
 	async loadSettings() {
 		const saved = (await this.loadData()) as Partial<KeepSidianPluginSettings> | null;
 		this.settings = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
+		const sensitiveSettingsChanged =
+			this.hydrateSyncTokenFromSecretStorage() || this.hydrateDriveSecretsFromSecretStorage();
 		this.normalizeTwoWaySettings();
 		this.lastSyncSummary = this.settings.lastSyncSummary ?? null;
 		this.lastSyncLogPath = this.settings.lastSyncLogPath ?? null;
+		if (sensitiveSettingsChanged) {
+			await this.saveData(this.buildPersistedSettings());
+		}
 	}
 
 	private normalizeTwoWaySettings() {
@@ -327,7 +481,8 @@ export default class KeepSidianPlugin extends Plugin {
 	async saveSettings() {
 		this.settings.lastSyncSummary = this.lastSyncSummary;
 		this.settings.lastSyncLogPath = this.lastSyncLogPath ?? null;
-		await this.saveData(this.settings);
+		this.persistSensitiveSettingsToSecretStorage();
+		await this.saveData(this.buildPersistedSettings());
 	}
 
 	isSyncInProgress(): boolean {

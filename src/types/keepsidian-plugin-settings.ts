@@ -17,6 +17,7 @@ export interface LastSyncSummary {
 export interface KeepSidianPluginSettings {
 	email: string;
 	token: string;
+	syncTokenSecretId: string;
 	saveLocation: string;
 	oauthFlow: "desktop" | "webviewer";
 	oauthDebugMode: boolean;
@@ -24,7 +25,9 @@ export interface KeepSidianPluginSettings {
 	subscriptionCache?: SubscriptionCache;
 	premiumFeatures: PremiumFeatureSettings;
 	gdriveToken?: string;
+	gdriveTokenSecretId: string;
 	gdriveRefreshToken?: string;
+	gdriveRefreshTokenSecretId: string;
 	gdriveSaveLocation?: string;
 	autoSyncEnabled: boolean;
 	autoSyncIntervalHours: number;
@@ -40,6 +43,7 @@ export interface KeepSidianPluginSettings {
 export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
 	email: "",
 	token: "",
+	syncTokenSecretId: "google-sync-token",
 	saveLocation: "Google Keep",
 	oauthFlow: "desktop",
 	oauthDebugMode: false,
@@ -47,7 +51,9 @@ export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
 	subscriptionCache: undefined,
 	premiumFeatures: DEFAULT_PREMIUM_FEATURES,
 	gdriveToken: undefined,
+	gdriveTokenSecretId: "google-drive-access-token",
 	gdriveRefreshToken: undefined,
+	gdriveRefreshTokenSecretId: "google-drive-refresh-token",
 	gdriveSaveLocation: undefined,
 	autoSyncEnabled: false,
 	autoSyncIntervalHours: 24,

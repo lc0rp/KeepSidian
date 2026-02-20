@@ -149,7 +149,7 @@ export class KeepSidianSettingsTab extends PluginSettingTab {
 		const tokenSetting = new Setting(containerEl)
 			.setName("Sync token")
 			.setDesc(
-				"This token authorizes access to your Google Keep data." +
+				"This token authorizes access to your Google Keep data. KeepSidian stores it securely via Obsidian secret storage when available." +
 					(Platform.isMobileApp
 						? " Paste a token retrieved on desktop, or follow the GitHub instructions further down below."
 						: " Retrieve your token using the options below, or paste it directly here.")

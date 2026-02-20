@@ -32,7 +32,8 @@ This is particularly useful for users who cannot run Python scripts on their com
 
 When you start a sync, you will provide your Google Keep email and a token generated during
 installation. These credentials are stored on your computer, sent when you sync, and then
-discarded - We do not log or store your credentials or notes in any way.
+discarded. KeepSidian stores sync tokens in Obsidian secret storage when available, and does not
+log or store your credentials or notes on the server.
 
 ## Sync commands
 
@@ -150,6 +151,7 @@ Click "Retrieve Token," and a browser window should open, prompting you to log i
 have done so, we shall generate a token that will be used to access your Google Keep account.
 
 **PRIVACY NOTE**: THIS TOKEN IS ONLY STORED ON YOUR COMPUTER.
+When supported by your Obsidian version, KeepSidian stores the token in Obsidian secret storage.
 
 ## Mobile compatibility (v2.0.3+)
 

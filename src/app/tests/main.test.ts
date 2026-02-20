@@ -744,6 +744,104 @@ describe("KeepSidianPlugin", () => {
 		});
 	});
 
+	describe("secret storage migration", () => {
+		it("migrates legacy plaintext sync token into secret storage on load", async () => {
+			const setSecret = jest.fn();
+			const getSecret = jest.fn().mockReturnValue("legacy-sync-token");
+			plugin.app = {
+				workspace: {},
+				vault: {},
+				secretStorage: {
+					setSecret,
+					getSecret,
+				},
+			} as unknown as Plugin["app"];
+			plugin.loadData = jest.fn().mockResolvedValue({
+				...DEFAULT_SETTINGS,
+				token: "legacy-sync-token",
+			});
+
+			await plugin.loadSettings();
+
+			expect(setSecret).toHaveBeenCalledWith("google-sync-token", "legacy-sync-token");
+			expect(plugin.settings.syncTokenSecretId).toBe("google-sync-token");
+			expect(plugin.settings.token).toBe("legacy-sync-token");
+			expect(plugin.saveData).toHaveBeenCalledWith(
+				expect.objectContaining({
+					token: "",
+					syncTokenSecretId: "google-sync-token",
+				})
+			);
+		});
+
+		it("loads sync token from secret storage when only secret id is persisted", async () => {
+			const setSecret = jest.fn();
+			const getSecret = jest.fn().mockReturnValue("secret-backed-token");
+			plugin.app = {
+				workspace: {},
+				vault: {},
+				secretStorage: {
+					setSecret,
+					getSecret,
+				},
+			} as unknown as Plugin["app"];
+			plugin.loadData = jest.fn().mockResolvedValue({
+				...DEFAULT_SETTINGS,
+				token: "",
+				syncTokenSecretId: "google-sync-token",
+			});
+
+			await plugin.loadSettings();
+
+			expect(getSecret).toHaveBeenCalledWith("google-sync-token");
+			expect(plugin.settings.token).toBe("secret-backed-token");
+		});
+
+		it("stores sensitive settings in secret storage and strips plaintext on save", async () => {
+			const setSecret = jest.fn();
+			const getSecret = jest.fn().mockReturnValue(null);
+			plugin.app = {
+				workspace: {},
+				vault: {},
+				secretStorage: {
+					setSecret,
+					getSecret,
+				},
+			} as unknown as Plugin["app"];
+			plugin.settings = {
+				...DEFAULT_SETTINGS,
+				token: "save-time-sync-token",
+				gdriveToken: "save-time-gdrive-token",
+				gdriveRefreshToken: "save-time-refresh-token",
+			};
+
+			await plugin.saveSettings();
+
+			expect(setSecret).toHaveBeenCalledWith("google-sync-token", "save-time-sync-token");
+			expect(setSecret).toHaveBeenCalledWith(
+				"google-drive-access-token",
+				"save-time-gdrive-token"
+			);
+			expect(setSecret).toHaveBeenCalledWith(
+				"google-drive-refresh-token",
+				"save-time-refresh-token"
+			);
+			expect(plugin.saveData).toHaveBeenCalledWith(
+				expect.objectContaining({
+					token: "",
+					syncTokenSecretId: "google-sync-token",
+					gdriveToken: undefined,
+					gdriveTokenSecretId: "google-drive-access-token",
+					gdriveRefreshToken: undefined,
+					gdriveRefreshTokenSecretId: "google-drive-refresh-token",
+				})
+			);
+			expect(plugin.settings.token).toBe("save-time-sync-token");
+			expect(plugin.settings.gdriveToken).toBe("save-time-gdrive-token");
+			expect(plugin.settings.gdriveRefreshToken).toBe("save-time-refresh-token");
+		});
+	});
+
 	describe("loadSettings safeguards", () => {
 		it("forces beta toggles off when backups are not acknowledged", async () => {
 			plugin.loadData = jest.fn().mockResolvedValue({

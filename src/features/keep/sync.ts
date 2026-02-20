@@ -277,11 +277,15 @@ export async function processAndSaveNote(
                         await ensureParentFolderForFile(plugin.app, noteFilePath);
                         await plugin.app.vault.adapter.write(noteFilePath, newMdContent);
                         await logSync(plugin, `${noteLink} - new file created`, NOTE_LOG_BATCH_OPTIONS);
-                } else {
-                        const existingMarkdownFileContent = await plugin.app.vault.adapter.read(noteFilePath);
-			const [existingFrontmatter, existingTextWithoutFrontmatter] = extractFrontmatter(
-				existingMarkdownFileContent
-			);
+	                } else {
+	                        const existingMarkdownFileContentRaw = await plugin.app.vault.adapter.read(noteFilePath);
+	                        const existingMarkdownFileContent =
+	                                typeof existingMarkdownFileContentRaw === "string"
+	                                        ? existingMarkdownFileContentRaw
+	                                        : "";
+				const [existingFrontmatter, existingTextWithoutFrontmatter] = extractFrontmatter(
+					existingMarkdownFileContent
+				);
 
 			const mdFrontmatter = buildFrontmatterWithSyncDate(
 				existingFrontmatter,
