@@ -42,4 +42,4 @@ jobs:
           gh release create "$tag" \
             --title="$tag" \
             --draft \
-            main.js keepTokenBrowserAutomationDesktop.js manifest.json styles.css
+            main.js manifest.json styles.css

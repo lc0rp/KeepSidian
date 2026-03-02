@@ -124,6 +124,15 @@ function playwrightCoreDirPatchPlugin() {
 const ___filename = fileURLToPath(import.meta.url);
 const ___dirname = path.dirname(___filename);
 const rootDir = path.resolve(___dirname, ".");
+const externalBuiltins = Array.from(
+	new Set(
+		builtinModules.flatMap((moduleName) =>
+			moduleName.startsWith("node:")
+				? [moduleName, moduleName.slice("node:".length)]
+				: [moduleName, `node:${moduleName}`]
+		)
+	)
+);
 
 const envFiles = [
 	path.resolve(rootDir, ".env"),
@@ -163,47 +172,26 @@ const context = await esbuild.context({
 		"@lezer/common",
 		"@lezer/highlight",
 		"@lezer/lr",
-		...builtinModules,
+		...externalBuiltins,
 	],
 	format: "cjs",
 	target: "es2018",
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
-	plugins: [tsconfigPathsPlugin({ tsconfigPath: path.resolve(rootDir, "tsconfig.json") })],
+	plugins: [
+		tsconfigPathsPlugin({ tsconfigPath: path.resolve(rootDir, "tsconfig.json") }),
+		playwrightCoreDirPatchPlugin(),
+	],
 	define: {
 		"process.env.KEEPSIDIAN_SERVER_URL": JSON.stringify(resolvedServerUrl),
 	},
 });
 
-const automationContext = await esbuild.context({
-	banner: {
-		js: banner,
-	},
-	entryPoints: ["src/integrations/google/keepTokenBrowserAutomationDesktop.ts"],
-	bundle: true,
-	platform: "node",
-	external: ["obsidian", "electron", ...builtinModules],
-	format: "cjs",
-	target: "es2018",
-	logLevel: "info",
-	sourcemap: prod ? false : "inline",
-	treeShaking: true,
-	outdir: ".",
-	entryNames: "[name]",
-	plugins: [
-		tsconfigPathsPlugin({ tsconfigPath: path.resolve(rootDir, "tsconfig.json") }),
-		playwrightCoreDirPatchPlugin(),
-	],
-});
-
 if (prod) {
 	await context.rebuild();
-	await automationContext.rebuild();
 	await context.dispose();
-	await automationContext.dispose();
 } else {
 	await context.watch();
-	await automationContext.watch();
 	console.log("Watching for changes...");
 }
