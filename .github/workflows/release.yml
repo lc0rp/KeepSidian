@@ -19,8 +19,10 @@ jobs:
 
       - name: Verify backend URL
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          url="https://${tag}---keepsidianserver-i55qr5tvea-uc.a.run.app/subscribe"
+          raw_tag="${GITHUB_REF#refs/tags/}"
+          normalized_tag="${raw_tag#v}"
+          normalized_tag="v${normalized_tag//./-}"
+          url="https://${normalized_tag}---keepsidianserver-i55qr5tvea-uc.a.run.app/subscribe"
           status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url")
           if [ "$status" != "200" ]; then
             echo "Backend URL not live: $url (status $status)"
