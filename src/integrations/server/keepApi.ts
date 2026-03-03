@@ -50,6 +50,7 @@ export interface PushNotesResponse {
 }
 
 export interface SyncFilters {
+	changed_gt?: string;
 	created_gt?: string;
 	created_lt?: string;
 	updated_gt?: string;
@@ -63,7 +64,10 @@ function buildSyncQuery(offset: number, limit: number, filters?: SyncFilters): s
 	});
 
 	if (filters) {
-		const { created_gt, created_lt, updated_gt, updated_lt } = filters;
+		const { changed_gt, created_gt, created_lt, updated_gt, updated_lt } = filters;
+		if (changed_gt) {
+			params.set("changed_gt", changed_gt);
+		}
 		if (created_gt) {
 			params.set("created_gt", created_gt);
 		}

@@ -116,8 +116,7 @@ async function importGoogleKeepNotesBase(
 		const lastSuccessfulSyncDate = getLastSuccessfulSyncDate(plugin);
 		const syncFilters: SyncFilters | undefined = lastSuccessfulSyncDate
 			? {
-					created_gt: lastSuccessfulSyncDate,
-					updated_gt: lastSuccessfulSyncDate,
+					changed_gt: lastSuccessfulSyncDate,
 			  }
 			: undefined;
 

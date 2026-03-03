@@ -95,8 +95,9 @@ describe("Google Keep Import Functions", () => {
 			await importGoogleKeepNotes(mockPlugin);
 
 			const [[requestParams]] = (requestUrl as jest.Mock).mock.calls;
-			expect(requestParams.url).toContain("created_gt=2024-01-01T00%3A00%3A00.000Z");
-			expect(requestParams.url).toContain("updated_gt=2024-01-01T00%3A00%3A00.000Z");
+			expect(requestParams.url).toContain("changed_gt=2024-01-01T00%3A00%3A00.000Z");
+			expect(requestParams.url).not.toContain("created_gt=");
+			expect(requestParams.url).not.toContain("updated_gt=");
 		});
 
 		it("uses vault config when settings sync date is unavailable", async () => {
@@ -106,8 +107,9 @@ describe("Google Keep Import Functions", () => {
 			await importGoogleKeepNotes(mockPlugin);
 
 			const [[requestParams]] = (requestUrl as jest.Mock).mock.calls;
-			expect(requestParams.url).toContain("created_gt=2024-02-02T00%3A00%3A00.000Z");
-			expect(requestParams.url).toContain("updated_gt=2024-02-02T00%3A00%3A00.000Z");
+			expect(requestParams.url).toContain("changed_gt=2024-02-02T00%3A00%3A00.000Z");
+			expect(requestParams.url).not.toContain("created_gt=");
+			expect(requestParams.url).not.toContain("updated_gt=");
 		});
 
 		it("persists the last successful sync date after import", async () => {
