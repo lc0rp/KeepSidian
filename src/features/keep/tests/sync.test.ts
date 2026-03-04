@@ -128,6 +128,47 @@ describe("Google Keep Import Functions", () => {
 				jest.useRealTimers();
 			}
 		});
+
+		it("uses cursor pagination when next_cursor is returned", async () => {
+			(handleDuplicateNotes as jest.Mock).mockResolvedValue("create");
+			const setTotalNotes = jest.fn();
+			const firstPage = {
+				notes: [{ title: "First page note", text: "body-1" }],
+				total_notes: 2,
+				next_cursor: "cursor-1",
+			};
+			const secondPage = {
+				notes: [{ title: "Second page note", text: "body-2" }],
+				total_notes: 2,
+			};
+
+			(requestUrl as jest.Mock)
+				.mockResolvedValueOnce({
+					status: 200,
+					headers: {},
+					arrayBuffer: new ArrayBuffer(0),
+					json: () => firstPage,
+					text: JSON.stringify(firstPage),
+				} as RequestUrlResponse)
+				.mockResolvedValueOnce({
+					status: 200,
+					headers: {},
+					arrayBuffer: new ArrayBuffer(0),
+					json: () => secondPage,
+					text: JSON.stringify(secondPage),
+				} as RequestUrlResponse);
+
+			await importGoogleKeepNotes(mockPlugin, { setTotalNotes });
+
+			expect(requestUrl).toHaveBeenCalledTimes(2);
+			const firstRequest = (requestUrl as jest.Mock).mock.calls[0][0];
+			const secondRequest = (requestUrl as jest.Mock).mock.calls[1][0];
+			expect(firstRequest.url).toContain("offset=0");
+			expect(secondRequest.url).toContain("cursor=cursor-1");
+			expect(secondRequest.url).not.toContain("offset=");
+			expect(setTotalNotes).toHaveBeenCalledTimes(1);
+			expect(setTotalNotes).toHaveBeenCalledWith(2);
+		});
 	});
 
 	describe("importGoogleKeepNotesWithOptions", () => {

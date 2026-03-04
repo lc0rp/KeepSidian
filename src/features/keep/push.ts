@@ -1,6 +1,6 @@
 import { Notice, arrayBufferToBase64 } from "obsidian";
 import type KeepSidianPlugin from "@app/main";
-import { extractFrontmatter } from "./domain/note";
+import { extractFrontmatter, getFrontmatterStringValue } from "./domain/note";
 import { dirnameSafe, ensureFolder, normalizePathSafe, mediaFolderPath } from "@services/paths";
 import { logSync, flushLogSync } from "@app/logging";
 import { buildFrontmatterWithSyncDate, wrapMarkdown } from "./frontmatter";
@@ -311,7 +311,10 @@ async function collectNotesToPush(plugin: KeepSidianPlugin): Promise<CollectedNo
 
 			const content = await adapter.read(filePath);
 			const [frontmatter, body, frontmatterDict] = extractFrontmatter(content);
-			const lastSyncedValue = frontmatterDict[FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY];
+			const lastSyncedValue = getFrontmatterStringValue(
+				frontmatterDict,
+				FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY
+			);
 			const lastSyncedDate = parseDate(lastSyncedValue);
 			const stat = typeof adapter.stat === "function" ? await adapter.stat(filePath) : null;
 			const modifiedDate = stat?.mtime ? roundDateToSeconds(new Date(stat.mtime)) : null;
@@ -334,9 +337,8 @@ async function collectNotesToPush(plugin: KeepSidianPlugin): Promise<CollectedNo
 			const shouldPush = modifiedSinceLastSync || payloads.length > 0 || !lastSyncedDate;
 
 			const relativePath = normalizeRelativePath(filePath, saveLocation);
-			const title = frontmatterDict.Title
-				? frontmatterDict.Title
-				: deriveNoteTitle(relativePath);
+			const frontmatterTitle = getFrontmatterStringValue(frontmatterDict, "Title");
+			const title = frontmatterTitle || deriveNoteTitle(relativePath);
 
 			if (!shouldPush) {
 				skippedNotes.push({

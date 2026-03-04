@@ -8,7 +8,7 @@ export const PreNormalizedNoteSchema = z.object({
   created: z.string().nullable().optional(),
   updated: z.string().nullable().optional(),
   frontmatter: z.string().optional(),
-  frontmatterDict: z.record(z.string(), z.string()).optional(),
+  frontmatterDict: z.record(z.string(), z.unknown()).optional(),
   archived: z.boolean().optional(),
   trashed: z.boolean().optional(),
   labels: z.array(z.string()).optional(),
@@ -23,6 +23,7 @@ export const PreNormalizedNoteSchema = z.object({
 export const GoogleKeepImportResponseSchema = z.object({
   notes: z.array(PreNormalizedNoteSchema),
   total_notes: z.number().optional(),
+  next_cursor: z.string().optional(),
 });
 
 // Request schema for premium feature flags (optional; useful for validation/fixtures)

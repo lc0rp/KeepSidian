@@ -1,5 +1,10 @@
 import { App } from "obsidian";
-import { NormalizedNote, normalizeDate, extractFrontmatter } from "./note";
+import {
+	NormalizedNote,
+	normalizeDate,
+	extractFrontmatter,
+	getFrontmatterStringValue,
+} from "./note";
 import {
 	FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY,
 	FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY,
@@ -39,13 +44,22 @@ async function getExistingFileInfo(
 		extractFrontmatter(existingContent);
 
 	const existingCreatedDate = normalizeDate(
-		existingFrontMatterDict[FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY]
+		getFrontmatterStringValue(
+			existingFrontMatterDict,
+			FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY
+		)
 	);
 	const existingUpdatedDate = normalizeDate(
-		existingFrontMatterDict[FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY]
+		getFrontmatterStringValue(
+			existingFrontMatterDict,
+			FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY
+		)
 	);
 	const existingLastSyncedDate = normalizeDate(
-		existingFrontMatterDict[FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY]
+		getFrontmatterStringValue(
+			existingFrontMatterDict,
+			FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY
+		)
 	);
 	// Get fsCreatedDate and fsUpdatedDate from noteFilePath
 	const fsCreatedDateTimeStamp = await app.vault.adapter

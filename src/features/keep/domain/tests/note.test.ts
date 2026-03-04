@@ -7,7 +7,12 @@ describe("extractFrontmatter", () => {
 
 		expect(frontmatter).toBe("key1: value1\nkey2: value2");
 		expect(body).toBe("This is the body");
-		expect(frontmatterDict).toEqual({ Key1: "value1", Key2: "value2" });
+		expect(frontmatterDict).toEqual({
+			key1: "value1",
+			Key1: "value1",
+			key2: "value2",
+			Key2: "value2",
+		});
 	});
 
 	it("should handle text without frontmatter", () => {
@@ -23,7 +28,30 @@ describe("extractFrontmatter", () => {
 		const text = "---\nkebab-key: value\n---\nBody";
 		const [, , frontmatterDict] = extractFrontmatter(text);
 
-		expect(frontmatterDict).toEqual({ KebabKey: "value" });
+		expect(frontmatterDict).toEqual({
+			"kebab-key": "value",
+			KebabKey: "value",
+		});
+	});
+
+	it("should parse YAML values that include colons without truncating", () => {
+		const text = "---\nsource-url: https://example.com/a:b?x=1\n---\nBody";
+		const [, , frontmatterDict] = extractFrontmatter(text);
+
+		expect(frontmatterDict).toEqual({
+			"source-url": "https://example.com/a:b?x=1",
+			SourceUrl: "https://example.com/a:b?x=1",
+		});
+	});
+
+	it("should preserve nested YAML structures", () => {
+		const text = "---\nmeta:\n  pinned: true\n  tags:\n    - work\n---\nBody";
+		const [, , frontmatterDict] = extractFrontmatter(text);
+
+		expect(frontmatterDict).toEqual({
+			meta: { pinned: true, tags: ["work"] },
+			Meta: { pinned: true, tags: ["work"] },
+		});
 	});
 
 	it("should preserve body content after additional frontmatter delimiters", () => {
@@ -63,7 +91,10 @@ describe("normalizeNote", () => {
 		);
 		expect(normalizedNote.frontmatter).toBe("key: value");
 		expect(normalizedNote.textWithoutFrontmatter).toBe("Note body");
-		expect(normalizedNote.frontmatterDict).toEqual({ Key: "value" });
+		expect(normalizedNote.frontmatterDict).toEqual({
+			key: "value",
+			Key: "value",
+		});
 		expect(normalizedNote.archived).toBe(false);
 		expect(normalizedNote.trashed).toBe(false);
 		expect(normalizedNote.labels).toEqual(["label1", "label2"]);

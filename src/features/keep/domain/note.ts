@@ -1,10 +1,14 @@
+import { parseYaml } from "obsidian";
+
+type FrontmatterDict = { [key: string]: unknown };
+
 interface NormalizedNote {
 	title: string;
 	text: string;
 	created: Date | null;
 	updated: Date | null;
 	frontmatter: string;
-	frontmatterDict: { [key: string]: string };
+	frontmatterDict: FrontmatterDict;
 	archived: boolean;
 	trashed: boolean;
 	labels: string[];
@@ -22,7 +26,7 @@ interface PreNormalizedNote {
 	created?: string;
 	updated?: string;
 	frontmatter?: string;
-	frontmatterDict?: { [key: string]: string };
+	frontmatterDict?: FrontmatterDict;
 	archived?: boolean;
 	trashed?: boolean;
 	labels?: string[];
@@ -78,10 +82,10 @@ function normalizeNote(note: PreNormalizedNote): NormalizedNote {
 
 function extractFrontmatter(
 	text: string
-): [string, string, { [key: string]: string }] {
+): [string, string, FrontmatterDict] {
 	// Frontmatter is between --- and --- at the start of the text if it exists
 	let frontmatter = "";
-	let frontmatterDict = {};
+	let frontmatterDict: FrontmatterDict = {};
 	let textWithoutFrontmatter = text;
 	const frontmatterMatch = text.match(
 		/^---\s*\r?\n([\s\S]*?)\r?\n---\s*\r?\n?/
@@ -93,28 +97,59 @@ function extractFrontmatter(
 			.trim();
 	}
 
-	// Split frontmatter into key value pairs
-	const frontmatter_parts = frontmatter?.split("\n");
 	if (frontmatter) {
-		frontmatterDict = frontmatter_parts.reduce(
-			(acc: { [key: string]: string }, item: string) => {
-				const [key, value] = item.split(": ");
-				if (key && value) {
-					// Convert key to PascalCase
-					const pascalKey = key.replace(
-						/(^|-)([a-z])/g,
-						(_match: string, _p1: string, p2: string) => p2.toUpperCase()
-					);
-					acc[pascalKey] = value.trim();
-				}
-				return acc;
-			},
-			{}
-		);
+		frontmatterDict = parseFrontmatter(frontmatter);
 	}
 
 	return [frontmatter, textWithoutFrontmatter, frontmatterDict];
 }
 
-export { extractFrontmatter, normalizeNote, normalizeDate };
+function parseFrontmatter(frontmatter: string): FrontmatterDict {
+	try {
+		const parseYamlUnknown = parseYaml as (yaml: string) => unknown;
+		const parsed = parseYamlUnknown(frontmatter);
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			return {};
+		}
+
+		const parsedRecord = parsed as Record<string, unknown>;
+		const frontmatterDict: FrontmatterDict = {};
+
+		for (const [key, value] of Object.entries(parsedRecord)) {
+			frontmatterDict[key] = value;
+
+			// Keep pascal-case alias for compatibility with existing call sites.
+			const pascalKey = key.replace(
+				/(^|-)([a-z])/g,
+				(_match: string, _p1: string, p2: string) => p2.toUpperCase()
+			);
+			if (!(pascalKey in frontmatterDict)) {
+				frontmatterDict[pascalKey] = value;
+			}
+		}
+
+		return frontmatterDict;
+	} catch {
+		return {};
+	}
+}
+
+function getFrontmatterStringValue(
+	frontmatterDict: FrontmatterDict,
+	key: string
+): string | undefined {
+	const value = frontmatterDict[key];
+	if (typeof value === "string") {
+		return value;
+	}
+	if (typeof value === "number" || typeof value === "boolean") {
+		return String(value);
+	}
+	if (value instanceof Date && !Number.isNaN(value.getTime())) {
+		return value.toISOString();
+	}
+	return undefined;
+}
+
+export { extractFrontmatter, normalizeNote, normalizeDate, getFrontmatterStringValue };
 export type { NormalizedNote, PreNormalizedNote };

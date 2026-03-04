@@ -7,6 +7,7 @@ import { GoogleKeepImportResponseSchema, PremiumFeatureFlagsSchema } from "@sche
 export interface GoogleKeepImportResponse {
 	notes: Array<PreNormalizedNote>;
 	total_notes?: number;
+	next_cursor?: string;
 }
 
 export interface PremiumFeatureFlags {
@@ -57,11 +58,20 @@ export interface SyncFilters {
 	updated_lt?: string;
 }
 
-function buildSyncQuery(offset: number, limit: number, filters?: SyncFilters): string {
-	const params = new URLSearchParams({
-		offset: String(offset),
-		limit: String(limit),
-	});
+function buildSyncQuery(
+	offset: number,
+	limit: number,
+	filters?: SyncFilters,
+	cursor?: string
+): string {
+	const params = new URLSearchParams();
+	params.set("limit", String(limit));
+
+	if (cursor) {
+		params.set("cursor", cursor);
+	} else {
+		params.set("offset", String(offset));
+	}
 
 	if (filters) {
 		const { changed_gt, created_gt, created_lt, updated_gt, updated_lt } = filters;
@@ -90,9 +100,10 @@ export async function fetchNotes(
 	token: string,
 	offset = 0,
 	limit = 100,
-	filters?: SyncFilters
+	filters?: SyncFilters,
+	cursor?: string
 ): Promise<GoogleKeepImportResponse> {
-	const query = buildSyncQuery(offset, limit, filters);
+	const query = buildSyncQuery(offset, limit, filters, cursor);
 	const url = `${KEEPSIDIAN_SERVER_URL}/keep/sync/v2?${query}`;
 	const headers = {
 		"Content-Type": "application/json",
@@ -110,9 +121,10 @@ export async function fetchNotesWithPremiumFeatures(
 	featureFlags: PremiumFeatureFlags,
 	offset = 0,
 	limit = 100,
-	filters?: SyncFilters
+	filters?: SyncFilters,
+	cursor?: string
 ): Promise<GoogleKeepImportResponse> {
-	const query = buildSyncQuery(offset, limit, filters);
+	const query = buildSyncQuery(offset, limit, filters, cursor);
 	const url = `${KEEPSIDIAN_SERVER_URL}/keep/sync/premium/v2?${query}`;
 	const headers = {
 		"Content-Type": "application/json",

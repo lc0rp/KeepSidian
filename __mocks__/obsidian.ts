@@ -1,4 +1,9 @@
 // __mocks__/obsidian.ts
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const yamlPackage = require("js-yaml") as {
+	load: (yaml: string) => unknown;
+	dump: (obj: unknown) => string;
+};
 
 type AttributeValue = string | number | boolean;
 
@@ -279,6 +284,14 @@ export let normalizePath = (path: string): string => {
 	}
 	return path.replace(/\\/g, "/").replace(/\/+/g, "/");
 };
+
+export function parseYaml(yaml: string): unknown {
+	return yamlPackage.load(yaml);
+}
+
+export function stringifyYaml(obj: unknown): string {
+	return yamlPackage.dump(obj);
+}
 
 export class SubscriptionSettingsTab {
 	containerEl: EnhancedElement<"div">;

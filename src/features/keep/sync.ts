@@ -102,16 +102,20 @@ async function importGoogleKeepNotesBase(
 	fetchFunction: (
 		offset: number,
 		limit: number,
-		filters?: SyncFilters
+		filters?: SyncFilters,
+		cursor?: string
 	) => Promise<GoogleKeepImportResponse>,
 	callbacks?: SyncCallbacks
 ): Promise<number> {
 	try {
 		let offset = 0;
 		const limit = 50;
+		let cursor: string | undefined;
+		let usingCursorPagination = false;
 		let hasError = false;
 		let foundError: Error | null = null;
 		let totalImported = 0;
+		let hasReportedTotal = false;
 
 		const lastSuccessfulSyncDate = getLastSuccessfulSyncDate(plugin);
 		const syncFilters: SyncFilters | undefined = lastSuccessfulSyncDate
@@ -124,11 +128,16 @@ async function importGoogleKeepNotesBase(
 
 		while (!hasError) {
 			try {
-				const response = await fetchFunction(offset, limit, syncFilters);
+				const response = await fetchFunction(offset, limit, syncFilters, cursor);
 				completionDate = new Date().toISOString();
-				if (typeof response.total_notes === "number" && callbacks?.setTotalNotes) {
+				if (
+					typeof response.total_notes === "number" &&
+					callbacks?.setTotalNotes &&
+					!hasReportedTotal
+				) {
 					try {
 						callbacks.setTotalNotes(response.total_notes);
+						hasReportedTotal = true;
 					} catch {
 						/* empty */
 					}
@@ -138,7 +147,14 @@ async function importGoogleKeepNotesBase(
 				}
 				await processAndSaveNotes(plugin, response.notes, callbacks);
 				totalImported += response.notes.length;
-				offset += limit;
+				if (response.next_cursor) {
+					cursor = response.next_cursor;
+					usingCursorPagination = true;
+				} else if (usingCursorPagination) {
+					break;
+				} else {
+					offset += limit;
+				}
 			} catch (error) {
 				const normalizedError = error instanceof Error ? error : new Error(String(error));
 				logErrorIfNotTest(`Error fetching notes at offset ${offset}:`, normalizedError);
@@ -172,7 +188,8 @@ export async function importGoogleKeepNotes(
 	const { email, token } = plugin.settings;
 	return await importGoogleKeepNotesBase(
 		plugin,
-		(offset, limit, filters) => apiFetchNotes(email, token, offset, limit, filters),
+		(offset, limit, filters, cursor) =>
+			apiFetchNotes(email, token, offset, limit, filters, cursor),
 		callbacks
 	);
 }
@@ -186,8 +203,16 @@ export async function importGoogleKeepNotesWithOptions(
 	const { email, token } = plugin.settings;
 	return await importGoogleKeepNotesBase(
 		plugin,
-		(offset, limit, filters) =>
-			apiFetchNotesWithPremium(email, token, featureFlags, offset, limit, filters),
+		(offset, limit, filters, cursor) =>
+			apiFetchNotesWithPremium(
+				email,
+				token,
+				featureFlags,
+				offset,
+				limit,
+				filters,
+				cursor
+			),
 		callbacks
 	);
 }

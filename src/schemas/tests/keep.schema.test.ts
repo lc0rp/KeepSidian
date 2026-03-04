@@ -1,6 +1,7 @@
 import { GoogleKeepImportResponseSchema, PremiumFeatureFlagsSchema } from "../keep";
 import {
   validResponsePage,
+  validResponsePageWithCursor,
   validEmptyResponsePage,
   invalidResponseMissingNotes,
   invalidResponseWrongNoteShape,
@@ -21,6 +22,11 @@ describe("GoogleKeepImportResponseSchema", () => {
     const parsed = GoogleKeepImportResponseSchema.parse(validEmptyResponsePage);
     expect(parsed.notes.length).toBe(0);
     expect(parsed.total_notes).toBeUndefined();
+  });
+
+  it("accepts next_cursor for cursor-based pagination", () => {
+    const parsed = GoogleKeepImportResponseSchema.parse(validResponsePageWithCursor);
+    expect(parsed.next_cursor).toBe("cursor-1");
   });
 
   it("rejects a response missing notes", () => {

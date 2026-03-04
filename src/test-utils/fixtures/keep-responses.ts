@@ -20,6 +20,12 @@ export const validResponsePage = {
   total_notes: 1,
 };
 
+export const validResponsePageWithCursor = {
+  notes: [validPreNormalizedNote],
+  total_notes: 3,
+  next_cursor: "cursor-1",
+};
+
 export const validEmptyResponsePage = {
   notes: [],
 };
