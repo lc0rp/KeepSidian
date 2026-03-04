@@ -1,0 +1,83 @@
+name: Plugin CI
+
+on:
+  workflow_call:
+  push:
+    branches: [main, develop]
+    tags-ignore:
+      - "*"
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: keepsidian-plugin-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18.x"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run coverage
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keepsidian-plugin-coverage-${{ github.run_id }}
+          path: ./coverage
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Upload to Codecov
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          flags: plugin
+          name: keepsidian-plugin
+          override_branch: ${{ github.ref_name }}
+          fail_ci_if_error: false
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18.x"
+          cache: npm
+
+      - name: Build plugin
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: keepsidian-plugin-build-${{ github.run_id }}
+          path: |
+            ./main.js
+            ./manifest.json
+            ./styles.css
+          if-no-files-found: error
+          retention-days: 1
