@@ -4,6 +4,7 @@ export interface VaultAdapterLike {
 	exists: (path: string) => Promise<boolean> | boolean;
 	read: (path: string) => Promise<string> | string;
 	write: (path: string, data: string) => Promise<void> | void;
+	append?: (path: string, data: string) => Promise<void> | void;
 }
 
 export interface VaultLike {

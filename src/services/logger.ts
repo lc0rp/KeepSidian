@@ -10,6 +10,11 @@ export async function appendLog(
 		if (!app?.vault?.adapter) return;
 		// Ensure the parent folder exists so write does not fail due to missing directory
 		await ensureParentFolderForFile(app, logPath);
+		if (typeof app.vault.adapter.append === "function") {
+			await app.vault.adapter.append(logPath, line);
+			return;
+		}
+		// Fallback for adapters that do not expose append semantics.
 		let existing = "";
 		if (await app.vault.adapter.exists(logPath)) {
 			existing = await app.vault.adapter.read(logPath);
