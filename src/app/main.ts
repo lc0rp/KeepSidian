@@ -1,5 +1,5 @@
 import { Notice, Plugin } from "obsidian";
-import type { DataAdapter, ProgressBarComponent } from "obsidian";
+import type { ProgressBarComponent } from "obsidian";
 import type {
 	KeepSidianPluginSettings,
 	LastSyncSummary,
@@ -10,19 +10,24 @@ import { SubscriptionService } from "@services/subscription";
 import { NoteImportOptions, NoteImportOptionsModal } from "@ui/modals/NoteImportOptionsModal";
 import { SyncProgressModal } from "@ui/modals/SyncProgressModal";
 import {
-	startSyncUI,
-	finishSyncUI,
-	setTotalNotes as uiSetTotalNotes,
-	reportSyncProgress,
 	initializeStatusBar,
 } from "@app/sync-ui";
-import { HIDDEN_CLASS } from "@app/ui-constants";
-import { logSync, prepareSyncLog } from "@app/logging";
+import { logSync } from "@app/logging";
 import { KeepSidianSettingsTab } from "@ui/settings/KeepSidianSettingsTab";
 import { registerRibbonAndCommands } from "@app/commands";
-import { importGoogleKeepNotes, importGoogleKeepNotesWithOptions } from "@features/keep/sync";
-import { pushGoogleKeepNotes } from "@features/keep/push";
-import { ensureFolder, normalizePathSafe } from "@services/paths";
+import {
+	buildPersistedSettings,
+	hydrateDriveSecretsFromSecretStorage,
+	hydrateSyncTokenFromSecretStorage,
+	persistSensitiveSettingsToSecretStorage,
+} from "@app/main-secret-storage";
+import {
+	openLatestSyncLogFlow,
+	runImportNotesFlow,
+	runImportWithOptions,
+	runPushNotesFlow,
+	runTwoWaySyncFlow,
+} from "@app/main-sync-flows";
 
 function getErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
@@ -38,20 +43,10 @@ interface TwoWayGateResult {
 	reasons: string[];
 }
 
-interface SecretStorageAdapter {
-	setSecret: (id: string, secret: string) => void;
-	getSecret: (id: string) => string | null;
-}
-
-const SYNC_TOKEN_SECRET_ID = "google-sync-token";
-const GDRIVE_TOKEN_SECRET_ID = "google-drive-access-token";
-const GDRIVE_REFRESH_TOKEN_SECRET_ID = "google-drive-refresh-token";
-
 export default class KeepSidianPlugin extends Plugin {
 	settings: KeepSidianPluginSettings;
 	subscriptionService: SubscriptionService;
 	statusBarItemEl: HTMLElement | null = null;
-	// Elements for visual status in the status bar
 	statusTextEl: HTMLSpanElement | null = null;
 	progressContainerEl: HTMLDivElement | null = null;
 	progressBar: ProgressBarComponent | null = null;
@@ -66,146 +61,6 @@ export default class KeepSidianPlugin extends Plugin {
 	private isSyncing = false;
 	private subscriptionActive: boolean | null = null;
 	private lastAutoSyncGateReasons: string[] | null = null;
-
-	private getSecretStorage(): SecretStorageAdapter | null {
-		const candidate = (this.app as unknown as { secretStorage?: unknown }).secretStorage;
-		if (!candidate || typeof candidate !== "object") {
-			return null;
-		}
-		const storage = candidate as Partial<SecretStorageAdapter>;
-		if (typeof storage.setSecret !== "function" || typeof storage.getSecret !== "function") {
-			return null;
-		}
-		return storage as SecretStorageAdapter;
-	}
-
-	private getSecret(secretId: string): string | null {
-		const storage = this.getSecretStorage();
-		if (!storage) {
-			return null;
-		}
-		try {
-			return storage.getSecret(secretId);
-		} catch {
-			return null;
-		}
-	}
-
-	private setSecret(secretId: string, value: string): boolean {
-		const storage = this.getSecretStorage();
-		if (!storage) {
-			return false;
-		}
-		try {
-			storage.setSecret(secretId, value);
-			return true;
-		} catch {
-			return false;
-		}
-	}
-
-	private hydrateSyncTokenFromSecretStorage(): boolean {
-		const secretStorage = this.getSecretStorage();
-		if (!secretStorage) {
-			return false;
-		}
-
-		let changed = false;
-		this.settings.syncTokenSecretId = this.settings.syncTokenSecretId || SYNC_TOKEN_SECRET_ID;
-		const trimmedToken = this.settings.token?.trim() ?? "";
-
-		if (trimmedToken.length > 0) {
-			if (this.setSecret(this.settings.syncTokenSecretId, trimmedToken)) {
-				this.settings.token = trimmedToken;
-				changed = true;
-			}
-		} else {
-			const secretToken = this.getSecret(this.settings.syncTokenSecretId);
-			if (typeof secretToken === "string" && secretToken.trim().length > 0) {
-				this.settings.token = secretToken;
-				changed = true;
-			}
-		}
-
-		return changed;
-	}
-
-	private hydrateDriveSecretsFromSecretStorage(): boolean {
-		const secretStorage = this.getSecretStorage();
-		if (!secretStorage) {
-			return false;
-		}
-
-		let changed = false;
-		this.settings.gdriveTokenSecretId =
-			this.settings.gdriveTokenSecretId || GDRIVE_TOKEN_SECRET_ID;
-		this.settings.gdriveRefreshTokenSecretId =
-			this.settings.gdriveRefreshTokenSecretId || GDRIVE_REFRESH_TOKEN_SECRET_ID;
-
-		const trimmedDriveToken = this.settings.gdriveToken?.trim() ?? "";
-		if (trimmedDriveToken.length > 0) {
-			if (this.setSecret(this.settings.gdriveTokenSecretId, trimmedDriveToken)) {
-				this.settings.gdriveToken = trimmedDriveToken;
-				changed = true;
-			}
-		} else {
-			const driveToken = this.getSecret(this.settings.gdriveTokenSecretId);
-			if (typeof driveToken === "string" && driveToken.trim().length > 0) {
-				this.settings.gdriveToken = driveToken;
-				changed = true;
-			}
-		}
-
-		const trimmedRefreshToken = this.settings.gdriveRefreshToken?.trim() ?? "";
-		if (trimmedRefreshToken.length > 0) {
-			if (this.setSecret(this.settings.gdriveRefreshTokenSecretId, trimmedRefreshToken)) {
-				this.settings.gdriveRefreshToken = trimmedRefreshToken;
-				changed = true;
-			}
-		} else {
-			const refreshToken = this.getSecret(this.settings.gdriveRefreshTokenSecretId);
-			if (typeof refreshToken === "string" && refreshToken.trim().length > 0) {
-				this.settings.gdriveRefreshToken = refreshToken;
-				changed = true;
-			}
-		}
-
-		return changed;
-	}
-
-	private persistSensitiveSettingsToSecretStorage(): void {
-		if (!this.getSecretStorage()) {
-			return;
-		}
-
-		this.settings.syncTokenSecretId = this.settings.syncTokenSecretId || SYNC_TOKEN_SECRET_ID;
-		this.settings.gdriveTokenSecretId =
-			this.settings.gdriveTokenSecretId || GDRIVE_TOKEN_SECRET_ID;
-		this.settings.gdriveRefreshTokenSecretId =
-			this.settings.gdriveRefreshTokenSecretId || GDRIVE_REFRESH_TOKEN_SECRET_ID;
-
-		void this.setSecret(this.settings.syncTokenSecretId, this.settings.token?.trim() ?? "");
-		void this.setSecret(
-			this.settings.gdriveTokenSecretId,
-			this.settings.gdriveToken?.trim() ?? ""
-		);
-		void this.setSecret(
-			this.settings.gdriveRefreshTokenSecretId,
-			this.settings.gdriveRefreshToken?.trim() ?? ""
-		);
-	}
-
-	private buildPersistedSettings(): KeepSidianPluginSettings {
-		if (!this.getSecretStorage()) {
-			return this.settings;
-		}
-		return {
-			...this.settings,
-			token: "",
-			gdriveToken: undefined,
-			gdriveRefreshToken: undefined,
-		};
-	}
 
 	async onload() {
 		await this.loadSettings();
@@ -235,20 +90,20 @@ export default class KeepSidianPlugin extends Plugin {
 
 	private ensureCredentials(): boolean {
 		const email = this.settings.email?.trim();
-			if (!email) {
-				new Notice(
-					"KeepSidian: please enter your Google account email in the settings before syncing."
-				);
-				return false;
-			}
+		if (!email) {
+			new Notice(
+				"KeepSidian: please enter your Google account email in the settings before syncing."
+			);
+			return false;
+		}
 
 		const token = this.settings.token?.trim();
-			if (!token) {
-				new Notice(
-					"KeepSidian: please add your Google Keep token in the settings before syncing."
-				);
-				return false;
-			}
+		if (!token) {
+			new Notice(
+				"KeepSidian: please add your Google Keep token in the settings before syncing."
+			);
+			return false;
+		}
 
 		return true;
 	}
@@ -257,12 +112,12 @@ export default class KeepSidianPlugin extends Plugin {
 		const saved = (await this.loadData()) as Partial<KeepSidianPluginSettings> | null;
 		this.settings = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
 		const sensitiveSettingsChanged =
-			this.hydrateSyncTokenFromSecretStorage() || this.hydrateDriveSecretsFromSecretStorage();
+			hydrateSyncTokenFromSecretStorage(this) || hydrateDriveSecretsFromSecretStorage(this);
 		this.normalizeTwoWaySettings();
 		this.lastSyncSummary = this.settings.lastSyncSummary ?? null;
 		this.lastSyncLogPath = this.settings.lastSyncLogPath ?? null;
 		if (sensitiveSettingsChanged) {
-			await this.saveData(this.buildPersistedSettings());
+			await this.saveData(buildPersistedSettings(this));
 		}
 	}
 
@@ -317,9 +172,7 @@ export default class KeepSidianPlugin extends Plugin {
 				reasons.push("Please enable auto sync in settings first.");
 			}
 			if (!autoUploadsEnabled) {
-				reasons.push(
-					"Please enable auto two-way sync in settings first."
-				);
+				reasons.push("Please enable auto two-way sync in settings first.");
 			}
 		}
 
@@ -411,9 +264,7 @@ export default class KeepSidianPlugin extends Plugin {
 	private async runAutoSyncTick(): Promise<void> {
 		try {
 			try {
-				const subscriptionActive = await this.subscriptionService.isSubscriptionActive(
-					true
-				);
+				const subscriptionActive = await this.subscriptionService.isSubscriptionActive(true);
 				this.subscriptionActive = subscriptionActive;
 			} catch {
 				// Notices are surfaced by SubscriptionService on failure; keep cached state.
@@ -481,8 +332,8 @@ export default class KeepSidianPlugin extends Plugin {
 	async saveSettings() {
 		this.settings.lastSyncSummary = this.lastSyncSummary;
 		this.settings.lastSyncLogPath = this.lastSyncLogPath ?? null;
-		this.persistSensitiveSettingsToSecretStorage();
-		await this.saveData(this.buildPersistedSettings());
+		persistSensitiveSettingsToSecretStorage(this);
+		await this.saveData(buildPersistedSettings(this));
 	}
 
 	isSyncInProgress(): boolean {
@@ -517,124 +368,15 @@ export default class KeepSidianPlugin extends Plugin {
 	}
 
 	async openLatestSyncLog() {
-		const adapter: DataAdapter | null = this.app?.vault?.adapter ?? null;
-			if (!adapter) {
-				new Notice("KeepSidian: unable to open sync log.");
-				return;
-			}
-
-		let logPath = this.lastSyncLogPath;
-		const logsFolder = normalizePathSafe(`${this.settings.saveLocation}/_KeepSidianLogs`);
-
-		if (!logPath) {
-			if (typeof adapter.list === "function") {
-				try {
-					const { files } = await adapter.list(logsFolder);
-					const markdownFiles = (files ?? [])
-						.map((file: string) => {
-							const normalized = normalizePathSafe(file);
-							return normalized.startsWith(logsFolder)
-								? normalized
-								: normalizePathSafe(`${logsFolder}/${normalized.split("/").pop()}`);
-						})
-						.filter((file: string) => file.toLowerCase().endsWith(".md"));
-						if (!markdownFiles.length) {
-							new Notice("KeepSidian: no sync logs found.");
-							return;
-						}
-					markdownFiles.sort();
-					logPath = markdownFiles[markdownFiles.length - 1];
-					} catch {
-						new Notice("KeepSidian: failed to open sync log.");
-						return;
-					}
-				} else {
-					new Notice("KeepSidian: no sync logs found.");
-					return;
-				}
-			}
-
-			if (!logPath) {
-				new Notice("KeepSidian: no sync logs found.");
-				return;
-			}
-
-		const normalizedPath = normalizePathSafe(logPath);
-		this.lastSyncLogPath = normalizedPath;
-		this.settings.lastSyncLogPath = normalizedPath;
-
-		if (typeof this.app?.workspace?.openLinkText === "function") {
-			void this.app.workspace.openLinkText(normalizedPath, "", true);
-		} else {
-			new Notice("KeepSidian: unable to open sync log.");
-		}
-	}
-
-	private async ensureStoragePathsOrThrow(): Promise<void> {
-		const saveLocation = this.settings.saveLocation;
-		try {
-			await ensureFolder(this.app, saveLocation);
-		} catch (error: unknown) {
-			new Notice(`KeepSidian: failed to create save location: ${saveLocation}`);
-			throw error;
-		}
+		await openLatestSyncLogFlow(this);
 	}
 
 	async showImportOptionsModal(): Promise<void> {
 		return new Promise((resolve) => {
 			new NoteImportOptionsModal(this.app, this, (options: NoteImportOptions) => {
-				void this.handleImportOptions(options, resolve);
+				void runImportWithOptions(this, options, getErrorMessage).finally(resolve);
 			}).open();
 		});
-	}
-
-	private async handleImportOptions(
-		options: NoteImportOptions,
-		resolve: () => void
-	): Promise<void> {
-		try {
-			await this.ensureStoragePathsOrThrow();
-		} catch {
-			resolve();
-			return;
-		}
-
-		// Prepare log file; abort if not possible
-		const logPrepared = await prepareSyncLog(this);
-		if (!logPrepared) {
-			resolve();
-			return;
-		}
-
-		const batchOptions = {
-			batchSize: 2,
-			batchKey: "start-manual-sync",
-		};
-		await logSync(this, `\n\n---\n`, batchOptions);
-		await logSync(this, `Manual sync started`, batchOptions);
-		this.currentSyncMode = "import";
-		startSyncUI(this);
-		try {
-			await importGoogleKeepNotesWithOptions(this, options, {
-				setTotalNotes: (n) => uiSetTotalNotes(this, n),
-				reportProgress: () => reportSyncProgress(this),
-			});
-			await logSync(
-				this,
-				`Manual sync ended - success. Processed ${this.processedNotes} note(s).`
-			);
-			finishSyncUI(this, true);
-		} catch (error: unknown) {
-			finishSyncUI(this, false);
-			await logSync(
-				this,
-				`Manual sync ended - failed: ${getErrorMessage(error)}. Processed ${
-					this.processedNotes
-				} note(s).`
-			);
-		} finally {
-			resolve();
-		}
 	}
 
 	async importNotes(auto = false) {
@@ -649,63 +391,7 @@ export default class KeepSidianPlugin extends Plugin {
 
 		this.isSyncing = true;
 		try {
-			const isSubscriptionActive = await this.subscriptionService.isSubscriptionActive();
-			this.subscriptionActive = isSubscriptionActive;
-
-			if (!auto && isSubscriptionActive) {
-				await this.showImportOptionsModal();
-				return;
-			} else {
-				try {
-					await this.ensureStoragePathsOrThrow();
-				} catch {
-					return;
-				}
-
-				// Prepare log file; abort if not possible
-				const logPrepared = await prepareSyncLog(this);
-				if (!logPrepared) {
-					return;
-				}
-
-				const batchOptions = { batchSize: 2, batchKey: "start-sync" };
-				await logSync(this, `\n\n---\n`, batchOptions);
-				await logSync(this, `${auto ? "Auto" : "Manual"} sync started`, batchOptions);
-				this.currentSyncMode = "import";
-				startSyncUI(this);
-				try {
-					await importGoogleKeepNotes(this, {
-						setTotalNotes: (n) => uiSetTotalNotes(this, n),
-						reportProgress: () => reportSyncProgress(this),
-					});
-					await logSync(
-						this,
-						`${auto ? "Auto" : "Manual"} sync ended - success. Processed ${
-							this.processedNotes
-						} note(s).`
-					);
-					finishSyncUI(this, true);
-				} catch (error: unknown) {
-					finishSyncUI(this, false);
-					const errorMessage = getErrorMessage(error);
-					await logSync(
-						this,
-						`${
-							auto ? "Auto" : "Manual"
-						} sync ended - failed: ${errorMessage}. Processed ${
-							this.processedNotes
-						} note(s).`
-					);
-				}
-			}
-		} catch (error: unknown) {
-			const errorMessage = getErrorMessage(error);
-			await logSync(
-				this,
-				`${auto ? "Auto" : "Manual"} sync ended - failed: ${errorMessage}. Processed ${
-					this.processedNotes
-				} note(s).`
-			);
+			await runImportNotesFlow(this, auto, getErrorMessage);
 		} finally {
 			this.isSyncing = false;
 		}
@@ -723,63 +409,10 @@ export default class KeepSidianPlugin extends Plugin {
 
 		this.isSyncing = true;
 		try {
-			try {
-				await this.ensureStoragePathsOrThrow();
-			} catch {
-				return;
-			}
-
-			const logPrepared = await prepareSyncLog(this);
-			if (!logPrepared) {
-				return;
-			}
-
-			const batchOptions = { batchSize: 2, batchKey: "start-push-sync" };
-			await logSync(this, `\n\n---\n`, batchOptions);
-			await logSync(this, `Push sync started`, batchOptions);
-			this.currentSyncMode = "push";
-			startSyncUI(this);
-			try {
-				const pushed = await pushGoogleKeepNotes(this, {
-					setTotalNotes: (n) => uiSetTotalNotes(this, n),
-					reportProgress: () => reportSyncProgress(this),
-				});
-				await logSync(this, `Push sync ended - success. Pushed ${pushed} note(s).`);
-				finishSyncUI(this, true);
-			} catch (error: unknown) {
-				finishSyncUI(this, false);
-				const errorMessage = getErrorMessage(error);
-				await logSync(
-					this,
-					`Push sync ended - failed: ${errorMessage}. Processed ${this.processedNotes} note(s).`
-				);
-			}
-		} catch (error: unknown) {
-			const errorMessage = getErrorMessage(error);
-			await logSync(
-				this,
-				`Push sync ended - failed: ${errorMessage}. Processed ${this.processedNotes} note(s).`
-			);
+			await runPushNotesFlow(this, getErrorMessage);
 		} finally {
 			this.isSyncing = false;
 		}
-	}
-
-	private resetProgressIndicatorsForNextStage() {
-		this.processedNotes = 0;
-		this.totalNotes = null;
-		if (this.statusTextEl) {
-			this.statusTextEl.textContent = "Sync: 0/?";
-		}
-		if (this.progressContainerEl) {
-			this.progressContainerEl.classList.remove(HIDDEN_CLASS);
-			this.progressContainerEl.classList.remove("complete", "failed");
-			if (!this.progressContainerEl.classList.contains("indeterminate")) {
-				this.progressContainerEl.classList.add("indeterminate");
-			}
-		}
-		this.progressBar?.setValue(0);
-		this.progressModal?.setProgress(0, undefined);
 	}
 
 	async performTwoWaySync() {
@@ -794,73 +427,7 @@ export default class KeepSidianPlugin extends Plugin {
 
 		this.isSyncing = true;
 		try {
-			try {
-				await this.ensureStoragePathsOrThrow();
-			} catch {
-				return;
-			}
-
-			const logPrepared = await prepareSyncLog(this);
-			if (!logPrepared) {
-				return;
-			}
-
-			const batchOptions = {
-				batchSize: 2,
-				batchKey: "start-2way-sync",
-			};
-			await logSync(this, `\n\n---\n`, batchOptions);
-			await logSync(this, `Two-way sync started`, batchOptions);
-			this.currentSyncMode = "two-way";
-			startSyncUI(this);
-			const callbacks = {
-				setTotalNotes: (n: number) => uiSetTotalNotes(this, n),
-				reportProgress: () => reportSyncProgress(this),
-			};
-
-			let importProcessed = 0;
-			try {
-				await importGoogleKeepNotes(this, callbacks);
-				importProcessed = this.processedNotes;
-				await logSync(
-					this,
-					`Two-way sync - import completed. Processed ${importProcessed} note(s).`
-				);
-			} catch (error: unknown) {
-				finishSyncUI(this, false);
-				const errorMessage = getErrorMessage(error);
-				await logSync(
-					this,
-					`Two-way sync ended - import failed: ${errorMessage}. Processed ${this.processedNotes} note(s).`
-				);
-				return;
-			}
-
-			this.resetProgressIndicatorsForNextStage();
-			await logSync(this, `Two-way sync - starting push stage`);
-
-			try {
-				const pushed = await pushGoogleKeepNotes(this, callbacks);
-				await logSync(
-					this,
-					`Two-way sync ended - success. Imported ${importProcessed} note(s), pushed ${pushed} note(s).`
-				);
-				finishSyncUI(this, true);
-				this.resetAutoSyncGateState();
-			} catch (error: unknown) {
-				finishSyncUI(this, false);
-				const errorMessage = getErrorMessage(error);
-				await logSync(
-					this,
-					`Two-way sync ended - push failed: ${errorMessage}. Processed ${this.processedNotes} note(s).`
-				);
-			}
-		} catch (error: unknown) {
-			const errorMessage = getErrorMessage(error);
-			await logSync(
-				this,
-				`Two-way sync ended - failed: ${errorMessage}. Processed ${this.processedNotes} note(s).`
-			);
+			await runTwoWaySyncFlow(this, getErrorMessage, () => this.resetAutoSyncGateState());
 		} finally {
 			this.isSyncing = false;
 		}
