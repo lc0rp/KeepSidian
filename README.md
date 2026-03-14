@@ -98,6 +98,10 @@ v1.1.2:
 
 - Two-way background sync
 
+Active supporters can manage billing or unsubscribe from inside Obsidian. Open
+`Settings > KeepSidian > Exclusive features for project supporters`, then use
+the Stripe customer-portal link shown in the active subscription section.
+
 ## Future roadmap
 
 Some upcoming features that I plan to work on include:

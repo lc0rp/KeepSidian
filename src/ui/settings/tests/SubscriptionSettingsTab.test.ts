@@ -424,7 +424,7 @@ describe("SubscriptionSettingsTab", () => {
 		plugin = new KeepSidianPlugin(app, TEST_MANIFEST);
 		plugin.settings = {
 			...DEFAULT_SETTINGS,
-			email: "",
+			email: "test@example.com",
 			token: "",
 			saveLocation: "",
 			subscriptionCache: undefined,
@@ -471,7 +471,7 @@ describe("SubscriptionSettingsTab", () => {
 
 			await subscriptionTab.display();
 
-			expect(containerEl.textContent).toContain("✅ active subscription");
+			expect(containerEl.textContent).toContain("✅ Active supporter");
 			expect(containerEl.textContent).toContain("Auto-tags");
 			expect(containerEl.textContent).not.toContain("requires a subscription");
 		});
@@ -526,6 +526,58 @@ describe("SubscriptionSettingsTab", () => {
 			expect(subscribeLink?.getAttribute("href")).toBe("https://keepsidian.com/subscribe");
 			expect(subscribeLink?.getAttribute("target")).toBe("_blank");
 			expect(subscribeLink?.getAttribute("rel")).toBe("noopener noreferrer");
+		});
+
+		it("should recheck and refresh settings when supporter button is clicked", async () => {
+			(plugin.subscriptionService.isSubscriptionActive as jest.Mock)
+				.mockResolvedValueOnce(false)
+				.mockResolvedValueOnce(true);
+			(plugin.subscriptionService.checkSubscription as jest.Mock).mockResolvedValue({
+				subscription_status: "active",
+				plan_details: { plan_id: "premium", features: [] },
+				metering_info: null,
+				trial_or_promo: null,
+			});
+
+			await subscriptionTab.display();
+
+			const supporterButton = Array.from(containerEl.querySelectorAll("button")).find(
+				(button) => button.textContent === "I am a supporter"
+			);
+			expect(supporterButton).toBeTruthy();
+
+			supporterButton?.click();
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			const subscriptionSection = containerEl.querySelector(".keepsidian-subscription-settings");
+			expect(plugin.subscriptionService.isSubscriptionActive).toHaveBeenNthCalledWith(2, true);
+			expect(subscriptionSection?.textContent).toContain("✅ Active supporter");
+			expect(subscriptionSection?.textContent).not.toContain(
+				"Support development and unlock advanced features"
+			);
+			expect(subscriptionSection?.querySelectorAll(".setting-heading")).toHaveLength(1);
+		});
+
+		it("should render manage subscription link for active users", async () => {
+			(plugin.subscriptionService.isSubscriptionActive as jest.Mock).mockResolvedValue(true);
+			(plugin.subscriptionService.checkSubscription as jest.Mock).mockResolvedValue({
+				subscription_status: "active",
+				plan_details: { plan_id: "premium", features: [] },
+				metering_info: null,
+				trial_or_promo: null,
+			});
+
+			await subscriptionTab.display();
+
+			const manageLink = containerEl.querySelector(
+				'a[data-keepsidian-link="manage-subscription"]'
+			);
+			expect(manageLink).not.toBeNull();
+			expect(manageLink?.getAttribute("href")).toBe(
+				"https://keepsidian.com/subscriber/portal?prefilled_email=test%40example.com"
+			);
+			expect(manageLink?.getAttribute("target")).toBe("_blank");
+			expect(manageLink?.getAttribute("rel")).toBe("noopener noreferrer");
 		});
 	});
 });

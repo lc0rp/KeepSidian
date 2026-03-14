@@ -4,19 +4,24 @@ import { KEEPSIDIAN_SERVER_URL } from "../../config";
 
 export class SubscriptionSettingsTab {
 	private containerEl: HTMLElement;
+	private sectionEl: HTMLDivElement;
 	private plugin: KeepSidianPlugin;
 
 	constructor(containerEl: HTMLElement, plugin: KeepSidianPlugin) {
 		this.containerEl = containerEl;
+		this.sectionEl = document.createElement("div");
+		this.sectionEl.classList.add("keepsidian-subscription-settings");
+		this.containerEl.appendChild(this.sectionEl);
 		this.plugin = plugin;
 	}
 
-	async display(): Promise<void> {
-		const { containerEl } = this;
+	async display(forceRefresh = false): Promise<void> {
+		const { sectionEl: containerEl } = this;
+		containerEl.replaceChildren();
 
 		new Setting(containerEl).setName("Exclusive features for project supporters").setHeading();
 
-		const isActive = await this.plugin.subscriptionService.isSubscriptionActive();
+		const isActive = await this.plugin.subscriptionService.isSubscriptionActive(forceRefresh);
 
 		if (!isActive) {
 			await this.displayInactiveSubscriber();
@@ -27,22 +32,18 @@ export class SubscriptionSettingsTab {
 		SubscriptionSettingsTab.displayPremiumFeatures(containerEl, this.plugin, isActive);
 	}
 
-	static displayPremiumFeatures(
-		containerEl: HTMLElement,
-		plugin: KeepSidianPlugin,
-		isActive: boolean
-	): void {
+	static displayPremiumFeatures(containerEl: HTMLElement, plugin: KeepSidianPlugin, isActive: boolean): void {
 		const descSuffix = isActive ? "" : " (Available to project supporters)";
 		const premiumFeatureValues = plugin.settings.premiumFeatures;
 		// 3.2 Filter Notes
 		const includeSetting = new Setting(containerEl)
 			.setName("Only include notes containing")
 			.setDesc("Terms to include (comma-separated)." + descSuffix)
-				.addText((text) =>
-					text
-						.setPlaceholder("Term 1, term 2, ...")
-						.setValue(premiumFeatureValues.includeNotesTerms.join(", "))
-						.onChange(async (value) => {
+			.addText((text) =>
+				text
+					.setPlaceholder("Term 1, term 2, ...")
+					.setValue(premiumFeatureValues.includeNotesTerms.join(", "))
+					.onChange(async (value) => {
 						premiumFeatureValues.includeNotesTerms = value
 							.split(",")
 							.map((k) => k.trim())
@@ -54,11 +55,11 @@ export class SubscriptionSettingsTab {
 		const excludeSetting = new Setting(containerEl)
 			.setName("Exclude notes containing")
 			.setDesc("Terms to skip (comma-separated)." + descSuffix)
-				.addText((text) =>
-					text
-						.setPlaceholder("Term 1, term 2, ...")
-						.setValue(premiumFeatureValues.excludeNotesTerms.join(", "))
-						.onChange(async (value) => {
+			.addText((text) =>
+				text
+					.setPlaceholder("Term 1, term 2, ...")
+					.setValue(premiumFeatureValues.excludeNotesTerms.join(", "))
+					.onChange(async (value) => {
 						premiumFeatureValues.excludeNotesTerms = value
 							.split(",")
 							.map((k) => k.trim())
@@ -70,10 +71,7 @@ export class SubscriptionSettingsTab {
 		// 3.3 Title Updates
 		const titleSetting = new Setting(containerEl)
 			.setName("Smart titles")
-			.setDesc(
-				"Suggest titles based on note content. Original title will be saved in note." +
-					descSuffix
-			)
+			.setDesc("Suggest titles based on note content. Original title will be saved in note." + descSuffix)
 			.addToggle((toggle) =>
 				toggle.setValue(premiumFeatureValues.updateTitle).onChange(async (value) => {
 					premiumFeatureValues.updateTitle = value;
@@ -109,11 +107,11 @@ export class SubscriptionSettingsTab {
 		const tagPrefixSetting = new Setting(containerEl)
 			.setName("Tag prefix")
 			.setDesc("Prefix to identify generated tags (leave empty for none)." + descSuffix)
-				.addText((text) =>
-					text
-						.setValue(premiumFeatureValues.tagPrefix)
-						.setPlaceholder("Auto-")
-						.onChange(async (value) => {
+			.addText((text) =>
+				text
+					.setValue(premiumFeatureValues.tagPrefix)
+					.setPlaceholder("Auto-")
+					.onChange(async (value) => {
 						premiumFeatureValues.tagPrefix = value;
 					})
 			)
@@ -124,18 +122,25 @@ export class SubscriptionSettingsTab {
 			.setName("Limit to existing tags")
 			.setDesc("Only generate tags that already exist in your vault." + descSuffix)
 			.addToggle((toggle) =>
-				toggle
-					.setValue(premiumFeatureValues.limitToExistingTags)
-					.onChange(async (value) => {
-						premiumFeatureValues.limitToExistingTags = value;
-					})
+				toggle.setValue(premiumFeatureValues.limitToExistingTags).onChange(async (value) => {
+					premiumFeatureValues.limitToExistingTags = value;
+				})
 			)
 			.setDisabled(!premiumFeatureValues.suggestTags);
 		if (!isActive) limitSetting.setClass("requires-subscription");
 	}
 
+	private static buildManageSubscriptionUrl(email: string): string {
+		const portalUrl = `${KEEPSIDIAN_SERVER_URL}/subscriber/portal`;
+		if (!email) {
+			return portalUrl;
+		}
+
+		return `${portalUrl}?${new URLSearchParams({ prefilled_email: email }).toString()}`;
+	}
+
 	private async displayInactiveSubscriber(): Promise<void> {
-		const { containerEl } = this;
+		const { sectionEl: containerEl } = this;
 
 		containerEl.createEl("em", { text: "Support development and unlock advanced features" });
 
@@ -172,7 +177,8 @@ export class SubscriptionSettingsTab {
 
 		const subscribeUrl = `${KEEPSIDIAN_SERVER_URL}/subscribe`;
 		const subscribeLink = subscribeSetting.controlEl.createEl("a", {
-			text: "🌎 support this project",
+			// eslint-disable-next-line obsidianmd/ui/sentence-case
+			text: "🌎 Support this project",
 			attr: {
 				href: subscribeUrl,
 				target: "_blank",
@@ -182,32 +188,55 @@ export class SubscriptionSettingsTab {
 		});
 		subscribeLink.classList.add("keepsidian-link-button");
 		subscribeLink.setAttribute("role", "button");
+
+		new Setting(containerEl)
+			.setName("Already supporting?")
+			.setDesc("Recheck your status and unlock supporter settings if billing is active.")
+			.addButton((button) =>
+				button.setButtonText("I am a supporter").onClick(async () => {
+					await this.display(true);
+				})
+			);
 	}
 
 	private async displayActiveSubscriber(): Promise<void> {
-		const { containerEl } = this;
+		const { sectionEl: containerEl } = this;
 		const subscriptionInfo = await this.plugin.subscriptionService.checkSubscription();
 
 		// General info about premium features
 		new Setting(containerEl)
 			.setName("Premium features")
-			.setDesc(
-				"Get access to advanced features like two-way sync, title suggestions, and automatic tag creation."
-			)
+			.setDesc("Get access to advanced features like two-way sync, title suggestions, and automatic tag creation.")
 			.addExtraButton((button) =>
-					button
-						.setIcon("refresh")
-						.setTooltip("Check subscription status")
-						.onClick(async () => {
-							await this.plugin.subscriptionService.checkSubscription();
-							void this.display();
-						})
-				);
+				button
+					.setIcon("refresh")
+					.setTooltip("Check supporter status")
+					.onClick(async () => {
+						await this.display(true);
+					})
+			);
 
 		// Show subscription details
 		new Setting(containerEl)
-			.setName("✅ active subscription")
-			.setDesc("Your subscription is active. You can configure your premium settings below.");
+			// eslint-disable-next-line obsidianmd/ui/sentence-case
+			.setName("✅ Active supporter")
+			.setDesc("You're a supporter! You can configure your premium settings below.");
+
+		const manageSetting = new Setting(containerEl)
+			.setName("Manage billing.")
+			.setDesc("Open the secure supporter portal to manage billing.");
+
+		const manageLink = manageSetting.controlEl.createEl("a", {
+			text: "Open billing portal",
+			attr: {
+				href: SubscriptionSettingsTab.buildManageSubscriptionUrl(this.plugin.settings.email),
+				target: "_blank",
+				rel: "noopener noreferrer",
+				"data-keepsidian-link": "manage-subscription",
+			},
+		});
+		manageLink.classList.add("keepsidian-link-button");
+		manageLink.setAttribute("role", "button");
 
 		if (subscriptionInfo?.plan_details) {
 			new Setting(containerEl).setName("Plan").setDesc(subscriptionInfo.plan_details.plan_id);
@@ -216,9 +245,7 @@ export class SubscriptionSettingsTab {
 		if (subscriptionInfo?.metering_info) {
 			new Setting(containerEl)
 				.setName("Usage")
-				.setDesc(
-					`${subscriptionInfo.metering_info.usage} / ${subscriptionInfo.metering_info.limit} notes synced`
-				);
+				.setDesc(`${subscriptionInfo.metering_info.usage} / ${subscriptionInfo.metering_info.limit} notes synced`);
 		}
 	}
 }
