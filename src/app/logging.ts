@@ -2,6 +2,7 @@ import type KeepSidianPlugin from "@app/main";
 import { appendLog } from "../services/logger";
 import { ensureFile, normalizePathSafe } from "../services/paths";
 import { Notice } from "obsidian";
+import { resolveLogBaseFolder } from "@services/note-path-resolver";
 
 interface LogSyncOptions {
 	batchKey?: string;
@@ -90,8 +91,9 @@ export async function prepareSyncLog(
 ): Promise<string | null> {
 	const currentDate = new Date().toISOString();
 	const syncLogFile = `${currentDate.slice(0, 10)}.md`;
+	const logBaseFolder = resolveLogBaseFolder(plugin.app, plugin.settings);
 	const logPath = normalizePathSafe(
-		`${plugin.settings.saveLocation}/_KeepSidianLogs/${syncLogFile}`
+		`${logBaseFolder}/_KeepSidianLogs/${syncLogFile}`
 	);
 
 	try {

@@ -4,6 +4,8 @@ const yamlPackage = require("js-yaml") as {
 	load: (yaml: string) => unknown;
 	dump: (obj: unknown) => string;
 };
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const momentPackage = require("moment") as typeof import("moment");
 
 type AttributeValue = string | number | boolean;
 
@@ -288,6 +290,8 @@ export let normalizePath = (path: string): string => {
 export function parseYaml(yaml: string): unknown {
 	return yamlPackage.load(yaml);
 }
+
+export const moment = momentPackage;
 
 export function stringifyYaml(obj: unknown): string {
 	return yamlPackage.dump(obj);

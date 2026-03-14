@@ -13,6 +13,7 @@ import {
 import { importGoogleKeepNotes, importGoogleKeepNotesWithOptions } from "@features/keep/sync";
 import { pushGoogleKeepNotes } from "@features/keep/push";
 import { ensureFolder, normalizePathSafe } from "@services/paths";
+import { resolveLogBaseFolder } from "@services/note-path-resolver";
 
 type ErrorMessageResolver = (error: unknown) => string;
 
@@ -34,7 +35,7 @@ function resetProgressIndicatorsForNextStage(plugin: KeepSidianPlugin) {
 }
 
 export async function ensureStoragePathsOrThrow(plugin: KeepSidianPlugin): Promise<void> {
-	const saveLocation = plugin.settings.saveLocation;
+	const saveLocation = resolveLogBaseFolder(plugin.app, plugin.settings);
 	try {
 		await ensureFolder(plugin.app, saveLocation);
 	} catch (error: unknown) {
@@ -285,7 +286,9 @@ export async function openLatestSyncLogFlow(plugin: KeepSidianPlugin): Promise<v
 	}
 
 	let logPath = plugin.lastSyncLogPath;
-	const logsFolder = normalizePathSafe(`${plugin.settings.saveLocation}/_KeepSidianLogs`);
+	const logsFolder = normalizePathSafe(
+		`${resolveLogBaseFolder(plugin.app, plugin.settings)}/_KeepSidianLogs`
+	);
 
 	if (!logPath) {
 		if (typeof adapter.list === "function") {

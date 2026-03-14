@@ -239,6 +239,26 @@ If your plugin does not need CSS, delete this file.
 	margin-top: 12px;
 }
 
+.keepsidian-note-path-preview {
+	margin-top: 12px;
+	padding: 12px;
+	border: 1px dashed var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary-alt);
+}
+
+.keepsidian-note-path-preview__label {
+	margin-bottom: 6px;
+	font-weight: 600;
+}
+
+.keepsidian-note-path-preview__path {
+	display: block;
+	font-size: 0.9em;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
 @media (max-width: 960px) {
 	.keepsidian-retrieve-token-wrapper {
 		grid-template-columns: 1fr;

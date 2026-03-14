@@ -11,6 +11,7 @@ import {
 	FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
 } from "../constants";
 import { buildNotePath } from "@services/index";
+import { findExistingKeepNotePath } from "./noteLookup";
 
 interface UpdatedFileInfo {
 	textWithoutFrontmatter: string;
@@ -89,9 +90,12 @@ async function getExistingFileInfo(
 async function handleDuplicateNotes(
 	saveLocation: string,
 	incomingNote: NormalizedNote,
-	app: App
+	app: App,
+	noteFilePathOverride?: string
 ): Promise<"skip" | "merge" | "overwrite" | "create"> {
-	const noteFilePath = buildNotePath(saveLocation, incomingNote.title);
+	const preferredPath = noteFilePathOverride ?? buildNotePath(saveLocation, incomingNote.title);
+	const noteFilePath =
+		(await findExistingKeepNotePath(app, incomingNote, preferredPath)) ?? preferredPath;
 	const fileExists = await app.vault.adapter.exists(noteFilePath);
 
 	if (fileExists) {

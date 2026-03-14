@@ -5,6 +5,12 @@ import {
 } from "./subscription";
 
 export type SyncMode = "import" | "push" | "two-way";
+export type SaveLocationMode = "custom" | "daily-notes";
+
+export const LEGACY_SAVE_LOCATION = "/Google Keep";
+export const NEW_INSTALL_SAVE_LOCATION = "/KeepSidian";
+export const DEFAULT_SAVE_LOCATION_MODE: SaveLocationMode = "custom";
+export const DEFAULT_NOTE_FILE_NAME_PATTERN = "{title}";
 
 export interface LastSyncSummary {
 	timestamp: number;
@@ -19,6 +25,8 @@ export interface KeepSidianPluginSettings {
 	token: string;
 	syncTokenSecretId: string;
 	saveLocation: string;
+	saveLocationMode: SaveLocationMode;
+	noteFileNamePattern: string;
 	oauthFlow: "desktop" | "webviewer";
 	oauthDebugMode: boolean;
 	oauthPlaywrightUseSystemBrowser: boolean;
@@ -44,7 +52,9 @@ export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
 	email: "",
 	token: "",
 	syncTokenSecretId: "google-sync-token",
-	saveLocation: "Google Keep",
+	saveLocation: NEW_INSTALL_SAVE_LOCATION,
+	saveLocationMode: DEFAULT_SAVE_LOCATION_MODE,
+	noteFileNamePattern: DEFAULT_NOTE_FILE_NAME_PATTERN,
 	oauthFlow: "desktop",
 	oauthDebugMode: false,
 	oauthPlaywrightUseSystemBrowser: true,
@@ -65,3 +75,32 @@ export const DEFAULT_SETTINGS: KeepSidianPluginSettings = {
 	twoWaySyncEnabled: false,
 	twoWaySyncAutoSyncEnabled: false,
 };
+
+export function normalizeRootedVaultPath(value: string): string {
+	const trimmedValue = value.trim();
+	if (!trimmedValue) {
+		return "";
+	}
+
+	return trimmedValue.startsWith("/") ? trimmedValue : `/${trimmedValue}`;
+}
+
+export function resolveLoadedSettings(
+	saved: Partial<KeepSidianPluginSettings> | null | undefined
+): KeepSidianPluginSettings {
+	const merged = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
+
+	if (saved && typeof saved.saveLocation === "undefined") {
+		merged.saveLocation = LEGACY_SAVE_LOCATION;
+	}
+
+	merged.saveLocationMode = DEFAULT_SAVE_LOCATION_MODE;
+
+	if (saved && typeof saved.noteFileNamePattern === "undefined") {
+		merged.noteFileNamePattern = DEFAULT_NOTE_FILE_NAME_PATTERN;
+	}
+
+	merged.saveLocation = normalizeRootedVaultPath(merged.saveLocation);
+
+	return merged;
+}

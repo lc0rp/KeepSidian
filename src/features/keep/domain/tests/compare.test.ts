@@ -100,6 +100,44 @@ describe("handleDuplicateNotes", () => {
 		);
 		expect(["skip", "merge", "overwrite"]).toContain(result);
 	});
+
+	it("finds existing notes by GoogleKeepUrl when the filename no longer matches the title", async () => {
+		adapter.exists.mockImplementation(async (path: string) => path === "Archive/old-name.md");
+		adapter.list.mockResolvedValue({ files: ["Archive/old-name.md"], folders: [] });
+		adapter.read.mockResolvedValue(
+			"---\nGoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\n---\nExisting content"
+		);
+		adapter.stat.mockResolvedValue({
+			ctime: Date.now(),
+			mtime: Date.now(),
+		});
+
+		const incomingNote: NormalizedNote = {
+			title: "Renamed title",
+			text: "Content",
+			created: new Date("2023-05-25"),
+			updated: new Date("2023-05-26"),
+			frontmatter:
+				"GoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\nGoogleKeepCreatedDate: 2023-05-25T00:00:00.000Z",
+			frontmatterDict: {
+				GoogleKeepUrl: "https://keep.google.com/u/0/#NOTE/123",
+			},
+			archived: false,
+			trashed: false,
+			labels: [],
+			blobs: [],
+			blob_urls: [],
+			blob_names: [],
+			media: [],
+			header: "",
+			textWithoutFrontmatter: "New content",
+		};
+
+		const result = await handleDuplicateNotes("/save/location", incomingNote, mockApp);
+		expect(["skip", "merge", "overwrite"]).toContain(result);
+		expect(adapter.list).toHaveBeenCalled();
+		expect(adapter.exists).toHaveBeenCalledWith("Archive/old-name.md");
+	});
 });
 
 describe("checkForDuplicateData", () => {

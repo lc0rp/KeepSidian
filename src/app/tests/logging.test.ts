@@ -1,5 +1,7 @@
 jest.mock("obsidian", () => ({
         Notice: jest.fn(),
+        normalizePath: jest.fn((value: string) => value.replace(/\\/g, "/").replace(/\/+/g, "/")),
+        moment: require("moment"),
 }));
 
 jest.mock("../../services/logger", () => ({

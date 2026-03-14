@@ -2,6 +2,30 @@ import type KeepSidianPlugin from "main";
 import { Setting, setIcon } from "obsidian";
 import type { IconName } from "obsidian";
 import { SubscriptionSettingsTab } from "../SubscriptionSettingsTab";
+import {
+	DEFAULT_NOTE_FILE_NAME_PATTERN,
+	NEW_INSTALL_SAVE_LOCATION,
+	normalizeRootedVaultPath,
+} from "../../../types/keepsidian-plugin-settings";
+import { resolveNotePath } from "@services/note-path-resolver";
+
+const PREVIEW_NOTE_TITLE = "Note";
+
+function renderNotePathPreview(plugin: KeepSidianPlugin, containerEl: HTMLElement): void {
+	const previewPath = resolveNotePath(plugin.app, plugin.settings, {
+		title: PREVIEW_NOTE_TITLE,
+		created: new Date(),
+	});
+	containerEl.innerHTML = "";
+	containerEl.createEl("div", {
+		cls: "keepsidian-note-path-preview__label",
+		text: "Location preview:- your notes will be saved here:",
+	});
+	containerEl.createEl("code", {
+		cls: "keepsidian-note-path-preview__path",
+		text: `<vault>/${previewPath}`,
+	});
+}
 
 export function addSupportSection(plugin: KeepSidianPlugin, containerEl: HTMLElement): void {
 	const supportRow = containerEl.createEl("div", {
@@ -26,26 +50,11 @@ export function addSupportSection(plugin: KeepSidianPlugin, containerEl: HTMLEle
 		cls: "keepsidian-support-links",
 	});
 
-	createSupportLink(
-		linksContainer,
-		"GitHub Issues",
-		"https://github.com/lc0rp/KeepSidian/issues",
-		"github"
-	);
-	createSupportLink(
-		linksContainer,
-		"Discord DM (@lc0rp)",
-		"https://discord.com/users/lc0rp",
-		"message-circle"
-	);
+	createSupportLink(linksContainer, "GitHub Issues", "https://github.com/lc0rp/KeepSidian/issues", "github");
+	createSupportLink(linksContainer, "Discord DM (@lc0rp)", "https://discord.com/users/lc0rp", "message-circle");
 }
 
-function createSupportLink(
-	parentEl: HTMLElement,
-	label: string,
-	href: string,
-	icon: IconName
-): void {
+function createSupportLink(parentEl: HTMLElement, label: string, href: string, icon: IconName): void {
 	const linkEl = parentEl.createEl("a", {
 		cls: "keepsidian-support-link",
 	});
@@ -66,10 +75,7 @@ function createSupportLink(
 	});
 }
 
-export async function addSubscriptionSettings(
-	plugin: KeepSidianPlugin,
-	containerEl: HTMLElement
-): Promise<void> {
+export async function addSubscriptionSettings(plugin: KeepSidianPlugin, containerEl: HTMLElement): Promise<void> {
 	const subscriptionTab = new SubscriptionSettingsTab(containerEl, plugin);
 	await subscriptionTab.display();
 }
@@ -90,18 +96,59 @@ export function addEmailSetting(plugin: KeepSidianPlugin, containerEl: HTMLEleme
 }
 
 export function addSaveLocationSetting(plugin: KeepSidianPlugin, containerEl: HTMLElement): void {
-	new Setting(containerEl)
-		.setName("Save location")
-		.setDesc("Where to save imported notes (relative to vault). Will be created if it doesn't exist.")
-		.addText((text) =>
-			text
-				.setPlaceholder("KeepSidian")
-				.setValue(plugin.settings.saveLocation)
-				.onChange(async (value) => {
-					plugin.settings.saveLocation = value;
-					await plugin.saveSettings();
-				})
-		);
+	const sectionEl = containerEl.createDiv();
+
+	const render = () => {
+		sectionEl.innerHTML = "";
+		let previewSectionEl: HTMLElement | null = null;
+
+		const updatePreview = () => {
+			if (previewSectionEl) {
+				renderNotePathPreview(plugin, previewSectionEl);
+			}
+		};
+
+		new Setting(sectionEl)
+			.setName("Save location in vault")
+			.setDesc(
+				"Folder path pattern for imported notes. Variables: {now.*} or {note.*} for date, time, year, month, day, quarter. Examples: {now.date} OR {note.year} OR /KeepSidian/{now.year}/{note.month}-{note.day} OR /path/to/daily notes"
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder(NEW_INSTALL_SAVE_LOCATION)
+					.setValue(plugin.settings.saveLocation)
+					.onChange(async (value) => {
+						const normalizedValue = normalizeRootedVaultPath(value);
+						plugin.settings.saveLocation = normalizedValue;
+						text.setValue(normalizedValue);
+						updatePreview();
+						await plugin.saveSettings();
+					})
+			);
+
+		new Setting(sectionEl)
+			.setName("Note filename")
+			.setDesc(
+				"Filename pattern for imported notes. Variables: {title}, {now.*} or {note.*} for date, time, year, month, day, quarter. Examples: {title}-{now.date} OR {title}-{note.year}"
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder(DEFAULT_NOTE_FILE_NAME_PATTERN)
+					.setValue(plugin.settings.noteFileNamePattern)
+					.onChange(async (value) => {
+						plugin.settings.noteFileNamePattern = value || DEFAULT_NOTE_FILE_NAME_PATTERN;
+						updatePreview();
+						await plugin.saveSettings();
+					})
+			);
+
+		previewSectionEl = sectionEl.createDiv({
+			cls: "keepsidian-note-path-preview",
+		});
+		updatePreview();
+	};
+
+	render();
 }
 
 export function addGithubInstructionsLink(setting: Setting): void {

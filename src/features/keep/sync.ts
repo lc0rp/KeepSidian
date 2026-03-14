@@ -10,12 +10,13 @@ import { CONFLICT_FILE_SUFFIX } from "./constants";
 import { buildFrontmatterWithSyncDate, wrapMarkdown } from "./frontmatter";
 import { ensurePascalCaseFrontmatter } from "./migrations/fixFrontmatterCasing";
 import {
-	buildNotePath,
+	dirnameSafe,
 	ensureFolder,
 	ensureParentFolderForFile,
 	mediaFolderPath,
 	normalizePathSafe,
 } from "@services/paths";
+import { resolveNoteFolder, resolveNotePath } from "@services/note-path-resolver";
 import { flushLogSync, logSync } from "@app/logging";
 import type {
 	GoogleKeepImportResponse,
@@ -26,6 +27,7 @@ import {
 	fetchNotes as apiFetchNotes,
 	fetchNotesWithPremiumFeatures as apiFetchNotesWithPremium,
 } from "@integrations/server/keepApi";
+import { findExistingKeepNotePath } from "./domain/noteLookup";
 
 const LAST_SUCCESSFUL_SYNC_DATE_KEY = "KeepSidianLastSuccessfulSyncDate";
 const NOTE_LOG_BATCH_KEY = "sync:notes";
@@ -252,14 +254,15 @@ export async function processAndSaveNotes(
         notes: PreNormalizedNote[],
         callbacks?: SyncCallbacks
 ) {
-        const saveLocation = plugin.settings.saveLocation;
-        await ensureFolder(plugin.app, saveLocation);
-        await ensureFolder(plugin.app, mediaFolderPath(saveLocation));
         await ensurePascalCaseFrontmatter(plugin);
 
         try {
                 for (const note of notes) {
-                        await processAndSaveNote(plugin, note, saveLocation);
+                        const normalizedNote = normalizeNote(note);
+                        const noteFolder = resolveNoteFolder(plugin.app, plugin.settings, normalizedNote);
+                        await ensureFolder(plugin.app, noteFolder);
+                        await ensureFolder(plugin.app, mediaFolderPath(noteFolder));
+                        await processAndSaveNote(plugin, note, plugin.settings.saveLocation, normalizedNote);
                         callbacks?.reportProgress?.();
                 }
         } finally {
@@ -270,16 +273,21 @@ export async function processAndSaveNotes(
 export async function processAndSaveNote(
         plugin: KeepSidianPlugin,
         note: PreNormalizedNote,
-        saveLocation: string
+        saveLocation: string,
+        preNormalizedNote?: ReturnType<typeof normalizeNote>
 ) {
-        const normalizedNote = normalizeNote(note);
+        const normalizedNote = preNormalizedNote ?? normalizeNote(note);
         const noteTitle = normalizedNote.title;
         if (!noteTitle) {
                 await logSync(plugin, "Skipped note without a title", NOTE_LOG_BATCH_OPTIONS);
                 return;
         }
-        let noteFilePath = buildNotePath(saveLocation, noteTitle);
+        const resolvedNotePath = resolveNotePath(plugin.app, plugin.settings, normalizedNote);
+        let noteFilePath =
+		(await findExistingKeepNotePath(plugin.app, normalizedNote, resolvedNotePath)) ??
+		resolvedNotePath;
         const noteLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
+        const noteFolder = dirnameSafe(noteFilePath);
 
 	const lastSyncedDate = new Date().toISOString();
 
@@ -288,7 +296,8 @@ export async function processAndSaveNote(
 		const duplicateNotesAction = await handleDuplicateNotes(
 			saveLocation,
 			normalizedNote,
-			plugin.app
+			plugin.app,
+			noteFilePath
 		);
 		const newFrontmatter = normalizedNote.frontmatter;
 		const newTextWithoutFrontmatter = normalizedNote.textWithoutFrontmatter;
@@ -365,10 +374,13 @@ export async function processAndSaveNote(
                 }
 
                 if (normalizedNote.blob_urls && normalizedNote.blob_urls.length > 0) {
+                        if (noteFolder) {
+                                await ensureFolder(plugin.app, mediaFolderPath(noteFolder));
+                        }
                         const { downloaded, skippedIdentical } = await processAttachments(
                                 plugin.app,
                                 normalizedNote.blob_urls,
-                                saveLocation,
+                                noteFolder || resolveNoteFolder(plugin.app, plugin.settings, normalizedNote),
                                 normalizedNote.blob_names
                         );
                         if (downloaded > 0) {

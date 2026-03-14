@@ -79,6 +79,7 @@ describe("KeepSidianPlugin", () => {
 
 	describe("onload", () => {
 		it("should initialize plugin with default settings", async () => {
+			plugin.loadData = jest.fn().mockResolvedValue(null);
 			await plugin.onload();
 
 			expect(plugin.settings).toEqual(DEFAULT_SETTINGS);
@@ -478,12 +479,13 @@ describe("KeepSidianPlugin", () => {
 			plugin.subscriptionService.isSubscriptionActive = jest
 				.fn()
 				.mockResolvedValue(false);
-			plugin.settings = { ...DEFAULT_SETTINGS };
-			setTestCredentials(plugin);
-			const saveLocation = plugin.settings.saveLocation;
-			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
-				.toISOString()
-				.slice(0, 10)}.md`;
+				plugin.settings = { ...DEFAULT_SETTINGS };
+				setTestCredentials(plugin);
+				const saveLocation = plugin.settings.saveLocation;
+				const resolvedSaveLocation = saveLocation.replace(/^\//, "");
+				const logPath = `${resolvedSaveLocation}/_KeepSidianLogs/${new Date()
+					.toISOString()
+					.slice(0, 10)}.md`;
 
 			const existsMock = jest.fn(async (p: string) => false);
 			const createFolderMock = jest.fn().mockResolvedValue(undefined);
@@ -505,17 +507,18 @@ describe("KeepSidianPlugin", () => {
 			);
 			await plugin.importNotes();
 
-			expect(createFolderMock).toHaveBeenCalledWith(saveLocation);
-			expect(writeMock).toHaveBeenCalledWith(logPath, expect.any(String));
-		});
+				expect(createFolderMock).toHaveBeenCalledWith(resolvedSaveLocation);
+				expect(writeMock).toHaveBeenCalledWith(logPath, expect.any(String));
+			});
 
 		it("shows error and aborts when saveLocation cannot be created", async () => {
 			plugin.subscriptionService.isSubscriptionActive = jest
 				.fn()
 				.mockResolvedValue(false);
-			plugin.settings = { ...DEFAULT_SETTINGS };
-			setTestCredentials(plugin);
-			const saveLocation = plugin.settings.saveLocation;
+				plugin.settings = { ...DEFAULT_SETTINGS };
+				setTestCredentials(plugin);
+				const saveLocation = plugin.settings.saveLocation;
+				const resolvedSaveLocation = saveLocation.replace(/^\//, "");
 
 			const notice = Notice as unknown as jest.Mock;
 
@@ -533,9 +536,9 @@ describe("KeepSidianPlugin", () => {
 				.mockResolvedValue(0);
 			await plugin.importNotes();
 
-			expect(notice).toHaveBeenCalledWith(
-				`KeepSidian: failed to create save location: ${saveLocation}`
-			);
+				expect(notice).toHaveBeenCalledWith(
+					`KeepSidian: failed to create save location: ${resolvedSaveLocation}`
+				);
 			expect(importSpy).not.toHaveBeenCalled();
 		});
 
@@ -543,21 +546,22 @@ describe("KeepSidianPlugin", () => {
 			plugin.subscriptionService.isSubscriptionActive = jest
 				.fn()
 				.mockResolvedValue(false);
-			plugin.settings = { ...DEFAULT_SETTINGS };
-			setTestCredentials(plugin);
-			const saveLocation = plugin.settings.saveLocation;
-			const logPath = `${saveLocation}/_KeepSidianLogs/${new Date()
-				.toISOString()
-				.slice(0, 10)}.md`;
+				plugin.settings = { ...DEFAULT_SETTINGS };
+				setTestCredentials(plugin);
+				const saveLocation = plugin.settings.saveLocation;
+				const resolvedSaveLocation = saveLocation.replace(/^\//, "");
+				const logPath = `${resolvedSaveLocation}/_KeepSidianLogs/${new Date()
+					.toISOString()
+					.slice(0, 10)}.md`;
 
 			const notice = Notice as unknown as jest.Mock;
 
 			plugin.app = {
 				vault: {
 					adapter: {
-						exists: jest.fn(
-							async (p: string) => p === saveLocation
-						),
+							exists: jest.fn(
+								async (p: string) => p === resolvedSaveLocation
+							),
 						read: jest.fn().mockResolvedValue(""),
 						write: jest
 							.fn()
@@ -725,10 +729,36 @@ describe("KeepSidianPlugin", () => {
 
 			await plugin.loadSettings();
 
-			expect(plugin.settings).toEqual({
-				...DEFAULT_SETTINGS,
-				...savedSettings,
+				expect(plugin.settings).toEqual(
+					expect.objectContaining({
+						...savedSettings,
+						saveLocation: "/Google Keep",
+						saveLocationMode: "custom",
+						noteFileNamePattern: "{title}",
+					})
+				);
+		});
+
+		it("uses new defaults for brand-new installs", async () => {
+			plugin.loadData = jest.fn().mockResolvedValue(null);
+
+			await plugin.loadSettings();
+
+			expect(plugin.settings.saveLocation).toBe("/KeepSidian");
+			expect(plugin.settings.saveLocationMode).toBe("custom");
+			expect(plugin.settings.noteFileNamePattern).toBe("{title}");
+		});
+
+		it("coerces legacy daily-notes mode back to custom", async () => {
+			plugin.loadData = jest.fn().mockResolvedValue({
+				saveLocation: "Legacy Folder",
+				saveLocationMode: "daily-notes",
 			});
+
+			await plugin.loadSettings();
+
+			expect(plugin.settings.saveLocation).toBe("/Legacy Folder");
+			expect(plugin.settings.saveLocationMode).toBe("custom");
 		});
 
 		it("should save settings", async () => {

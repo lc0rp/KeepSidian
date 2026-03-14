@@ -1,7 +1,8 @@
 import { arrayBufferToBase64 } from "obsidian";
 import type KeepSidianPlugin from "@app/main";
 import { extractFrontmatter, getFrontmatterStringValue } from "../domain/note";
-import { dirnameSafe, ensureFolder, mediaFolderPath, normalizePathSafe } from "@services/paths";
+import { dirnameSafe, mediaFolderPath, normalizePathSafe } from "@services/paths";
+import { isKeepSidianFrontmatter, listMarkdownFilesRecursively } from "../domain/noteLookup";
 import {
 	CONFLICT_FILE_SUFFIX,
 	FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
@@ -49,41 +50,6 @@ function parseDate(value?: string): Date | null {
 	}
 	const parsed = new Date(value);
 	return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-async function listMarkdownFilesRecursively(
-	adapter: VaultAdapter,
-	folder: string
-): Promise<string[]> {
-	const normalizedFolder = normalizePathSafe(folder);
-	if (typeof adapter.list !== "function") {
-		return [];
-	}
-
-	try {
-		const { files, folders } = await adapter.list(normalizedFolder);
-		const markdownFiles = files
-			.map((file) => normalizePathSafe(file))
-			.filter((file) => file.toLowerCase().endsWith(".md"));
-
-		for (const subfolder of folders) {
-			const normalizedSubfolder = normalizePathSafe(subfolder);
-			const name = normalizedSubfolder.split("/").pop();
-			if (!name) {
-				continue;
-			}
-			if (name === "media" || name === "_KeepSidianLogs") {
-				continue;
-			}
-			const nested = await listMarkdownFilesRecursively(adapter, normalizedSubfolder);
-			markdownFiles.push(...nested);
-		}
-
-		return markdownFiles;
-	} catch (error: unknown) {
-		console.error("Failed to list files for push", error);
-		return [];
-	}
 }
 
 function normalizeRelativePath(notePath: string, baseFolder: string): string {
@@ -216,10 +182,10 @@ async function collectAttachments(
 	adapter: VaultAdapter,
 	noteContent: string,
 	notePath: string,
-	saveLocation: string,
+	noteFolder: string,
 	lastSynced: Date | null
 ): Promise<AttachmentCollectionResult> {
-	const attachmentPaths = extractAttachmentReferences(noteContent, notePath, saveLocation);
+	const attachmentPaths = extractAttachmentReferences(noteContent, notePath, noteFolder);
 	const payloads: PushAttachmentPayload[] = [];
 	const updatedAttachments: string[] = [];
 	const missingAttachments: string[] = [];
@@ -279,10 +245,9 @@ export async function collectNotesToPush(
 ): Promise<CollectedNotesResult> {
 	const adapter = plugin.app.vault.adapter as VaultAdapter;
 	const saveLocation = plugin.settings.saveLocation;
-	await ensureFolder(plugin.app, saveLocation);
 	await ensurePascalCaseFrontmatter(plugin);
 
-	const markdownFiles = await listMarkdownFilesRecursively(adapter, saveLocation);
+	const markdownFiles = await listMarkdownFilesRecursively(adapter, "");
 
 	const notesToPush: NoteForPush[] = [];
 	const skippedNotes: Array<{ path: string; reason: string }> = [];
@@ -299,6 +264,9 @@ export async function collectNotesToPush(
 
 			const content = await adapter.read(filePath);
 			const [frontmatter, body, frontmatterDict] = extractFrontmatter(content);
+			if (!isKeepSidianFrontmatter(frontmatterDict)) {
+				continue;
+			}
 			const lastSyncedValue = getFrontmatterStringValue(
 				frontmatterDict,
 				FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY
@@ -318,7 +286,7 @@ export async function collectNotesToPush(
 				adapter,
 				content,
 				filePath,
-				saveLocation,
+				dirnameSafe(filePath),
 				lastSyncedDate
 			);
 

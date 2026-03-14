@@ -1,17 +1,11 @@
 import { Notice, Plugin } from "obsidian";
 import type { ProgressBarComponent } from "obsidian";
-import type {
-	KeepSidianPluginSettings,
-	LastSyncSummary,
-	SyncMode,
-} from "../types/keepsidian-plugin-settings";
-import { DEFAULT_SETTINGS } from "../types/keepsidian-plugin-settings";
+import type { KeepSidianPluginSettings, LastSyncSummary, SyncMode } from "../types/keepsidian-plugin-settings";
+import { resolveLoadedSettings } from "../types/keepsidian-plugin-settings";
 import { SubscriptionService } from "@services/subscription";
 import { NoteImportOptions, NoteImportOptionsModal } from "@ui/modals/NoteImportOptionsModal";
 import { SyncProgressModal } from "@ui/modals/SyncProgressModal";
-import {
-	initializeStatusBar,
-} from "@app/sync-ui";
+import { initializeStatusBar } from "@app/sync-ui";
 import { logSync } from "@app/logging";
 import { KeepSidianSettingsTab } from "@ui/settings/KeepSidianSettingsTab";
 import { registerRibbonAndCommands } from "@app/commands";
@@ -91,17 +85,13 @@ export default class KeepSidianPlugin extends Plugin {
 	private ensureCredentials(): boolean {
 		const email = this.settings.email?.trim();
 		if (!email) {
-			new Notice(
-				"KeepSidian: please enter your Google account email in the settings before syncing."
-			);
+			new Notice("KeepSidian: please enter your Google account email in the settings before syncing.");
 			return false;
 		}
 
 		const token = this.settings.token?.trim();
 		if (!token) {
-			new Notice(
-				"KeepSidian: please add your Google Keep token in the settings before syncing."
-			);
+			new Notice("KeepSidian: please add your Google Keep token in the settings before syncing.");
 			return false;
 		}
 
@@ -110,7 +100,7 @@ export default class KeepSidianPlugin extends Plugin {
 
 	async loadSettings() {
 		const saved = (await this.loadData()) as Partial<KeepSidianPluginSettings> | null;
-		this.settings = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
+		this.settings = resolveLoadedSettings(saved);
 		const sensitiveSettingsChanged =
 			hydrateSyncTokenFromSecretStorage(this) || hydrateDriveSecretsFromSecretStorage(this);
 		this.normalizeTwoWaySettings();
@@ -155,16 +145,15 @@ export default class KeepSidianPlugin extends Plugin {
 		const autoSyncEnabled = this.settings.autoSyncEnabled;
 
 		if (!backupAcknowledged) {
-			reasons.push("Please opt-in in settings first.");
+			reasons.push("Please opt-in to two-way sync in settings first.");
 		}
 		if (backupAcknowledged && !manualEnabled) {
-			reasons.push("Please enable in settings first.");
+			reasons.push("Please enable two-way sync in settings first.");
 		}
 
-		const subscriptionActive =
-			subscriptionOverride ?? this.subscriptionActive ?? this.getCachedSubscriptionActive();
+		const subscriptionActive = subscriptionOverride ?? this.subscriptionActive ?? this.getCachedSubscriptionActive();
 		if (requirePremium && subscriptionActive === false) {
-			reasons.push("KeepSidian Premium membership is required for uploads.");
+			reasons.push("To enable uploads & two-way sync, please consider becoming a KeepSidian supporter.");
 		}
 
 		if (requireAutoSync) {
@@ -209,14 +198,14 @@ export default class KeepSidianPlugin extends Plugin {
 
 		const doc = this.app.workspace?.containerEl?.ownerDocument ?? null;
 		if (!doc) {
-			new Notice("KeepSidian uploads are locked until prerequisites are met.", 10000);
+			new Notice("KeepSidian uploads & two-way sync are locked until prerequisites are met.", 10000);
 			return;
 		}
 
 		const fragment = doc.createDocumentFragment();
 		const heading = doc.createElement("div");
 		heading.classList.add("keepsidian-notice-heading");
-		heading.textContent = "KeepSidian uploads are locked until you:";
+		heading.textContent = "KeepSidian uploads & two-way sync are locked until you:";
 		fragment.appendChild(heading);
 
 		const list = doc.createElement("ul");
@@ -295,10 +284,7 @@ export default class KeepSidianPlugin extends Plugin {
 		}
 
 		const formattedReasons = reasons.join("; ");
-		await logSync(
-			this,
-			`Auto sync skipped uploads. Resolve in beta settings: ${formattedReasons}`
-		);
+		await logSync(this, `Auto sync skipped uploads. Resolve in beta settings: ${formattedReasons}`);
 
 		await this.importNotes(true);
 	}

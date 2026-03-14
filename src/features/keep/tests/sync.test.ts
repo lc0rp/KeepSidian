@@ -1,6 +1,6 @@
 jest.mock("obsidian", () => ({
 	requestUrl: jest.fn(),
-	normalizePath: jest.fn(),
+	normalizePath: jest.fn((path: string) => path.replace(/\\/g, "/").replace(/\/+/g, "/")),
 	Notice: jest.fn(),
 }));
 import { requestUrl, RequestUrlResponse, Notice } from "obsidian";
@@ -32,8 +32,12 @@ describe("Google Keep Import Functions", () => {
 	let setVaultConfigMock: jest.Mock;
 
 	beforeEach(() => {
+		jest.restoreAllMocks();
 		// Reset all mocks before each test
 		jest.clearAllMocks();
+		(obsidian.normalizePath as jest.Mock).mockImplementation((path: string) =>
+			path.replace(/\\/g, "/").replace(/\/+/g, "/")
+		);
 
 		getVaultConfigMock = jest.fn().mockReturnValue(undefined);
 		setVaultConfigMock = jest.fn();
@@ -44,6 +48,8 @@ describe("Google Keep Import Functions", () => {
 				email: "test@example.com",
 				token: "test-token",
 				saveLocation: "Test Folder",
+				saveLocationMode: "custom",
+				noteFileNamePattern: "{title}",
 				keepSidianLastSuccessfulSyncDate: null,
 				frontmatterPascalCaseFixApplied: false,
 			},
@@ -343,7 +349,8 @@ describe("Google Keep Import Functions", () => {
 			expect(compareModule.handleDuplicateNotes).toHaveBeenCalledWith(
 				mockPlugin.settings.saveLocation,
 				normalizedNote,
-				mockPlugin.app
+				mockPlugin.app,
+				`${mockPlugin.settings.saveLocation}/${note.title}.md`
 			);
 			expect(mockPlugin.app.vault.adapter.read).not.toHaveBeenCalled();
 			expect(ensureParentSpy).toHaveBeenCalledWith(
@@ -351,6 +358,33 @@ describe("Google Keep Import Functions", () => {
 				`${mockPlugin.settings.saveLocation}/${note.title}.md`
 			);
 			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalled();
+			ensureParentSpy.mockRestore();
+		});
+
+			it("resolves note paths from save-location and filename patterns", async () => {
+				mockPlugin.settings.saveLocation = "KeepSidian/{note.year}/{note.month}";
+				mockPlugin.settings.noteFileNamePattern = "{note.date}-{title}";
+			const datedNote: noteModule.NormalizedNote = {
+				...normalizedNote,
+				created: new Date("2024-03-20T14:30:45.000Z"),
+			};
+
+			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(datedNote);
+			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("create");
+			const ensureParentSpy = jest
+				.spyOn(pathsModule, "ensureParentFolderForFile")
+				.mockResolvedValue(undefined);
+
+			await syncModule.processAndSaveNote(mockPlugin, note, mockPlugin.settings.saveLocation);
+
+			expect(ensureParentSpy).toHaveBeenCalledWith(
+				mockPlugin.app,
+				"KeepSidian/2024/03/2024-03-20-Note 1.md"
+			);
+			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalledWith(
+				"KeepSidian/2024/03/2024-03-20-Note 1.md",
+				expect.any(String)
+			);
 			ensureParentSpy.mockRestore();
 		});
 
