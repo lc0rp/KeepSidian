@@ -665,7 +665,7 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 
 			await waitForMicrotasks();
 
-			expect(container.textContent).toContain("vault/KeepSidian/2024/03/2024-03-20-Note.md");
+			expect(container.textContent).toContain("<vault>/KeepSidian/2024/03/2024-03-20-Note.md");
 		} finally {
 			jest.useRealTimers();
 		}

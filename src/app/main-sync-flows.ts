@@ -92,17 +92,13 @@ export async function runImportWithOptions(
 export async function runImportNotesFlow(
 	plugin: KeepSidianPlugin,
 	auto: boolean,
-	getErrorMessage: ErrorMessageResolver
+	getErrorMessage: ErrorMessageResolver,
+	options?: NoteImportOptions
 ): Promise<void> {
 	try {
 		const isSubscriptionActive = await plugin.subscriptionService.isSubscriptionActive();
 		(plugin as unknown as { subscriptionActive: boolean | null }).subscriptionActive =
 			isSubscriptionActive;
-
-		if (!auto && isSubscriptionActive) {
-			await plugin.showImportOptionsModal();
-			return;
-		}
 
 		try {
 			await ensureStoragePathsOrThrow(plugin);
@@ -119,12 +115,22 @@ export async function runImportNotesFlow(
 		await logSync(plugin, `\n\n---\n`, batchOptions);
 		await logSync(plugin, `${auto ? "Auto" : "Manual"} sync started`, batchOptions);
 		plugin.currentSyncMode = "import";
+		plugin.currentSyncPhaseLabel = auto ? "Background sync" : "Syncing";
 		startSyncUI(plugin);
 		try {
-			await importGoogleKeepNotes(plugin, {
-				setTotalNotes: (n) => uiSetTotalNotes(plugin, n),
+			const callbacks = {
+				setTotalNotes: (n: number) => uiSetTotalNotes(plugin, n),
 				reportProgress: () => reportSyncProgress(plugin),
-			});
+			};
+			if (!auto && isSubscriptionActive) {
+				await importGoogleKeepNotesWithOptions(
+					plugin,
+					options ?? plugin.settings.premiumFeatures,
+					callbacks
+				);
+			} else {
+				await importGoogleKeepNotes(plugin, callbacks);
+			}
 			await logSync(
 				plugin,
 				`${auto ? "Auto" : "Manual"} sync ended - success. Processed ${
@@ -173,6 +179,7 @@ export async function runPushNotesFlow(
 		await logSync(plugin, `\n\n---\n`, batchOptions);
 		await logSync(plugin, `Push sync started`, batchOptions);
 		plugin.currentSyncMode = "push";
+		plugin.currentSyncPhaseLabel = "Syncing";
 		startSyncUI(plugin);
 		try {
 			const pushed = await pushGoogleKeepNotes(plugin, {
@@ -222,6 +229,7 @@ export async function runTwoWaySyncFlow(
 		await logSync(plugin, `\n\n---\n`, batchOptions);
 		await logSync(plugin, `Two-way sync started`, batchOptions);
 		plugin.currentSyncMode = "two-way";
+		plugin.currentSyncPhaseLabel = "Download step";
 		startSyncUI(plugin);
 		const callbacks = {
 			setTotalNotes: (n: number) => uiSetTotalNotes(plugin, n),
@@ -249,6 +257,7 @@ export async function runTwoWaySyncFlow(
 		}
 
 		resetProgressIndicatorsForNextStage(plugin);
+		plugin.currentSyncPhaseLabel = "Upload step";
 		await logSync(plugin, `Two-way sync - starting push stage`);
 
 		try {

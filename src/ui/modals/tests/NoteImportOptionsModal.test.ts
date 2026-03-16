@@ -132,19 +132,17 @@ class ExtraButtonComponentMock implements MockExtraButtonComponent {
 
 jest.mock("../../settings/SubscriptionSettingsTab", () => ({
 	SubscriptionSettingsTab: {
-		displayPremiumFeatures: jest.fn(
-			(contentEl: HTMLElement, plugin: KeepSidianPlugin, isActive: boolean) => {
-				// Simulate that UI mutates some premium values prior to submit
-				plugin.settings = { ...DEFAULT_SETTINGS };
-				plugin.settings.premiumFeatures = {
-					...(plugin.settings.premiumFeatures ?? {}),
-					includeNotesTerms: ["foo"],
-				};
-				contentEl.createEl("div", {
-					text: `Mocked displayPremiumFeatures - isActive: ${isActive}`,
-				});
-			}
-		),
+		displayPremiumFeatures: jest.fn((contentEl: HTMLElement, plugin: KeepSidianPlugin, isActive: boolean) => {
+			// Simulate that UI mutates some premium values prior to submit
+			plugin.settings = { ...DEFAULT_SETTINGS };
+			plugin.settings.premiumFeatures = {
+				...(plugin.settings.premiumFeatures ?? {}),
+				includeNotesTerms: ["foo"],
+			};
+			contentEl.createEl("div", {
+				text: `Mocked displayPremiumFeatures - isActive: ${isActive}`,
+			});
+		}),
 	},
 }));
 
@@ -248,7 +246,7 @@ describe("NoteImportOptionsModal", () => {
 
 		await modal.onOpen();
 
-		expect(modal.contentEl.textContent).toContain("Import options");
+		expect(modal.contentEl.textContent).toContain("Download options");
 		const { SubscriptionSettingsTab } = await import("../../settings/SubscriptionSettingsTab");
 		expect(SubscriptionSettingsTab.displayPremiumFeatures).toHaveBeenCalled();
 
@@ -259,9 +257,7 @@ describe("NoteImportOptionsModal", () => {
 		expect(importBtn).toBeTruthy();
 		importBtn.click();
 
-		expect(onSubmit).toHaveBeenCalledWith(
-			expect.objectContaining({ includeNotesTerms: ["foo"] })
-		);
+		expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ includeNotesTerms: ["foo"] }));
 		expect(closeSpy).toHaveBeenCalled();
 	});
 

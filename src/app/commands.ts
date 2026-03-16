@@ -3,48 +3,51 @@ import type KeepSidianPlugin from "@app/main";
 export function registerRibbonIcon(plugin: KeepSidianPlugin) {
 		plugin.addRibbonIcon(
 			"folder-sync",
-			"KeepSidian: perform two-way sync",
+			"KeepSidian: sync now",
 		async (_evt: MouseEvent) => {
-			const gate = await plugin.requireTwoWaySafeguards();
-			if (!gate.allowed) {
-				plugin.showTwoWaySafeguardNotice(gate);
-				return;
-			}
-			await plugin.performTwoWaySync();
+			plugin.openSyncCenter({ mode: "import", autoStart: true });
 		}
 	);
 }
 
 export function registerCommands(plugin: KeepSidianPlugin) {
 	plugin.addCommand({
+		id: "sync-now",
+		name: "Sync now",
+		callback: async () => {
+			plugin.openSyncCenter({ mode: "import", autoStart: true });
+		},
+	});
+
+	plugin.addCommand({
+		id: "open-sync-center",
+		name: "Open sync center",
+		callback: async () => {
+			plugin.openSyncCenter();
+		},
+	});
+
+	plugin.addCommand({
 		id: "two-way-sync-google-keep",
 		name: "Perform two-way sync",
 		callback: async () => {
-			const gate = await plugin.requireTwoWaySafeguards();
-			if (!gate.allowed) {
-				plugin.showTwoWaySafeguardNotice(gate);
-				return;
-			}
-			await plugin.performTwoWaySync();
+			plugin.openSyncCenter({ mode: "two-way", autoStart: true });
 		},
 	});
 
 	plugin.addCommand({
 		id: "import-google-keep-notes",
 		name: "Download notes from Google Keep",
-		callback: async () => await plugin.importNotes(),
+		callback: async () => {
+			plugin.openSyncCenter({ mode: "import", autoStart: true });
+		},
 	});
 
 	plugin.addCommand({
 		id: "push-google-keep-notes",
 		name: "Upload notes to Google Keep",
 		callback: async () => {
-			const gate = await plugin.requireTwoWaySafeguards();
-			if (!gate.allowed) {
-				plugin.showTwoWaySafeguardNotice(gate);
-				return;
-			}
-			await plugin.pushNotes();
+			plugin.openSyncCenter({ mode: "push", autoStart: true });
 		},
 	});
 

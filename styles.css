@@ -110,17 +110,224 @@ If your plugin does not need CSS, delete this file.
 .keepsidian-modal-actions {
 	display: flex;
 	flex-wrap: wrap;
+	align-items: stretch;
 	gap: 8px;
 }
 
 .keepsidian-modal-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
 	flex: 1 1 120px;
 	padding: 6px 12px;
 	white-space: nowrap;
 }
 
+.keepsidian-modal-action--primary {
+	order: 1;
+}
+
+.keepsidian-modal-action--open-log {
+	order: 2;
+}
+
+.keepsidian-modal-action--dropdown::after {
+	content: "▼";
+	position: absolute;
+	top: 50%;
+	right: 14px;
+	font-size: 0.7em;
+	line-height: 1;
+	transform: translateY(-50%);
+	transition:
+		color 120ms ease,
+		transform 120ms ease;
+}
+
+.keepsidian-modal-action--advanced {
+	order: 3;
+	margin-left: auto;
+	min-width: 118px;
+	justify-content: flex-start;
+	padding-right: 48px;
+	background-image: linear-gradient(
+		to right,
+		transparent calc(100% - 40px),
+		color-mix(in srgb, var(--background-modifier-hover) 78%, transparent) calc(100% - 40px)
+	);
+}
+
+.keepsidian-modal-action--dropdown {
+	position: relative;
+	box-shadow: inset 0 0 0 1px transparent;
+	transition:
+		background-color 120ms ease,
+		color 120ms ease,
+		box-shadow 120ms ease;
+}
+
+.keepsidian-modal-action--dropdown::before {
+	content: "";
+	position: absolute;
+	top: 7px;
+	bottom: 7px;
+	right: 39px;
+	width: 1px;
+	background: color-mix(in srgb, var(--background-modifier-border) 82%, transparent);
+}
+
+.keepsidian-modal-action--dropdown.is-expanded {
+	background-color: color-mix(in srgb, var(--background-modifier-hover) 82%, var(--background-primary));
+	color: var(--text-normal);
+	box-shadow: inset 0 0 0 1px
+		color-mix(in srgb, var(--background-modifier-border-hover, var(--background-modifier-border)) 72%, transparent);
+}
+
+.keepsidian-modal-action--dropdown.is-expanded::after {
+	content: "▲";
+}
+
 .keepsidian-modal-action:disabled {
 	opacity: 0.6;
+}
+
+.keepsidian-sync-center-modes {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.keepsidian-sync-center-mode-section {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.keepsidian-sync-center-mode-label {
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	color: var(--text-muted);
+	text-transform: uppercase;
+}
+
+.keepsidian-sync-center-mode-button {
+	flex: 1 1 120px;
+	justify-content: flex-start;
+	padding: 8px 12px 8px 10px;
+	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+	background: color-mix(in srgb, var(--background-secondary) 82%, transparent);
+	box-shadow: none;
+	transition:
+		background-color 120ms ease,
+		border-color 120ms ease,
+		color 120ms ease;
+}
+
+.keepsidian-sync-center-mode-indicator {
+	position: relative;
+	width: 14px;
+	height: 14px;
+	flex: 0 0 14px;
+	border-radius: 999px;
+	border: 1.5px solid color-mix(in srgb, var(--text-muted) 70%, transparent);
+	background: transparent;
+}
+
+.keepsidian-sync-center-mode-indicator::after {
+	content: "";
+	position: absolute;
+	inset: 3px;
+	border-radius: 999px;
+	background: transparent;
+	transition: background-color 120ms ease;
+}
+
+.keepsidian-sync-center-mode-text {
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+}
+
+.keepsidian-sync-center-mode-button.is-selected {
+	background: color-mix(in srgb, var(--interactive-accent) 18%, var(--background-secondary));
+	border-color: color-mix(in srgb, var(--interactive-accent) 45%, var(--background-modifier-border));
+	color: var(--text-normal);
+}
+
+.keepsidian-sync-center-mode-button.is-selected .keepsidian-sync-center-mode-indicator {
+	border-color: var(--interactive-accent);
+}
+
+.keepsidian-sync-center-mode-button.is-selected .keepsidian-sync-center-mode-indicator::after {
+	background: var(--interactive-accent);
+}
+
+.keepsidian-sync-center-mode-button:focus-visible {
+	outline: 2px solid color-mix(in srgb, var(--interactive-accent) 42%, transparent);
+	outline-offset: 1px;
+}
+
+.keepsidian-sync-center-download-options {
+	margin-top: 14px;
+	padding-top: 14px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.keepsidian-sync-center-download-options-title {
+	margin: 0 0 4px 0;
+	font-size: var(--font-ui-medium);
+	font-weight: 600;
+}
+
+.keepsidian-sync-center-download-options-copy {
+	margin: 0 0 12px 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.4;
+}
+
+.keepsidian-sync-center-download-options-body {
+	font-size: 0.96em;
+}
+
+.keepsidian-sync-center-download-options-body .setting-item {
+	padding-top: 8px;
+	padding-bottom: 8px;
+}
+
+.keepsidian-sync-center-download-options-body .setting-item-name {
+	font-size: 1em;
+}
+
+.keepsidian-sync-center-download-options-body .setting-item-description {
+	font-size: var(--font-ui-small);
+	line-height: 1.35;
+}
+
+.keepsidian-modal-gate-message {
+	margin-top: 14px;
+	padding-top: 14px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.keepsidian-modal-gate-heading {
+	margin: 0 0 10px 0;
+	font-size: var(--font-ui-medium);
+	font-weight: 600;
+}
+
+.keepsidian-modal-gate-message ul {
+	margin: 0 0 12px 0;
+	padding-left: 20px;
+}
+
+.keepsidian-modal-gate-message li + li {
+	margin-top: 6px;
+}
+
+.keepsidian-modal-gate-message button {
+	margin-top: 2px;
 }
 
 .requires-subscription {

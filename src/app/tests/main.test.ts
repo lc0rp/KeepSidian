@@ -1,9 +1,4 @@
 jest.mock("obsidian");
-jest.mock("../../ui/modals/NoteImportOptionsModal", () => ({
-	NoteImportOptionsModal: jest.fn().mockImplementation(() => ({
-		open: jest.fn(),
-	})),
-}));
 
 import { Plugin, Notice } from "obsidian";
 import * as Obsidian from "obsidian";
@@ -11,7 +6,6 @@ import KeepSidianPlugin from "../../main";
 import * as SyncModule from "../../features/keep/sync";
 import { DEFAULT_SETTINGS } from "../../types/keepsidian-plugin-settings";
 import { SubscriptionService } from "../../services/subscription";
-import { NoteImportOptionsModal } from "../../ui/modals/NoteImportOptionsModal";
 import { KeepSidianSettingsTab } from "../../ui/settings/KeepSidianSettingsTab";
 import { registerCommands } from "../../app/commands";
 import * as LoggingModule from "../../app/logging";
@@ -83,12 +77,14 @@ describe("KeepSidianPlugin", () => {
 			await plugin.onload();
 
 			expect(plugin.settings).toEqual(DEFAULT_SETTINGS);
-			expect(plugin.addCommand).toHaveBeenCalledTimes(4);
+			expect(plugin.addCommand).toHaveBeenCalledTimes(6);
 			expect(
 				(plugin.addCommand as jest.Mock).mock.calls.map(
 					(call) => call[0].id
 				)
 			).toEqual([
+				"sync-now",
+				"open-sync-center",
 				"two-way-sync-google-keep",
 				"import-google-keep-notes",
 				"push-google-keep-notes",
@@ -143,7 +139,6 @@ describe("KeepSidianPlugin", () => {
 					reportProgress: expect.any(Function),
 				})
 			);
-			expect(NoteImportOptionsModal).not.toHaveBeenCalled();
 			expect(Notice).toHaveBeenCalledWith(
 				expect.stringMatching(/Syncing Google Keep Notes\.\.\. 0\/\?/),
 				0
@@ -215,32 +210,57 @@ describe("KeepSidianPlugin", () => {
 			importMock.mockRestore();
 		});
 
-		it("should show options modal for premium users", async () => {
+		it("uses saved supporter import options without opening a preflight modal", async () => {
 			await plugin.onload(); // Initialize the plugin and subscriptionService
 			setTestCredentials(plugin);
+			plugin.settings.premiumFeatures = {
+				...plugin.settings.premiumFeatures,
+				includeNotesTerms: ["focus"],
+				updateTitle: true,
+			};
+			plugin.app = {
+				workspace: {},
+				vault: {
+					adapter: {
+						exists: jest.fn().mockResolvedValue(true),
+						read: jest.fn().mockResolvedValue(""),
+						write: jest.fn().mockResolvedValue(undefined),
+					},
+					createFolder: jest.fn().mockResolvedValue(undefined),
+				},
+			} as unknown as Plugin["app"];
 
 			const isSubscriptionActiveSpy = jest
 				.spyOn(plugin.subscriptionService, "isSubscriptionActive")
 				.mockResolvedValue(true);
 
 			const importMock = jest
+				.spyOn(SyncModule, "importGoogleKeepNotesWithOptions")
+				.mockResolvedValue(0);
+			const basicImportMock = jest
 				.spyOn(SyncModule, "importGoogleKeepNotes")
 				.mockResolvedValue(0);
-
-			const showModalSpy = jest
-				.spyOn(plugin, "showImportOptionsModal")
-				.mockImplementation(async () => {});
 
 			await plugin.importNotes();
 			await new Promise((resolve) => setTimeout(resolve, 0));
 
 			expect(isSubscriptionActiveSpy).toHaveBeenCalled();
-			expect(showModalSpy).toHaveBeenCalled();
-			expect(importMock).not.toHaveBeenCalled();
+			expect(importMock).toHaveBeenCalledWith(
+				plugin,
+				expect.objectContaining({
+					includeNotesTerms: ["focus"],
+					updateTitle: true,
+				}),
+				expect.objectContaining({
+					setTotalNotes: expect.any(Function),
+					reportProgress: expect.any(Function),
+				})
+			);
+			expect(basicImportMock).not.toHaveBeenCalled();
 
-			showModalSpy.mockRestore();
 			isSubscriptionActiveSpy.mockRestore();
 			importMock.mockRestore();
+			basicImportMock.mockRestore();
 		});
 	});
 
@@ -373,16 +393,21 @@ describe("KeepSidianPlugin", () => {
 			const importSpy = jest
 				.spyOn(plugin, "importNotes")
 				.mockResolvedValue();
+			const openSyncCenterSpy = jest
+				.spyOn(plugin, "openSyncCenter")
+				.mockImplementation(() => {});
 			plugin.startAutoSync();
 			try {
 				await advanceOneInterval();
 				expect(plugin.subscriptionService.isSubscriptionActive).toHaveBeenCalledWith(true);
 				expect(performTwoWaySpy).toHaveBeenCalledTimes(1);
 				expect(importSpy).not.toHaveBeenCalled();
+				expect(openSyncCenterSpy).not.toHaveBeenCalled();
 			} finally {
 				plugin.stopAutoSync();
 				performTwoWaySpy.mockRestore();
 				importSpy.mockRestore();
+				openSyncCenterSpy.mockRestore();
 			}
 		});
 
@@ -422,7 +447,7 @@ describe("KeepSidianPlugin", () => {
 					);
 				expect(gatingMessages.length).toBeGreaterThanOrEqual(2);
 				expect(gatingMessages[0]).toContain(
-					"Please enable in settings first."
+					"Please enable two-way sync in settings first."
 				);
 				expect(importSpy).toHaveBeenCalledTimes(2);
 				expect(importSpy).toHaveBeenNthCalledWith(1, true);
@@ -913,7 +938,7 @@ describe("KeepSidianPlugin", () => {
 			const result = await plugin.requireTwoWaySafeguards();
 			expect(result.allowed).toBe(false);
 			expect(result.reasons).toContain(
-				"Please opt-in in settings first."
+				"Please opt-in to two-way sync in settings first."
 			);
 		});
 
@@ -930,79 +955,53 @@ describe("KeepSidianPlugin", () => {
 			subscriptionSpy.mockRestore();
 		});
 
-		it("prevents two-way command execution when safeguards fail", async () => {
+		it("routes sync commands through the shared sync center", async () => {
 			registerCommands(plugin);
 			const addCommandMock = plugin.addCommand as jest.Mock;
-			const command = addCommandMock.mock.calls.find(
-				([options]) => options.id === "two-way-sync-google-keep"
+			const syncNowCommand = addCommandMock.mock.calls.find(
+				([options]) => options.id === "sync-now"
 			)?.[0];
-			expect(command).toBeDefined();
-			const gateNotice = jest
-				.spyOn(plugin, "showTwoWaySafeguardNotice")
-				.mockImplementation(() => {});
-			const syncSpy = jest
-				.spyOn(plugin, "performTwoWaySync")
-				.mockResolvedValue(undefined);
-
-			await command.callback();
-
-			expect(syncSpy).not.toHaveBeenCalled();
-			expect(gateNotice).toHaveBeenCalled();
-			syncSpy.mockRestore();
-			gateNotice.mockRestore();
-		});
-
-		it("prevents upload command execution when safeguards fail", async () => {
-			registerCommands(plugin);
-			const addCommandMock = plugin.addCommand as jest.Mock;
-			const command = addCommandMock.mock.calls.find(
-				([options]) => options.id === "push-google-keep-notes"
+			const openCenterCommand = addCommandMock.mock.calls.find(
+				([options]) => options.id === "open-sync-center"
 			)?.[0];
-			expect(command).toBeDefined();
-			const gateNotice = jest
-				.spyOn(plugin, "showTwoWaySafeguardNotice")
-				.mockImplementation(() => {});
-			const pushSpy = jest
-				.spyOn(plugin, "pushNotes")
-				.mockResolvedValue(undefined);
-
-			await command.callback();
-
-			expect(pushSpy).not.toHaveBeenCalled();
-			expect(gateNotice).toHaveBeenCalled();
-			pushSpy.mockRestore();
-			gateNotice.mockRestore();
-		});
-
-		it("executes commands when safeguards pass", async () => {
-			plugin.settings.twoWaySyncBackupAcknowledged = true;
-			plugin.settings.twoWaySyncEnabled = true;
-			const subscriptionSpy = jest
-				.spyOn(plugin.subscriptionService, "isSubscriptionActive")
-				.mockResolvedValue(true);
-			registerCommands(plugin);
-			const addCommandMock = plugin.addCommand as jest.Mock;
-			const twoWayCommand = addCommandMock.mock.calls.find(
-				([options]) => options.id === "two-way-sync-google-keep"
+			const importCommand = addCommandMock.mock.calls.find(
+				([options]) => options.id === "import-google-keep-notes"
 			)?.[0];
 			const pushCommand = addCommandMock.mock.calls.find(
 				([options]) => options.id === "push-google-keep-notes"
 			)?.[0];
-			const syncSpy = jest
-				.spyOn(plugin, "performTwoWaySync")
-				.mockResolvedValue(undefined);
-			const pushSpy = jest
-				.spyOn(plugin, "pushNotes")
-				.mockResolvedValue(undefined);
+			const twoWayCommand = addCommandMock.mock.calls.find(
+				([options]) => options.id === "two-way-sync-google-keep"
+			)?.[0];
+			const openSyncCenterSpy = jest
+				.spyOn(plugin, "openSyncCenter")
+				.mockImplementation(() => {});
 
-			await twoWayCommand.callback();
+			await syncNowCommand.callback();
+			await openCenterCommand.callback();
+			await importCommand.callback();
 			await pushCommand.callback();
+			await twoWayCommand.callback();
 
-			expect(syncSpy).toHaveBeenCalled();
-			expect(pushSpy).toHaveBeenCalled();
-			syncSpy.mockRestore();
-			pushSpy.mockRestore();
-			subscriptionSpy.mockRestore();
+			expect(openSyncCenterSpy).toHaveBeenNthCalledWith(1, {
+				mode: "import",
+				autoStart: true,
+			});
+			expect(openSyncCenterSpy).toHaveBeenNthCalledWith(2);
+			expect(openSyncCenterSpy).toHaveBeenNthCalledWith(3, {
+				mode: "import",
+				autoStart: true,
+			});
+			expect(openSyncCenterSpy).toHaveBeenNthCalledWith(4, {
+				mode: "push",
+				autoStart: true,
+			});
+			expect(openSyncCenterSpy).toHaveBeenNthCalledWith(5, {
+				mode: "two-way",
+				autoStart: true,
+			});
+
+			openSyncCenterSpy.mockRestore();
 		});
 	});
 });

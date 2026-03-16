@@ -3,11 +3,12 @@ import type { ProgressBarComponent } from "obsidian";
 import type { KeepSidianPluginSettings, LastSyncSummary, SyncMode } from "../types/keepsidian-plugin-settings";
 import { resolveLoadedSettings } from "../types/keepsidian-plugin-settings";
 import { SubscriptionService } from "@services/subscription";
-import { NoteImportOptions, NoteImportOptionsModal } from "@ui/modals/NoteImportOptionsModal";
+import type { NoteImportOptions } from "@ui/modals/NoteImportOptionsModal";
 import { SyncProgressModal } from "@ui/modals/SyncProgressModal";
 import { initializeStatusBar } from "@app/sync-ui";
 import { logSync } from "@app/logging";
 import { KeepSidianSettingsTab } from "@ui/settings/KeepSidianSettingsTab";
+import { SubscriptionSettingsTab } from "@ui/settings/SubscriptionSettingsTab";
 import { registerRibbonAndCommands } from "@app/commands";
 import {
 	buildPersistedSettings,
@@ -18,7 +19,6 @@ import {
 import {
 	openLatestSyncLogFlow,
 	runImportNotesFlow,
-	runImportWithOptions,
 	runPushNotesFlow,
 	runTwoWaySyncFlow,
 } from "@app/main-sync-flows";
@@ -37,6 +37,11 @@ interface TwoWayGateResult {
 	reasons: string[];
 }
 
+interface SyncCenterOpenOptions {
+	mode?: SyncMode;
+	autoStart?: boolean;
+}
+
 export default class KeepSidianPlugin extends Plugin {
 	settings: KeepSidianPluginSettings;
 	subscriptionService: SubscriptionService;
@@ -51,6 +56,7 @@ export default class KeepSidianPlugin extends Plugin {
 	lastSyncSummary: LastSyncSummary | null = null;
 	lastSyncLogPath: string | null = null;
 	currentSyncMode: SyncMode | null = null;
+	currentSyncPhaseLabel: string | null = null;
 	private autoSyncInterval?: ReturnType<typeof setInterval>;
 	private isSyncing = false;
 	private subscriptionActive: boolean | null = null;
@@ -327,45 +333,72 @@ export default class KeepSidianPlugin extends Plugin {
 	}
 
 	openSyncProgressModal() {
+		this.openSyncCenter();
+	}
+
+	private ensureSyncCenterModal(): SyncProgressModal {
 		if (!this.progressModal) {
 			this.progressModal = new SyncProgressModal(this.app, {
-				onTwoWaySync: () => this.performTwoWaySync(),
-				onImportOnly: () => this.importNotes(),
-				onUploadOnly: () => this.pushNotes(),
+				onRunSync: async (mode) => {
+					switch (mode) {
+						case "push":
+							await this.pushNotes();
+							return;
+						case "two-way":
+							await this.performTwoWaySync();
+							return;
+						case "import":
+						default:
+							await this.importNotes(false);
+					}
+				},
 				onOpenSyncLog: () => this.openLatestSyncLog(),
 				getTwoWayGate: () => this.getTwoWayGateSnapshot(),
 				requireTwoWayGate: () => this.requireTwoWaySafeguards(),
 				showTwoWayGateNotice: (result) => this.showTwoWaySafeguardNotice(result),
 				openTwoWaySettings: () => this.openTwoWaySettings(),
+				getCurrentMode: () => this.currentSyncMode,
+				getCurrentPhaseLabel: () => this.currentSyncPhaseLabel,
+				isSupporterActive: async () =>
+					await this.subscriptionService.isSubscriptionActive(),
+				renderImportOptions: async (containerEl, isActive) => {
+					SubscriptionSettingsTab.displayPremiumFeatures(
+						containerEl,
+						this,
+						isActive
+					);
+				},
 				onClose: () => {
 					this.progressModal = null;
 				},
 			});
 		}
 
+		return this.progressModal;
+	}
+
+	openSyncCenter(options?: SyncCenterOpenOptions) {
+		const mode = options?.mode ?? "import";
+		const autoStart = options?.autoStart ?? false;
+		const modal = this.ensureSyncCenterModal();
+		modal.setSelectedMode(mode);
 		if (this.isSyncInProgress()) {
 			const total = this.totalNotes ?? undefined;
-			this.progressModal.setProgress(this.processedNotes, total);
+			modal.setProgress(this.processedNotes, total);
 		} else {
-			this.progressModal.setIdleSummary(this.lastSyncSummary);
+			modal.setIdleSummary(this.lastSyncSummary);
 		}
-
-		this.progressModal.open();
+		modal.open();
+		if (autoStart) {
+			void modal.runSelectedMode();
+		}
 	}
 
 	async openLatestSyncLog() {
 		await openLatestSyncLogFlow(this);
 	}
 
-	async showImportOptionsModal(): Promise<void> {
-		return new Promise((resolve) => {
-			new NoteImportOptionsModal(this.app, this, (options: NoteImportOptions) => {
-				void runImportWithOptions(this, options, getErrorMessage).finally(resolve);
-			}).open();
-		});
-	}
-
-	async importNotes(auto = false) {
+	async importNotes(auto = false, options?: NoteImportOptions) {
 		if (this.isSyncing) {
 			return;
 		}
@@ -377,7 +410,7 @@ export default class KeepSidianPlugin extends Plugin {
 
 		this.isSyncing = true;
 		try {
-			await runImportNotesFlow(this, auto, getErrorMessage);
+			await runImportNotesFlow(this, auto, getErrorMessage, options);
 		} finally {
 			this.isSyncing = false;
 		}

@@ -15,11 +15,7 @@ export interface NoteImportOptions {
 export class NoteImportOptionsModal extends Modal {
 	private onSubmit: (options: NoteImportOptions) => void;
 	private plugin: KeepSidianPlugin;
-	constructor(
-		app: App,
-		plugin: KeepSidianPlugin,
-		onSubmit: (options: NoteImportOptions) => void
-	) {
+	constructor(app: App, plugin: KeepSidianPlugin, onSubmit: (options: NoteImportOptions) => void) {
 		super(app);
 		this.plugin = plugin;
 		this.onSubmit = onSubmit;
@@ -27,9 +23,9 @@ export class NoteImportOptionsModal extends Modal {
 
 	async onOpen() {
 		const { contentEl } = this;
-		contentEl.createEl("h2", { text: "Import options" });
+		contentEl.createEl("h2", { text: "Download options" });
 		contentEl.createEl("p", {
-			text: "Thanks for supporting KeepSidian! Update the premium options for this import below.",
+			text: "Thanks for supporting KeepSidian! Customize your download below.",
 		});
 		SubscriptionSettingsTab.displayPremiumFeatures(contentEl, this.plugin, true);
 

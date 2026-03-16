@@ -1,4 +1,4 @@
-import { Menu, Notice, ProgressBarComponent } from "obsidian";
+import { Notice, ProgressBarComponent } from "obsidian";
 import type KeepSidianPlugin from "@app/main";
 import { formatStatusBarText, formatStatusBarTooltip } from "@app/sync-status";
 import type { LastSyncSummary } from "@types";
@@ -12,11 +12,6 @@ type StatusBarItemElement = HTMLElement & {
 	) => HTMLElementTagNameMap[K];
 };
 
-type MenuWithPositioning = Menu & {
-	showAtMouseEvent?: (event: MouseEvent) => void;
-	showAtPosition?: (position: { x: number; y: number }) => void;
-};
-
 type NoticeWithControls = Notice & {
 	setMessage?: (message: string) => void;
 	hide?: () => void;
@@ -25,27 +20,8 @@ type NoticeWithControls = Notice & {
 
 const SYNC_NOTICE_PREFIX = "Syncing Google Keep Notes...";
 
-function createMenuTitleWithHint(
-	plugin: KeepSidianPlugin,
-	label: string,
-	hint?: string
-): string | DocumentFragment {
-	if (!hint) {
-		return label;
-	}
-	const doc = plugin.app.workspace?.containerEl?.ownerDocument;
-	if (!doc) {
-		return `${label} — ${hint}`;
-	}
-	const fragment = doc.createDocumentFragment();
-	const labelEl = doc.createElement("span");
-	labelEl.textContent = label;
-	fragment.appendChild(labelEl);
-	const hintEl = doc.createElement("span");
-	hintEl.classList.add("keepsidian-menu-hint");
-	hintEl.textContent = ` — ${hint}`;
-	fragment.appendChild(hintEl);
-	return fragment;
+function getSyncPhaseLabel(plugin: KeepSidianPlugin): string {
+	return plugin.currentSyncPhaseLabel ?? "Syncing";
 }
 
 function hasSetText(element: HTMLElement | null): element is StatusBarItemElement & {
@@ -119,7 +95,7 @@ function ensureStatusBarElements(plugin: KeepSidianPlugin) {
 		plugin.statusBarItemEl = plugin.addStatusBarItem();
 		plugin.statusBarItemEl.addEventListener("click", (evt: MouseEvent) => {
 			evt.preventDefault();
-			showStatusMenu(plugin, evt);
+			plugin.openSyncCenter();
 		});
 		plugin.statusBarItemEl.classList?.add("keepsidian-status");
 	}
@@ -136,96 +112,6 @@ function ensureStatusBarElements(plugin: KeepSidianPlugin) {
 	if (!plugin.progressBar && plugin.progressContainerEl) {
 		plugin.progressBar = new ProgressBarComponent(plugin.progressContainerEl);
 		plugin.progressBar.setValue(0);
-	}
-}
-
-function showStatusMenu(plugin: KeepSidianPlugin, evt?: MouseEvent) {
-	const menu = new Menu();
-	const syncing = plugin.isSyncInProgress();
-	const gateSnapshot = plugin.getTwoWayGateSnapshot();
-	const gateHint = gateSnapshot.allowed ? undefined : gateSnapshot.reasons[0];
-
-	menu.addItem((item) => {
-		item.setTitle("KEEPSIDIAN").setDisabled(true);
-	});
-	menu.addSeparator();
-
-	menu.addItem((item) => {
-		item.setTitle(createMenuTitleWithHint(plugin, "Two-way sync", gateHint))
-			.setDisabled(syncing)
-			.onClick(async () => {
-				if (plugin.isSyncInProgress()) {
-					return;
-				}
-				const gate = await plugin.requireTwoWaySafeguards();
-				if (!gate.allowed) {
-					plugin.showTwoWaySafeguardNotice(gate);
-					return;
-				}
-				await plugin.performTwoWaySync();
-			});
-		if (!gateSnapshot.allowed) {
-			item.setIcon("lock");
-		}
-	});
-
-	menu.addItem((item) => {
-			item.setTitle("Download from Google Keep")
-				.setDisabled(syncing)
-				.onClick(() => {
-					void plugin.importNotes();
-				});
-		});
-
-	menu.addItem((item) => {
-		item.setTitle(createMenuTitleWithHint(plugin, "Upload to Google Keep", gateHint))
-			.setDisabled(syncing)
-			.onClick(async () => {
-				if (plugin.isSyncInProgress()) {
-					return;
-				}
-				const gate = await plugin.requireTwoWaySafeguards();
-				if (!gate.allowed) {
-					plugin.showTwoWaySafeguardNotice(gate);
-					return;
-				}
-				await plugin.pushNotes();
-			});
-		if (!gateSnapshot.allowed) {
-			item.setIcon("lock");
-		}
-	});
-
-	if (!gateSnapshot.allowed) {
-		menu.addItem((item) => {
-			item.setTitle("Open beta settings…")
-				.setIcon("settings")
-				.onClick(() => {
-					plugin.openTwoWaySettings();
-				});
-		});
-	}
-
-	menu.addItem((item) => {
-		item.setTitle("Open sync log file").onClick(() => {
-			void plugin.openLatestSyncLog();
-		});
-	});
-
-	menu.addSeparator();
-	menu.addItem((item) => {
-		item.setTitle("Sync progress...").onClick(() => {
-			plugin.openSyncProgressModal();
-		});
-	});
-
-	const positionedMenu = menu as MenuWithPositioning;
-	if (evt && typeof positionedMenu.showAtMouseEvent === "function") {
-		positionedMenu.showAtMouseEvent(evt);
-	} else if (typeof positionedMenu.showAtPosition === "function") {
-		const x = evt?.pageX ?? evt?.clientX ?? 0;
-		const y = evt?.pageY ?? evt?.clientY ?? 0;
-		positionedMenu.showAtPosition({ x, y });
 	}
 }
 
@@ -267,8 +153,8 @@ export function startSyncUI(plugin: KeepSidianPlugin) {
 	}
 	plugin.progressBar?.setValue(0);
 
-	setStatusBarText(plugin, "Sync: 0/?");
-	setStatusBarTooltip(plugin, "KeepSidian syncing...");
+	setStatusBarText(plugin, `${getSyncPhaseLabel(plugin)}: 0/?`);
+	setStatusBarTooltip(plugin, `KeepSidian ${getSyncPhaseLabel(plugin).toLowerCase()}...`);
 	plugin.progressModal?.setProgress(0, undefined);
 
 	plugin.progressNotice = new Notice(
@@ -282,10 +168,10 @@ export function reportSyncProgress(plugin: KeepSidianPlugin) {
 	const total = plugin.totalNotes ?? undefined;
 	const text =
 		typeof total === "number"
-			? `Sync: ${plugin.processedNotes}/${total}`
-			: `Sync: ${plugin.processedNotes}`;
+			? `${getSyncPhaseLabel(plugin)}: ${plugin.processedNotes}/${total}`
+			: `${getSyncPhaseLabel(plugin)}: ${plugin.processedNotes}`;
 	setStatusBarText(plugin, text);
-	setStatusBarTooltip(plugin, "KeepSidian syncing...");
+	setStatusBarTooltip(plugin, `KeepSidian ${getSyncPhaseLabel(plugin).toLowerCase()}...`);
 	if (
 		plugin.progressContainerEl &&
 		plugin.progressBar &&
@@ -328,6 +214,7 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 	};
 	plugin.lastSyncSummary = summary;
 	plugin.settings.lastSyncSummary = summary;
+	plugin.currentSyncPhaseLabel = null;
 	updateStatusBarSummary(plugin);
 	if (plugin.progressContainerEl) {
 		plugin.progressContainerEl.toggleClass("complete", !!success);
