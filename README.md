@@ -35,18 +35,22 @@ Obsidian secret storage when available, and does not log or store your credentia
 
 KeepSidian now centers manual sync around one primary action: **Sync now**.
 
-- **Sync now** starts the default manual download flow and opens the Sync Center immediately so you can watch progress
-  in the foreground.
+- Every manual sync is now **review-first**. `Sync now`, the ribbon action, and the legacy sync commands all open the
+  Sync Center and generate a reviewable sync plan before anything runs.
 
-- **Open sync center** opens the Sync Center without starting a sync. Use the **Advanced** section to switch between
-  **Download only**, **Upload only**, or **Two-way sync** before running.
+- The compact Sync Center is now the setup surface. Use **Start sync** from there to build a plan, then approve the
+  larger review modal before anything runs. Supporters can deselect individual rows; non-supporters see the same row
+  controls in a locked state.
+
+- **Open sync center** opens the Sync Center without starting a sync. Use the **Options** section to switch between
+  **Download**, **Upload**, or **Two-way sync** before building the review plan.
 
 - Legacy commands for **Perform two-way sync**, **Download notes from Google Keep**, and **Upload notes to Google Keep**
   remain available during the transition window, but they all route into the same Sync Center experience and status
   reporting.
 
-- **Perform two-way sync** (v1.1.2+) executes a download first and then runs the upload command so that newly downloaded
-  notes are merged back to Google Keep without re-running the workflows manually.
+- **Perform two-way sync** (v1.1.2+) now uses two staged reviews: first the download plan, then the exact upload plan
+  after the import stage finishes.
 
 - **Download notes from Google Keep** downloads notes from Google Keep into the configured vault folder. It remembers
   the last successful sync date and only downloads notes that have been updated since then.
@@ -61,9 +65,9 @@ KeepSidian now centers manual sync around one primary action: **Sync now**.
 
 - **Open sync log file** opens the most recent log file in a new pane.
 
-When a manual sync is running, the Sync Center opens automatically and the status bar mirrors the live progress.
-Background sync stays quiet by default, but still updates the notice and status bar so you can open the Sync Center from
-the status bar whenever you want more detail.
+When a manual sync is running, the larger review modal stays open and mirrors live progress with category chips and the
+same reviewed list. Background sync stays quiet by default, but still updates the notice and status bar so you can open
+the Sync Center from the status bar whenever you want more detail.
 
 ## Activity log (v1.1.0+)
 

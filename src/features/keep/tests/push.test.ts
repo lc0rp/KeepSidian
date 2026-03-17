@@ -2,7 +2,7 @@ jest.mock("obsidian");
 
 import { Notice } from "obsidian";
 import KeepSidianPlugin from "main";
-import { pushGoogleKeepNotes } from "../push";
+import { buildPushSyncPlan, pushGoogleKeepNotes } from "../push";
 import { pushNotes as apiPushNotes } from "@integrations/server/keepApi";
 import { createMockPlugin, type MockVaultAdapter } from "../../../test-utils/mocks/plugin";
 
@@ -212,5 +212,61 @@ describe("pushGoogleKeepNotes", () => {
 				content: expect.stringContaining("content"),
 			}),
 		]);
+	});
+
+	it("builds an upload review plan with actionable and skipped rows", async () => {
+		const { plugin, adapter } = createPlugin();
+		adapter.list.mockResolvedValue({ files: ["Keep/note.md", "Keep/note-conflict-1.md"], folders: [] });
+		adapter.read.mockImplementation(async (path: string) => {
+			if (path.endsWith("note.md")) {
+				return "---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent";
+			}
+			return "---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\nconflict";
+		});
+		adapter.stat.mockImplementation(async (path: string) => {
+			if (path.endsWith("note.md")) {
+				return { mtime: new Date("2024-01-05T00:00:00Z").getTime() };
+			}
+			return { mtime: new Date("2024-01-01T00:00:00Z").getTime() };
+		});
+
+		const builtPlan = await buildPushSyncPlan(plugin);
+
+		expect(builtPlan.plan.entries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					label: "Upload",
+					selectable: true,
+					selectionLocked: false,
+				}),
+				expect.objectContaining({
+					label: "Skipped: conflict copy",
+					selectable: false,
+				}),
+			])
+		);
+	});
+
+	it("locks upload review selections for non-supporters", async () => {
+		const { plugin, adapter } = createPlugin();
+		adapter.list.mockResolvedValue({ files: ["Keep/note.md"], folders: [] });
+		adapter.read.mockResolvedValue(
+			"---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent"
+		);
+		adapter.stat.mockResolvedValue({ mtime: new Date("2024-01-05T00:00:00Z").getTime() });
+
+		const builtPlan = await buildPushSyncPlan(
+			plugin,
+			false,
+			"Available to project supporters"
+		);
+
+		expect(builtPlan.plan.entries[0]).toEqual(
+			expect.objectContaining({
+				label: "Upload",
+				selectionLocked: true,
+				selectionLockedReason: "Available to project supporters",
+			})
+		);
 	});
 });

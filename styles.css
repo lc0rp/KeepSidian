@@ -107,6 +107,28 @@ If your plugin does not need CSS, delete this file.
 	color: var(--text-muted);
 }
 
+.keepsidian-modal-alert {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 12px 14px;
+	border: 1px solid color-mix(in srgb, var(--text-error) 32%, var(--background-modifier-border));
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--text-error) 10%, var(--background-secondary));
+}
+
+.keepsidian-modal-alert-title {
+	font-size: var(--font-ui-small);
+	font-weight: 700;
+	color: var(--text-error);
+}
+
+.keepsidian-modal-alert-message {
+	font-size: var(--font-ui-small);
+	line-height: 1.45;
+	color: var(--text-normal);
+}
+
 .keepsidian-modal-actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -145,7 +167,7 @@ If your plugin does not need CSS, delete this file.
 		transform 120ms ease;
 }
 
-.keepsidian-modal-action--advanced {
+.keepsidian-modal-action--sync-options {
 	order: 3;
 	margin-left: auto;
 	min-width: 118px;
@@ -305,6 +327,133 @@ If your plugin does not need CSS, delete this file.
 	line-height: 1.35;
 }
 
+.keepsidian-sync-center-review {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding-top: 4px;
+}
+
+.keepsidian-sync-center-review-summary {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px;
+	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--background-secondary) 72%, transparent);
+}
+
+.keepsidian-sync-center-review-heading {
+	font-size: var(--font-ui-small);
+	font-weight: 700;
+	letter-spacing: 0.01em;
+	color: var(--text-muted);
+	text-transform: uppercase;
+}
+
+.keepsidian-sync-center-review-selected {
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+}
+
+.keepsidian-sync-center-review-counts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.keepsidian-sync-center-review-chip {
+	padding: 4px 8px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--background-primary-alt) 78%, transparent);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+.keepsidian-sync-center-review-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	max-height: 360px;
+	overflow: auto;
+	padding-right: 4px;
+}
+
+.keepsidian-sync-center-review-row {
+	display: grid;
+	grid-template-columns: 28px 1fr;
+	gap: 10px;
+	align-items: start;
+	padding: 12px;
+	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--background-secondary) 68%, transparent);
+}
+
+.keepsidian-sync-center-review-row.is-actionable {
+	border-color: color-mix(in srgb, var(--interactive-accent) 24%, var(--background-modifier-border));
+}
+
+.keepsidian-sync-center-review-row.is-locked {
+	opacity: 0.92;
+}
+
+.keepsidian-sync-center-review-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding-top: 2px;
+}
+
+.keepsidian-sync-center-review-toggle input[type="checkbox"] {
+	width: 16px;
+	height: 16px;
+	margin: 0;
+}
+
+.keepsidian-sync-center-review-body {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.keepsidian-sync-center-review-title-line {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.keepsidian-sync-center-review-title {
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.keepsidian-sync-center-review-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 3px 8px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	color: var(--text-accent);
+}
+
+.keepsidian-sync-center-review-path {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	word-break: break-word;
+}
+
+.keepsidian-sync-center-review-detail {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	line-height: 1.4;
+}
+
 .keepsidian-modal-gate-message {
 	margin-top: 14px;
 	padding-top: 14px;
@@ -328,6 +477,379 @@ If your plugin does not need CSS, delete this file.
 
 .keepsidian-modal-gate-message button {
 	margin-top: 2px;
+}
+
+/* KeepSidian: Sync center V3 */
+.keepsidian-modal-shell--compact {
+	width: min(560px, calc(100vw - 48px));
+	max-width: 560px;
+}
+
+.keepsidian-modal-shell--plan {
+	width: min(980px, calc(100vw - 48px));
+	max-width: 980px;
+}
+
+.keepsidian-modal--compact {
+	gap: 16px;
+}
+
+.keepsidian-modal--plan {
+	gap: 18px;
+}
+
+.keepsidian-sync-stepper {
+	display: grid;
+	grid-template-columns: auto minmax(48px, 1fr) auto minmax(48px, 1fr) auto;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 0 2px;
+}
+
+.keepsidian-sync-stepper-step {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	min-width: 48px;
+}
+
+.keepsidian-sync-stepper-node {
+	width: 14px;
+	height: 14px;
+	border-radius: 999px;
+	border: 2px solid color-mix(in srgb, var(--background-modifier-border) 78%, transparent);
+	background: color-mix(in srgb, var(--background-secondary) 82%, transparent);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--background-primary) 86%, transparent);
+}
+
+.keepsidian-sync-stepper-step.is-active .keepsidian-sync-stepper-node {
+	border-color: color-mix(in srgb, var(--interactive-accent) 68%, transparent);
+	background: var(--interactive-accent);
+}
+
+.keepsidian-sync-stepper-step.is-complete .keepsidian-sync-stepper-node {
+	border-color: color-mix(in srgb, var(--interactive-accent) 52%, transparent);
+	background: color-mix(in srgb, var(--interactive-accent) 26%, var(--background-secondary));
+}
+
+.keepsidian-sync-stepper-label {
+	font-size: var(--font-ui-smaller);
+	font-weight: 700;
+	letter-spacing: 0.03em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.keepsidian-sync-stepper-step.is-active .keepsidian-sync-stepper-label,
+.keepsidian-sync-stepper-step.is-complete .keepsidian-sync-stepper-label {
+	color: var(--text-normal);
+}
+
+.keepsidian-sync-stepper-connector {
+	position: relative;
+	height: 4px;
+	border-radius: 999px;
+	overflow: hidden;
+	background: color-mix(in srgb, var(--background-modifier-border) 62%, transparent);
+}
+
+.keepsidian-sync-stepper-connector-fill {
+	height: 100%;
+	width: 0;
+	border-radius: inherit;
+	background: linear-gradient(
+		90deg,
+		color-mix(in srgb, var(--interactive-accent) 84%, white 8%),
+		color-mix(in srgb, var(--interactive-accent) 56%, white 2%)
+	);
+	transition: width 180ms ease;
+}
+
+.keepsidian-sync-stepper-connector.is-indeterminate::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	width: 34%;
+	border-radius: inherit;
+	background: linear-gradient(
+		90deg,
+		transparent,
+		color-mix(in srgb, var(--interactive-accent) 58%, transparent),
+		transparent
+	);
+	animation: keepsidian-stepper-pulse 1.1s linear infinite;
+}
+
+@keyframes keepsidian-stepper-pulse {
+	from {
+		transform: translateX(-120%);
+	}
+
+	to {
+		transform: translateX(340%);
+	}
+}
+
+.keepsidian-sync-center-options {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding-top: 2px;
+}
+
+.keepsidian-sync-plan {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding: 18px;
+	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+	border-radius: 18px;
+	background: linear-gradient(
+		180deg,
+		color-mix(in srgb, var(--background-secondary) 88%, transparent),
+		color-mix(in srgb, var(--background-primary) 96%, transparent)
+	);
+}
+
+.keepsidian-sync-plan-summary {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.keepsidian-sync-plan-summary-copy {
+	font-size: var(--font-ui-small);
+	line-height: 1.45;
+	color: var(--text-muted);
+}
+
+.keepsidian-sync-plan-counts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.keepsidian-sync-plan-chip {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 30px;
+	padding: 6px 12px;
+	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--background-secondary) 74%, transparent);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: 700;
+	letter-spacing: 0.01em;
+	transition:
+		background-color 120ms ease,
+		border-color 120ms ease,
+		color 120ms ease,
+		transform 120ms ease;
+}
+
+.keepsidian-sync-plan-chip:hover {
+	background: color-mix(in srgb, var(--background-modifier-hover) 82%, transparent);
+	color: var(--text-normal);
+}
+
+.keepsidian-sync-plan-chip.is-active {
+	background: color-mix(in srgb, var(--interactive-accent) 18%, var(--background-secondary));
+	border-color: color-mix(in srgb, var(--interactive-accent) 46%, var(--background-modifier-border));
+	color: var(--text-normal);
+}
+
+.keepsidian-sync-plan-selection-summary {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px 16px;
+	padding: 12px 14px;
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--background-secondary) 70%, transparent);
+}
+
+.keepsidian-sync-plan-selection-caption {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.keepsidian-sync-plan-select-all {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.keepsidian-sync-plan-select-all input[type="checkbox"] {
+	margin: 0;
+}
+
+.keepsidian-sync-plan-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	max-height: min(58vh, 620px);
+	overflow: auto;
+	padding-right: 6px;
+}
+
+.keepsidian-sync-plan-row {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: 12px;
+	align-items: start;
+	padding: 14px 16px;
+	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 74%, transparent);
+	border-radius: 16px;
+	background: color-mix(in srgb, var(--background-secondary) 78%, transparent);
+	box-shadow: 0 10px 30px color-mix(in srgb, black 7%, transparent);
+}
+
+.keepsidian-sync-plan-row.is-actionable {
+	border-color: color-mix(in srgb, var(--interactive-accent) 24%, var(--background-modifier-border));
+}
+
+.keepsidian-sync-plan-row.is-locked {
+	opacity: 0.9;
+}
+
+.keepsidian-sync-plan-row-toggle,
+.keepsidian-sync-plan-row-status {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	min-height: 22px;
+	padding-top: 2px;
+}
+
+.keepsidian-sync-plan-row-toggle input[type="checkbox"] {
+	width: 16px;
+	height: 16px;
+	margin: 0;
+}
+
+.keepsidian-sync-plan-row-status {
+	font-size: var(--font-ui-small);
+	font-weight: 800;
+	color: var(--text-muted);
+}
+
+.keepsidian-sync-plan-row.is-done .keepsidian-sync-plan-row-status,
+.keepsidian-sync-plan-row.is-instant .keepsidian-sync-plan-row-status {
+	color: var(--text-success);
+}
+
+.keepsidian-sync-plan-row.is-failed .keepsidian-sync-plan-row-status {
+	color: var(--text-error);
+}
+
+.keepsidian-sync-plan-row.is-unchecked .keepsidian-sync-plan-row-status {
+	color: var(--text-faint);
+}
+
+.keepsidian-sync-plan-row-body {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+}
+
+.keepsidian-sync-plan-row-title-line {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.keepsidian-sync-plan-row-title {
+	font-size: var(--font-ui-medium);
+	font-weight: 700;
+	color: var(--text-normal);
+}
+
+.keepsidian-sync-plan-row-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 4px 8px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--background-primary-alt) 72%, transparent);
+	font-size: var(--font-ui-smaller);
+	font-weight: 700;
+	color: var(--text-muted);
+}
+
+.keepsidian-sync-plan-row-path {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	word-break: break-word;
+}
+
+.keepsidian-sync-plan-row-detail {
+	font-size: var(--font-ui-small);
+	line-height: 1.45;
+	color: var(--text-muted);
+}
+
+.keepsidian-sync-plan-row.is-group-create .keepsidian-sync-plan-row-badge {
+	background: color-mix(in srgb, var(--color-green) 14%, transparent);
+	color: color-mix(in srgb, var(--color-green) 68%, var(--text-normal));
+}
+
+.keepsidian-sync-plan-row.is-group-merge .keepsidian-sync-plan-row-badge {
+	background: color-mix(in srgb, var(--color-blue) 14%, transparent);
+	color: color-mix(in srgb, var(--color-blue) 64%, var(--text-normal));
+}
+
+.keepsidian-sync-plan-row.is-group-overwrite .keepsidian-sync-plan-row-badge,
+.keepsidian-sync-plan-row.is-group-upload .keepsidian-sync-plan-row-badge {
+	background: color-mix(in srgb, var(--color-orange) 16%, transparent);
+	color: color-mix(in srgb, var(--color-orange) 72%, var(--text-normal));
+}
+
+.keepsidian-sync-plan-row.is-group-conflict-copy .keepsidian-sync-plan-row-badge {
+	background: color-mix(in srgb, var(--color-red) 14%, transparent);
+	color: color-mix(in srgb, var(--color-red) 66%, var(--text-normal));
+}
+
+.keepsidian-sync-plan-row.is-group-already-up-to-date .keepsidian-sync-plan-row-badge {
+	background: color-mix(in srgb, var(--background-primary-alt) 76%, transparent);
+	color: var(--text-faint);
+}
+
+.keepsidian-modal-close {
+	margin-top: 2px;
+}
+
+@media (max-width: 720px) {
+	.keepsidian-modal-shell--compact,
+	.keepsidian-modal-shell--plan {
+		width: calc(100vw - 24px);
+		max-width: calc(100vw - 24px);
+	}
+
+	.keepsidian-sync-stepper {
+		gap: 8px;
+	}
+
+	.keepsidian-sync-plan {
+		padding: 14px;
+	}
+
+	.keepsidian-sync-plan-row {
+		padding: 12px 13px;
+	}
+
+	.keepsidian-sync-plan-selection-summary {
+		flex-direction: column;
+		align-items: stretch;
+	}
 }
 
 .requires-subscription {

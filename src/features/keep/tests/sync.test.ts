@@ -6,6 +6,7 @@ jest.mock("obsidian", () => ({
 import { requestUrl, RequestUrlResponse, Notice } from "obsidian";
 import * as obsidian from "obsidian";
 import {
+	buildImportSyncPlan,
 	importGoogleKeepNotes,
 	importGoogleKeepNotesWithOptions,
 	convertOptionsToFeatureFlags,
@@ -207,6 +208,86 @@ describe("Google Keep Import Functions", () => {
 		});
 	});
 
+	describe("buildImportSyncPlan", () => {
+		it("builds actionable and informational review rows", async () => {
+			const response = {
+				notes: [
+					{ title: "Create note", text: "body-1" },
+					{ title: "Skip note", text: "body-2" },
+				],
+			};
+			(requestUrl as jest.Mock)
+				.mockResolvedValueOnce({
+					status: 200,
+					headers: {},
+					arrayBuffer: new ArrayBuffer(0),
+					json: () => response,
+					text: JSON.stringify(response),
+				} as RequestUrlResponse)
+				.mockResolvedValueOnce({
+					status: 200,
+					headers: {},
+					arrayBuffer: new ArrayBuffer(0),
+					json: () => ({ notes: [] }),
+					text: JSON.stringify({ notes: [] }),
+				} as RequestUrlResponse);
+			(handleDuplicateNotes as jest.Mock)
+				.mockResolvedValueOnce("create")
+				.mockResolvedValueOnce("skip");
+
+			const builtPlan = await buildImportSyncPlan(mockPlugin);
+
+			expect(builtPlan.plan.entries).toEqual([
+				expect.objectContaining({
+					label: "Create",
+					selectable: true,
+					selectionLocked: false,
+				}),
+				expect.objectContaining({
+					label: "Skipped: identical",
+					selectable: false,
+				}),
+			]);
+		});
+
+		it("locks actionable review rows for non-supporters", async () => {
+			const response = {
+				notes: [{ title: "Create note", text: "body-1" }],
+			};
+			(requestUrl as jest.Mock)
+				.mockResolvedValueOnce({
+					status: 200,
+					headers: {},
+					arrayBuffer: new ArrayBuffer(0),
+					json: () => response,
+					text: JSON.stringify(response),
+				} as RequestUrlResponse)
+				.mockResolvedValueOnce({
+					status: 200,
+					headers: {},
+					arrayBuffer: new ArrayBuffer(0),
+					json: () => ({ notes: [] }),
+					text: JSON.stringify({ notes: [] }),
+				} as RequestUrlResponse);
+			(handleDuplicateNotes as jest.Mock).mockResolvedValueOnce("overwrite");
+
+			const builtPlan = await buildImportSyncPlan(
+				mockPlugin,
+				undefined,
+				false,
+				"Available to project supporters"
+			);
+
+			expect(builtPlan.plan.entries[0]).toEqual(
+				expect.objectContaining({
+					label: "Overwrite",
+					selectionLocked: true,
+					selectionLockedReason: "Available to project supporters",
+				})
+			);
+		});
+	});
+
 	describe("convertOptionsToFeatureFlags", () => {
 		it("should convert all options correctly", () => {
 			const options: NoteImportOptions = {
@@ -350,7 +431,8 @@ describe("Google Keep Import Functions", () => {
 				mockPlugin.settings.saveLocation,
 				normalizedNote,
 				mockPlugin.app,
-				`${mockPlugin.settings.saveLocation}/${note.title}.md`
+				`${mockPlugin.settings.saveLocation}/${note.title}.md`,
+				undefined
 			);
 			expect(mockPlugin.app.vault.adapter.read).not.toHaveBeenCalled();
 			expect(ensureParentSpy).toHaveBeenCalledWith(

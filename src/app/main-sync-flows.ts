@@ -2,6 +2,8 @@ import { Notice } from "obsidian";
 import type { DataAdapter } from "obsidian";
 import type KeepSidianPlugin from "./main";
 import type { NoteImportOptions } from "@ui/modals/NoteImportOptionsModal";
+import type { PreNormalizedNote } from "@features/keep/domain/note";
+import type { NoteForPush } from "@features/keep/push/collectNotes";
 import { HIDDEN_CLASS } from "@app/ui-constants";
 import { logSync, prepareSyncLog } from "@app/logging";
 import {
@@ -10,12 +12,53 @@ import {
 	setTotalNotes as uiSetTotalNotes,
 	reportSyncProgress,
 } from "@app/sync-ui";
-import { importGoogleKeepNotes, importGoogleKeepNotesWithOptions } from "@features/keep/sync";
-import { pushGoogleKeepNotes } from "@features/keep/push";
+import type { SyncMode, SyncPlan, SyncPlanStage } from "@types";
+import {
+	buildImportSyncPlan,
+	importGoogleKeepNotes,
+	importGoogleKeepNotesWithOptions,
+	importSelectedGoogleKeepNotes,
+} from "@features/keep/sync";
+import { buildPushSyncPlan, pushGoogleKeepNotes } from "@features/keep/push";
 import { ensureFolder, normalizePathSafe } from "@services/paths";
 import { resolveLogBaseFolder } from "@services/note-path-resolver";
 
 type ErrorMessageResolver = (error: unknown) => string;
+const SUPPORTER_LOCK_REASON = "Available to project supporters";
+
+export interface PreparedSyncPlan {
+	plan: SyncPlan;
+	mode: SyncMode;
+	stage: SyncPlanStage;
+	importNotes?: PreNormalizedNote[];
+	importEntryIds?: string[];
+	completionDate?: string;
+	pushNotes?: NoteForPush[];
+}
+
+export interface RunPreparedSyncPlanResult {
+	nextPlan?: PreparedSyncPlan;
+}
+
+export interface SyncPlanBuildCallbacks {
+	setTotalNotes?: (total: number) => void;
+	reportPlanProgress?: (processed: number, total?: number) => void;
+}
+
+export interface SyncPlanRunCallbacks {
+	onEntrySettled?: (entryId: string, success: boolean) => void;
+}
+
+function withPlanMode(plan: SyncPlan, mode: SyncMode): SyncPlan {
+	return {
+		...plan,
+		mode,
+		entries: plan.entries.map((entry) => ({
+			...entry,
+			mode,
+		})),
+	};
+}
 
 function resetProgressIndicatorsForNextStage(plugin: KeepSidianPlugin) {
 	plugin.processedNotes = 0;
@@ -41,6 +84,237 @@ export async function ensureStoragePathsOrThrow(plugin: KeepSidianPlugin): Promi
 	} catch (error: unknown) {
 		new Notice(`KeepSidian: failed to create save location: ${saveLocation}`);
 		throw error;
+	}
+}
+
+async function getManualSupportState(plugin: KeepSidianPlugin): Promise<boolean> {
+	const isSupporterActive = await plugin.subscriptionService.isSubscriptionActive();
+	(plugin as unknown as { subscriptionActive: boolean | null }).subscriptionActive =
+		isSupporterActive;
+	return isSupporterActive;
+}
+
+export async function buildManualSyncPlan(
+	plugin: KeepSidianPlugin,
+	mode: SyncMode,
+	callbacks?: SyncPlanBuildCallbacks
+): Promise<PreparedSyncPlan | null> {
+	await ensureStoragePathsOrThrow(plugin);
+
+	const isSupporterActive = await getManualSupportState(plugin);
+	const allowPerNoteSelection = isSupporterActive;
+	const selectionLockedReason = allowPerNoteSelection ? undefined : SUPPORTER_LOCK_REASON;
+
+	if (mode === "push" || mode === "two-way") {
+		const gate = await plugin.requireTwoWaySafeguards();
+		if (!gate.allowed) {
+			plugin.showTwoWaySafeguardNotice(gate);
+			return null;
+		}
+	}
+
+	if (mode === "push") {
+		const builtPushPlan = await buildPushSyncPlan(
+			plugin,
+			allowPerNoteSelection,
+			selectionLockedReason
+		);
+		return {
+			plan: builtPushPlan.plan,
+			mode,
+			stage: "upload",
+			pushNotes: builtPushPlan.notesToPush,
+		};
+	}
+
+	const builtImportPlan = await buildImportSyncPlan(
+		plugin,
+		isSupporterActive ? plugin.settings.premiumFeatures : undefined,
+		allowPerNoteSelection,
+		selectionLockedReason,
+		callbacks
+	);
+
+	return {
+		plan: withPlanMode(builtImportPlan.plan, mode),
+		mode,
+		stage: "import",
+		importNotes: builtImportPlan.notes,
+		importEntryIds: builtImportPlan.noteEntryIds,
+		completionDate: builtImportPlan.completionDate,
+	};
+}
+
+function getSelectedImportNotes(
+	preparedPlan: PreparedSyncPlan
+): PreNormalizedNote[] {
+	const selectedEntryIds = new Set(
+		preparedPlan.plan.entries
+			.filter((entry) => entry.selectable && entry.selected)
+			.map((entry) => entry.id)
+	);
+	const importNotes = preparedPlan.importNotes ?? [];
+	const importEntryIds = preparedPlan.importEntryIds ?? [];
+	return importNotes.filter((_note, index) => {
+		const entryId = importEntryIds[index];
+		return entryId ? selectedEntryIds.has(entryId) : selectedEntryIds.size === 0;
+	});
+}
+
+function getSelectedPushNotes(preparedPlan: PreparedSyncPlan): NoteForPush[] {
+	const selectedEntryIds = new Set(
+		preparedPlan.plan.entries
+			.filter((entry) => entry.selectable && entry.selected)
+			.map((entry) => entry.id)
+	);
+	return (preparedPlan.pushNotes ?? []).filter((note, index) =>
+		selectedEntryIds.has(`upload:${index}:${normalizePathSafe(note.fullPath)}`)
+	);
+}
+
+export async function runPreparedSyncPlan(
+	plugin: KeepSidianPlugin,
+	preparedPlan: PreparedSyncPlan,
+	getErrorMessage: ErrorMessageResolver,
+	onTwoWaySuccess: () => void,
+	runCallbacks?: SyncPlanRunCallbacks
+): Promise<RunPreparedSyncPlanResult> {
+	try {
+		await ensureStoragePathsOrThrow(plugin);
+	} catch {
+		return {};
+	}
+
+	const logPrepared = await prepareSyncLog(plugin);
+	if (!logPrepared) {
+		return {};
+	}
+
+	if (preparedPlan.stage === "import") {
+		const batchOptions = {
+			batchSize: 2,
+			batchKey: preparedPlan.mode === "two-way" ? "start-2way-sync" : "start-manual-sync",
+		};
+		await logSync(plugin, `\n\n---\n`, batchOptions);
+		await logSync(
+			plugin,
+			preparedPlan.mode === "two-way" ? "Two-way sync started" : "Manual sync started",
+			batchOptions
+		);
+		plugin.currentSyncMode = preparedPlan.mode;
+		plugin.currentSyncPhaseLabel =
+			preparedPlan.mode === "two-way" ? "Download step" : "Syncing";
+		startSyncUI(plugin);
+
+		try {
+			const selectedNotes = getSelectedImportNotes(preparedPlan);
+			const selectedEntryIds = preparedPlan.plan.entries
+				.filter((entry) => entry.selectable && entry.selected)
+				.map((entry) => entry.id);
+			const syncCallbacks = {
+				setTotalNotes: (n: number) => uiSetTotalNotes(plugin, n),
+				reportProgress: () => reportSyncProgress(plugin),
+				onEntrySettled: (entryId: string, success: boolean) =>
+					runCallbacks?.onEntrySettled?.(entryId, success),
+			};
+			uiSetTotalNotes(plugin, selectedNotes.length);
+			await importSelectedGoogleKeepNotes(
+				plugin,
+				selectedNotes,
+				syncCallbacks,
+				preparedPlan.completionDate,
+				selectedEntryIds
+			);
+			if (preparedPlan.mode === "two-way") {
+				await logSync(
+					plugin,
+					`Two-way sync - import completed. Processed ${plugin.processedNotes} note(s).`
+				);
+				resetProgressIndicatorsForNextStage(plugin);
+				plugin.currentSyncPhaseLabel = "Upload step";
+				await logSync(plugin, `Two-way sync - preparing push review`);
+				const isSupporterActive = await getManualSupportState(plugin);
+				const allowPerNoteSelection = isSupporterActive;
+				const selectionLockedReason = allowPerNoteSelection
+					? undefined
+					: SUPPORTER_LOCK_REASON;
+				const builtPushPlan = await buildPushSyncPlan(
+					plugin,
+					allowPerNoteSelection,
+					selectionLockedReason
+				);
+				return {
+					nextPlan: {
+						plan: withPlanMode(builtPushPlan.plan, "two-way"),
+						mode: "two-way",
+						stage: "upload",
+						pushNotes: builtPushPlan.notesToPush,
+					},
+				};
+			}
+			await logSync(
+				plugin,
+				`Manual sync ended - success. Processed ${plugin.processedNotes} note(s).`
+			);
+			finishSyncUI(plugin, true);
+			return {};
+		} catch (error: unknown) {
+			finishSyncUI(plugin, false);
+			const errorMessage = getErrorMessage(error);
+			await logSync(
+				plugin,
+				`${preparedPlan.mode === "two-way" ? "Two-way sync" : "Manual sync"} ended - failed: ${errorMessage}. Processed ${
+					plugin.processedNotes
+				} note(s).`
+			);
+			return {};
+		}
+	}
+
+	const batchOptions = { batchSize: 2, batchKey: "start-push-sync" };
+	await logSync(plugin, `\n\n---\n`, batchOptions);
+	await logSync(
+		plugin,
+		preparedPlan.mode === "two-way" ? "Two-way sync - starting push stage" : "Push sync started",
+		batchOptions
+	);
+	plugin.currentSyncMode = preparedPlan.mode;
+	plugin.currentSyncPhaseLabel = preparedPlan.mode === "two-way" ? "Upload step" : "Syncing";
+	startSyncUI(plugin);
+	try {
+		const selectedNotes = getSelectedPushNotes(preparedPlan);
+		uiSetTotalNotes(plugin, selectedNotes.length);
+		const pushed = await pushGoogleKeepNotes(
+			plugin,
+			{
+				setTotalNotes: (n) => uiSetTotalNotes(plugin, n),
+				reportProgress: () => reportSyncProgress(plugin),
+				onEntrySettled: (entryId: string, success: boolean) =>
+					runCallbacks?.onEntrySettled?.(entryId, success),
+			},
+			selectedNotes
+		);
+		await logSync(
+			plugin,
+			preparedPlan.mode === "two-way"
+				? `Two-way sync ended - success. Pushed ${pushed} note(s).`
+				: `Push sync ended - success. Pushed ${pushed} note(s).`
+		);
+		finishSyncUI(plugin, true);
+		if (preparedPlan.mode === "two-way") {
+			onTwoWaySuccess();
+		}
+		return {};
+	} catch (error: unknown) {
+		finishSyncUI(plugin, false);
+		const errorMessage = getErrorMessage(error);
+		await logSync(
+			plugin,
+			`${preparedPlan.mode === "two-way" ? "Two-way sync" : "Push sync"} ended - failed: ${errorMessage}. Processed ${
+				plugin.processedNotes
+			} note(s).`
+		);
+		return {};
 	}
 }
 

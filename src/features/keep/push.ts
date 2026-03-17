@@ -5,12 +5,17 @@ import { logSync, flushLogSync } from "@app/logging";
 import { buildFrontmatterWithSyncDate, wrapMarkdown } from "./frontmatter";
 import { FRONTMATTER_GOOGLE_KEEP_URL_KEY } from "./constants";
 import type { SyncCallbacks } from "./sync";
-import { collectNotesToPush, roundDateToSeconds } from "./push/collectNotes";
+import {
+	collectNotesToPush,
+	roundDateToSeconds,
+	type NoteForPush,
+} from "./push/collectNotes";
 import {
 	pushNotes as apiPushNotes,
 	PushNotePayload,
 	PushNoteResult,
 } from "@integrations/server/keepApi";
+import type { SyncPlan, SyncPlanEntry } from "@types";
 
 const SKIPPED_LOG_BATCH_SIZE = 50;
 const PUSH_PAYLOAD_BATCH_SIZE = 20;
@@ -30,12 +35,122 @@ function mapResultsByPath(results?: PushNoteResult[]): Map<string, PushNoteResul
 	return map;
 }
 
+export interface BuiltPushSyncPlan {
+	plan: SyncPlan;
+	notesToPush: NoteForPush[];
+}
+
+function buildPushPlanEntry(
+	note: NoteForPush,
+	index: number,
+	allowPerNoteSelection: boolean,
+	selectionLockedReason?: string
+): SyncPlanEntry {
+	const attachmentCount = note.updatedAttachmentNames.length;
+	const missingAttachmentCount = note.missingAttachments.length;
+	const detailParts: string[] = [];
+
+	if (attachmentCount > 0) {
+		detailParts.push(
+			attachmentCount === 1 ? "Includes 1 updated attachment." : `Includes ${attachmentCount} updated attachments.`
+		);
+	}
+	if (missingAttachmentCount > 0) {
+		detailParts.push(
+			missingAttachmentCount === 1
+				? "1 referenced attachment is missing."
+				: `${missingAttachmentCount} referenced attachments are missing.`
+		);
+	}
+
+	return {
+		id: `upload:${index}:${normalizePathSafe(note.fullPath)}`,
+		mode: "push",
+		stage: "upload",
+		title: note.title,
+		path: normalizePathSafe(note.fullPath),
+		action: "upload",
+		label: "Upload",
+		selectable: true,
+		selected: true,
+		selectionLocked: !allowPerNoteSelection,
+		selectionLockedReason: !allowPerNoteSelection ? selectionLockedReason : undefined,
+		meta: {
+			relativePath: note.relativePath,
+			attachmentCount,
+			missingAttachmentCount,
+			missingAttachmentNames: note.missingAttachments,
+			detail: detailParts.join(" "),
+		},
+	};
+}
+
+export async function buildPushSyncPlan(
+	plugin: KeepSidianPlugin,
+	allowPerNoteSelection = true,
+	selectionLockedReason?: string
+): Promise<BuiltPushSyncPlan> {
+	const { notesToPush, skippedNotes } = await collectNotesToPush(plugin);
+	const entries: SyncPlanEntry[] = [
+		...notesToPush.map((note, index) =>
+			buildPushPlanEntry(note, index, allowPerNoteSelection, selectionLockedReason)
+		),
+		...skippedNotes.map((skipped, index) => ({
+			id: `upload-skipped:${index}:${normalizePathSafe(skipped.path)}`,
+			mode: "push" as const,
+			stage: "upload" as const,
+			title: skipped.path.split("/").pop() || skipped.path,
+			path: normalizePathSafe(skipped.path),
+			action:
+				skipped.reason === "up-to-date"
+					? ("skipped-up-to-date" as const)
+					: ("skipped-conflict-copy" as const),
+			label:
+				skipped.reason === "up-to-date"
+					? "Skipped: up to date"
+					: "Skipped: conflict copy",
+			selectable: false,
+			selected: false,
+			selectionLocked: false,
+			meta: {
+				detail:
+					skipped.reason === "up-to-date"
+						? "No changes detected since the last sync."
+						: "Conflict copies are never uploaded.",
+			},
+		})),
+	];
+	const actionableCount = notesToPush.length;
+	const counts = entries.reduce<Record<string, number>>((acc, entry) => {
+		acc[entry.label] = (acc[entry.label] ?? 0) + 1;
+		return acc;
+	}, {});
+
+	return {
+		plan: {
+			id: `push-plan:${Date.now()}`,
+			mode: "push",
+			stage: "upload",
+			generatedAt: Date.now(),
+			title: "Review upload changes",
+			entries,
+			counts,
+			selectedCount: actionableCount,
+			actionableCount,
+		},
+		notesToPush,
+	};
+}
+
 export async function pushGoogleKeepNotes(
 	plugin: KeepSidianPlugin,
-	callbacks?: SyncCallbacks
+	callbacks?: SyncCallbacks,
+	preparedNotes?: NoteForPush[]
 ): Promise<number> {
 	try {
-		const { notesToPush, skippedNotes } = await collectNotesToPush(plugin);
+		const { notesToPush, skippedNotes } = preparedNotes
+			? { notesToPush: preparedNotes, skippedNotes: [] }
+			: await collectNotesToPush(plugin);
 
 		if (skippedNotes.length > 0) {
 			for (const skipped of skippedNotes) {
@@ -76,7 +191,8 @@ export async function pushGoogleKeepNotes(
 			const batchKey = "push:notes";
 			const batchSize = NOTE_LOG_BATCH_SIZE;
 			const batchOptions = { batchKey, batchSize };
-			for (const note of batch) {
+			for (const [batchIndex, note] of batch.entries()) {
+				let pushSucceeded = false;
 				try {
 					const pushTimestamp = roundDateToSeconds(new Date()).toISOString();
 					const normalizedPath = normalizePathSafe(note.relativePath);
@@ -148,6 +264,7 @@ export async function pushGoogleKeepNotes(
 						);
 					}
 					successCount += 1;
+					pushSucceeded = true;
 				} catch (error: unknown) {
 					await flushLogSync(plugin, { batchKey });
 					await logSync(
@@ -157,6 +274,10 @@ export async function pushGoogleKeepNotes(
 						}`
 					);
 				} finally {
+					callbacks?.onEntrySettled?.(
+						`upload:${index + batchIndex}:${normalizePathSafe(note.fullPath)}`,
+						pushSucceeded
+					);
 					callbacks?.reportProgress?.();
 				}
 			}

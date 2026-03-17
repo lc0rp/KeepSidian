@@ -5,6 +5,7 @@ import {
 } from "../compare";
 import { NormalizedNote } from "../note";
 import type { App } from "obsidian";
+import { buildExistingKeepNoteIndex, findExistingKeepNotePath } from "../noteLookup";
 import {
 	createMockPlugin,
 	type MockVaultAdapter,
@@ -137,6 +138,109 @@ describe("handleDuplicateNotes", () => {
 		expect(["skip", "merge", "overwrite"]).toContain(result);
 		expect(adapter.list).toHaveBeenCalled();
 		expect(adapter.exists).toHaveBeenCalledWith("Archive/old-name.md");
+	});
+
+	it("reuses a prebuilt Keep-note index instead of rescanning the vault", async () => {
+		adapter.exists.mockResolvedValue(false);
+		adapter.list.mockResolvedValue({
+			files: ["Archive/old-name.md", "Daily/unrelated.md"],
+			folders: [],
+		});
+		adapter.read.mockImplementation(async (path: string) => {
+			if (path === "Archive/old-name.md") {
+				return "---\nGoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\n---\nExisting";
+			}
+			return "---\n---\nOther";
+		});
+
+		const incomingNote: NormalizedNote = {
+			title: "Renamed title",
+			text: "Content",
+			created: new Date("2023-05-25"),
+			updated: new Date("2023-05-26"),
+			frontmatter:
+				"GoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\nGoogleKeepCreatedDate: 2023-05-25T00:00:00.000Z",
+			frontmatterDict: {
+				GoogleKeepUrl: "https://keep.google.com/u/0/#NOTE/123",
+			},
+			archived: false,
+			trashed: false,
+			labels: [],
+			blobs: [],
+			blob_urls: [],
+			blob_names: [],
+			media: [],
+			header: "",
+			textWithoutFrontmatter: "New content",
+		};
+
+		const index = await buildExistingKeepNoteIndex(mockApp);
+		const readCallsAfterIndexBuild = adapter.read.mock.calls.length;
+
+		const resolvedPath = await findExistingKeepNotePath(
+			mockApp,
+			incomingNote,
+			"/save/location/Renamed title.md",
+			index
+		);
+
+		expect(resolvedPath).toBe("Archive/old-name.md");
+		expect(adapter.list).toHaveBeenCalledTimes(1);
+		expect(adapter.read).toHaveBeenCalledTimes(readCallsAfterIndexBuild);
+	});
+
+	it("builds the Keep-note index from metadata cache when available", async () => {
+		(mockApp.vault as unknown as { getMarkdownFiles: () => Array<{ path: string }> }).getMarkdownFiles =
+			() => [{ path: "Archive/old-name.md" }, { path: "Daily/unrelated.md" }];
+		(
+			mockApp as unknown as {
+				metadataCache: {
+					getFileCache: (file: { path: string }) => { frontmatter?: Record<string, unknown> } | null;
+				};
+			}
+		).metadataCache = {
+			getFileCache: (file) =>
+				file.path === "Archive/old-name.md"
+					? {
+							frontmatter: {
+								GoogleKeepUrl: "https://keep.google.com/u/0/#NOTE/123",
+							},
+					  }
+					: { frontmatter: {} },
+		};
+
+		const incomingNote: NormalizedNote = {
+			title: "Renamed title",
+			text: "Content",
+			created: new Date("2023-05-25"),
+			updated: new Date("2023-05-26"),
+			frontmatter:
+				"GoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\nGoogleKeepCreatedDate: 2023-05-25T00:00:00.000Z",
+			frontmatterDict: {
+				GoogleKeepUrl: "https://keep.google.com/u/0/#NOTE/123",
+			},
+			archived: false,
+			trashed: false,
+			labels: [],
+			blobs: [],
+			blob_urls: [],
+			blob_names: [],
+			media: [],
+			header: "",
+			textWithoutFrontmatter: "New content",
+		};
+
+		const index = await buildExistingKeepNoteIndex(mockApp);
+		const resolvedPath = await findExistingKeepNotePath(
+			mockApp,
+			incomingNote,
+			"/save/location/Renamed title.md",
+			index
+		);
+
+		expect(resolvedPath).toBe("Archive/old-name.md");
+		expect(adapter.list).not.toHaveBeenCalled();
+		expect(adapter.read).not.toHaveBeenCalled();
 	});
 });
 

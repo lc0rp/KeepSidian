@@ -17,9 +17,11 @@ import {
 	persistSensitiveSettingsToSecretStorage,
 } from "@app/main-secret-storage";
 import {
+	buildManualSyncPlan,
 	openLatestSyncLogFlow,
 	runImportNotesFlow,
 	runPushNotesFlow,
+	runPreparedSyncPlan,
 	runTwoWaySyncFlow,
 } from "@app/main-sync-flows";
 
@@ -339,23 +341,34 @@ export default class KeepSidianPlugin extends Plugin {
 	private ensureSyncCenterModal(): SyncProgressModal {
 		if (!this.progressModal) {
 			this.progressModal = new SyncProgressModal(this.app, {
-				onRunSync: async (mode) => {
-					switch (mode) {
-						case "push":
-							await this.pushNotes();
-							return;
-						case "two-way":
-							await this.performTwoWaySync();
-							return;
-						case "import":
-						default:
-							await this.importNotes(false);
+				buildSyncPlan: async (mode, callbacks) => {
+					if (!this.ensureCredentials()) {
+						return null;
+					}
+					return await buildManualSyncPlan(this, mode, callbacks);
+				},
+				runSyncPlan: async (preparedPlan, callbacks) => {
+					if (this.isSyncing) {
+						return {};
+					}
+					if (!this.ensureCredentials()) {
+						return {};
+					}
+					this.isSyncing = true;
+					try {
+						return await runPreparedSyncPlan(
+							this,
+							preparedPlan,
+							getErrorMessage,
+							() => this.resetAutoSyncGateState(),
+							callbacks
+						);
+					} finally {
+						this.isSyncing = false;
 					}
 				},
 				onOpenSyncLog: () => this.openLatestSyncLog(),
 				getTwoWayGate: () => this.getTwoWayGateSnapshot(),
-				requireTwoWayGate: () => this.requireTwoWaySafeguards(),
-				showTwoWayGateNotice: (result) => this.showTwoWaySafeguardNotice(result),
 				openTwoWaySettings: () => this.openTwoWaySettings(),
 				getCurrentMode: () => this.currentSyncMode,
 				getCurrentPhaseLabel: () => this.currentSyncPhaseLabel,
@@ -390,7 +403,7 @@ export default class KeepSidianPlugin extends Plugin {
 		}
 		modal.open();
 		if (autoStart) {
-			void modal.runSelectedMode();
+			void modal.beginReview(mode);
 		}
 	}
 

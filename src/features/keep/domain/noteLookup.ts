@@ -13,6 +13,27 @@ type ListableAdapter = {
 	read: (path: string) => Promise<string>;
 };
 
+type MarkdownFileLike = {
+	path: string;
+};
+
+type MetadataCacheLike = {
+	getFileCache?: (file: MarkdownFileLike) => { frontmatter?: Record<string, unknown> } | null;
+};
+
+type MetadataBackedApp = {
+	vault: {
+		adapter: ListableAdapter;
+		getMarkdownFiles?: () => MarkdownFileLike[];
+	};
+	metadataCache?: MetadataCacheLike;
+};
+
+export interface ExistingKeepNoteIndex {
+	pathByKeepUrl: Map<string, string>;
+	existingPaths: Set<string>;
+}
+
 export async function listMarkdownFilesRecursively(
 	adapter: ListableAdapter,
 	folder = ""
@@ -52,20 +73,90 @@ export function isKeepSidianFrontmatter(frontmatterDict: Record<string, unknown>
 	);
 }
 
+export async function buildExistingKeepNoteIndex(
+	app: MetadataBackedApp
+): Promise<ExistingKeepNoteIndex> {
+	const adapter = app.vault.adapter;
+	const metadataBackedFiles = app.vault.getMarkdownFiles?.();
+	if (Array.isArray(metadataBackedFiles) && metadataBackedFiles.length > 0) {
+		const existingPaths = new Set(
+			metadataBackedFiles.map((file) => normalizePathSafe(file.path)).filter((path) => path.length > 0)
+		);
+		const pathByKeepUrl = new Map<string, string>();
+
+		for (const file of metadataBackedFiles) {
+			const normalizedPath = normalizePathSafe(file.path);
+			const frontmatterDict = app.metadataCache?.getFileCache?.(file)?.frontmatter;
+			if (!frontmatterDict) {
+				continue;
+			}
+			const existingKeepUrl = getFrontmatterStringValue(frontmatterDict, FRONTMATTER_GOOGLE_KEEP_URL_KEY);
+			if (existingKeepUrl) {
+				pathByKeepUrl.set(existingKeepUrl, normalizedPath);
+			}
+		}
+
+		return {
+			pathByKeepUrl,
+			existingPaths,
+		};
+	}
+
+	const markdownFiles = await listMarkdownFilesRecursively(adapter, "");
+	const existingPaths = new Set(markdownFiles.map((filePath) => normalizePathSafe(filePath)));
+	const pathByKeepUrl = new Map<string, string>();
+
+	for (const filePath of existingPaths) {
+		try {
+			const content = await adapter.read(filePath);
+			const [, , frontmatterDict] = extractFrontmatter(content);
+			const existingKeepUrl = getFrontmatterStringValue(frontmatterDict, FRONTMATTER_GOOGLE_KEEP_URL_KEY);
+			if (existingKeepUrl) {
+				pathByKeepUrl.set(existingKeepUrl, filePath);
+			}
+		} catch {
+			// Ignore unreadable candidates during lookup.
+		}
+	}
+
+	return {
+		pathByKeepUrl,
+		existingPaths,
+	};
+}
+
+export function updateExistingKeepNoteIndex(
+	index: ExistingKeepNoteIndex,
+	filePath: string,
+	incomingNote: NormalizedNote
+): void {
+	const normalizedPath = normalizePathSafe(filePath);
+	index.existingPaths.add(normalizedPath);
+	const incomingKeepUrl = getFrontmatterStringValue(
+		incomingNote.frontmatterDict,
+		FRONTMATTER_GOOGLE_KEEP_URL_KEY
+	);
+	if (incomingKeepUrl) {
+		index.pathByKeepUrl.set(incomingKeepUrl, normalizedPath);
+	}
+}
+
 export async function findExistingKeepNotePath(
 	app: { vault: { adapter: ListableAdapter } },
 	incomingNote: NormalizedNote,
-	preferredPath?: string
+	preferredPath?: string,
+	index?: ExistingKeepNoteIndex
 ): Promise<string | null> {
 	const adapter = app.vault.adapter;
 	const normalizedPreferredPath = preferredPath ? normalizePathSafe(preferredPath) : null;
 
-	if (
-		normalizedPreferredPath &&
-		typeof adapter.exists === "function" &&
-		(await adapter.exists(normalizedPreferredPath))
-	) {
-		return normalizedPreferredPath;
+	if (normalizedPreferredPath) {
+		if (index?.existingPaths.has(normalizedPreferredPath)) {
+			return normalizedPreferredPath;
+		}
+		if (typeof adapter.exists === "function" && (await adapter.exists(normalizedPreferredPath))) {
+			return normalizedPreferredPath;
+		}
 	}
 
 	const incomingKeepUrl = getFrontmatterStringValue(
@@ -76,24 +167,10 @@ export async function findExistingKeepNotePath(
 		return normalizedPreferredPath;
 	}
 
-	const markdownFiles = await listMarkdownFilesRecursively(adapter, "");
-	for (const filePath of markdownFiles) {
-		const normalizedPath = normalizePathSafe(filePath);
-		if (normalizedPreferredPath && normalizedPath === normalizedPreferredPath) {
-			continue;
-		}
-
-		try {
-			const content = await adapter.read(normalizedPath);
-			const [, , frontmatterDict] = extractFrontmatter(content);
-			const existingKeepUrl = getFrontmatterStringValue(frontmatterDict, FRONTMATTER_GOOGLE_KEEP_URL_KEY);
-			if (existingKeepUrl === incomingKeepUrl) {
-				return normalizedPath;
-			}
-		} catch {
-			// Ignore unreadable candidates during lookup.
-		}
+	if (index) {
+		return index.pathByKeepUrl.get(incomingKeepUrl) ?? normalizedPreferredPath;
 	}
 
-	return normalizedPreferredPath;
+	const builtIndex = await buildExistingKeepNoteIndex(app);
+	return builtIndex.pathByKeepUrl.get(incomingKeepUrl) ?? normalizedPreferredPath;
 }

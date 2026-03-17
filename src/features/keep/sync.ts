@@ -23,11 +23,17 @@ import type {
 	PremiumFeatureFlags,
 	SyncFilters,
 } from "@integrations/server/keepApi";
+import type { SyncPlan, SyncPlanEntry } from "@types";
 import {
 	fetchNotes as apiFetchNotes,
 	fetchNotesWithPremiumFeatures as apiFetchNotesWithPremium,
 } from "@integrations/server/keepApi";
 import { findExistingKeepNotePath } from "./domain/noteLookup";
+import {
+	buildExistingKeepNoteIndex,
+	updateExistingKeepNoteIndex,
+	type ExistingKeepNoteIndex,
+} from "./domain/noteLookup";
 
 const LAST_SUCCESSFUL_SYNC_DATE_KEY = "KeepSidianLastSuccessfulSyncDate";
 const NOTE_LOG_BATCH_KEY = "sync:notes";
@@ -84,6 +90,20 @@ function persistLastSuccessfulSyncDate(plugin: KeepSidianPlugin, isoString: stri
 export interface SyncCallbacks {
 	setTotalNotes?: (total: number) => void;
 	reportProgress?: () => void;
+	reportPlanProgress?: (processed: number, total?: number) => void;
+	onEntrySettled?: (entryId: string, success: boolean) => void;
+}
+
+interface FetchImportNotesResult {
+	notes: PreNormalizedNote[];
+	completionDate?: string;
+}
+
+export interface BuiltImportSyncPlan {
+	plan: SyncPlan;
+	notes: PreNormalizedNote[];
+	noteEntryIds: string[];
+	completionDate?: string;
 }
 
 function logErrorIfNotTest(...args: unknown[]) {
@@ -99,7 +119,7 @@ function logErrorIfNotTest(...args: unknown[]) {
 	}
 }
 
-async function importGoogleKeepNotesBase(
+async function fetchImportNotesBase(
 	plugin: KeepSidianPlugin,
 	fetchFunction: (
 		offset: number,
@@ -107,8 +127,8 @@ async function importGoogleKeepNotesBase(
 		filters?: SyncFilters,
 		cursor?: string
 	) => Promise<GoogleKeepImportResponse>,
-	callbacks?: SyncCallbacks
-): Promise<number> {
+	callbacks?: Pick<SyncCallbacks, "setTotalNotes" | "reportPlanProgress">
+): Promise<FetchImportNotesResult> {
 	try {
 		let offset = 0;
 		const limit = 50;
@@ -116,8 +136,8 @@ async function importGoogleKeepNotesBase(
 		let usingCursorPagination = false;
 		let hasError = false;
 		let foundError: Error | null = null;
-		let totalImported = 0;
 		let hasReportedTotal = false;
+		const fetchedNotes: PreNormalizedNote[] = [];
 
 		const lastSuccessfulSyncDate = getLastSuccessfulSyncDate(plugin);
 		const syncFilters: SyncFilters | undefined = lastSuccessfulSyncDate
@@ -147,8 +167,11 @@ async function importGoogleKeepNotesBase(
 				if (!response.notes || response.notes.length === 0) {
 					break;
 				}
-				await processAndSaveNotes(plugin, response.notes, callbacks);
-				totalImported += response.notes.length;
+				fetchedNotes.push(...response.notes);
+				callbacks?.reportPlanProgress?.(
+					fetchedNotes.length,
+					typeof response.total_notes === "number" ? response.total_notes : undefined
+				);
 				if (response.next_cursor) {
 					cursor = response.next_cursor;
 					usingCursorPagination = true;
@@ -169,17 +192,199 @@ async function importGoogleKeepNotesBase(
 			throw foundError;
 		}
 
-		if (completionDate) {
-			persistLastSuccessfulSyncDate(plugin, completionDate);
-		}
-
-		new Notice("Imported Google Keep notes.");
-		return totalImported;
+		return {
+			notes: fetchedNotes,
+			completionDate,
+		};
 	} catch (error) {
 		const normalizedError = error instanceof Error ? error : new Error(String(error));
 		logErrorIfNotTest(normalizedError);
-		new Notice("Failed to import notes.");
 		throw normalizedError;
+	}
+}
+
+function buildImportPlanEntry(
+	plugin: KeepSidianPlugin,
+	index: number,
+	note: PreNormalizedNote,
+	allowPerNoteSelection: boolean,
+	selectionLockedReason?: string,
+	existingKeepNoteIndex?: ExistingKeepNoteIndex
+): Promise<SyncPlanEntry> {
+	return (async () => {
+		const normalizedNote = normalizeNote(note);
+		const noteTitle = normalizedNote.title || `Untitled ${index + 1}`;
+		const resolvedNotePath = resolveNotePath(plugin.app, plugin.settings, normalizedNote);
+		const noteFilePath =
+			(await findExistingKeepNotePath(
+				plugin.app,
+				normalizedNote,
+				resolvedNotePath,
+				existingKeepNoteIndex
+			)) ??
+			resolvedNotePath;
+		const duplicateAction = noteTitle
+			? await handleDuplicateNotes(
+					plugin.settings.saveLocation,
+					normalizedNote,
+					plugin.app,
+					noteFilePath,
+					existingKeepNoteIndex
+			  )
+			: "skip";
+
+		let action: SyncPlanEntry["action"] = "skipped-identical";
+		let label = "Skipped: identical";
+		let selectable = false;
+		let detail: string | undefined;
+
+		switch (duplicateAction) {
+			case "create":
+				action = "create";
+				label = "Create";
+				selectable = true;
+				break;
+			case "overwrite":
+				action = "overwrite";
+				label = "Overwrite";
+				selectable = true;
+				break;
+			case "merge": {
+				const existingContent = await plugin.app.vault.adapter.read(noteFilePath).catch(() => "");
+				const [, existingBody] = extractFrontmatter(existingContent);
+				const { hasConflict } = mergeNoteText(
+					existingBody,
+					normalizedNote.textWithoutFrontmatter
+				);
+				action = hasConflict ? "conflict-copy" : "merge";
+				label = hasConflict ? "Conflict copy" : "Merge";
+				selectable = true;
+				detail = hasConflict ? "Will create a conflict copy next to the existing note." : undefined;
+				break;
+			}
+			case "skip":
+			default:
+				action = "skipped-identical";
+				label = "Skipped: identical";
+				selectable = false;
+				break;
+		}
+
+		return {
+			id: `import:${index}:${normalizePathSafe(noteFilePath)}`,
+			mode: "import",
+			stage: "import",
+			title: noteTitle,
+			path: normalizePathSafe(noteFilePath),
+			action,
+			label,
+			selectable,
+			selected: selectable,
+			selectionLocked: selectable && !allowPerNoteSelection,
+			selectionLockedReason:
+				selectable && !allowPerNoteSelection ? selectionLockedReason : undefined,
+			meta: detail ? { detail } : undefined,
+		};
+	})();
+}
+
+export async function buildImportSyncPlan(
+	plugin: KeepSidianPlugin,
+	options?: NoteImportOptions,
+	allowPerNoteSelection = true,
+	selectionLockedReason?: string,
+	callbacks?: Pick<SyncCallbacks, "setTotalNotes" | "reportPlanProgress">
+): Promise<BuiltImportSyncPlan> {
+	const { email, token } = plugin.settings;
+	const fetchFunction =
+		options !== undefined
+			? (offset: number, limit: number, filters?: SyncFilters, cursor?: string) =>
+					apiFetchNotesWithPremium(
+						email,
+						token,
+						convertOptionsToFeatureFlags(options),
+						offset,
+						limit,
+						filters,
+						cursor
+					)
+			: (offset: number, limit: number, filters?: SyncFilters, cursor?: string) =>
+					apiFetchNotes(email, token, offset, limit, filters, cursor);
+	const fetched = await fetchImportNotesBase(plugin, fetchFunction, callbacks);
+	const existingKeepNoteIndex = await buildExistingKeepNoteIndex(plugin.app);
+	const entries = await Promise.all(
+		fetched.notes.map((note, index) =>
+			buildImportPlanEntry(
+				plugin,
+				index,
+				note,
+				allowPerNoteSelection,
+				selectionLockedReason,
+				existingKeepNoteIndex
+			)
+		)
+	);
+	const actionableEntries = entries.filter((entry) => entry.selectable);
+	const counts = entries.reduce<Record<string, number>>((acc, entry) => {
+		acc[entry.label] = (acc[entry.label] ?? 0) + 1;
+		return acc;
+	}, {});
+
+	return {
+		plan: {
+			id: `import-plan:${Date.now()}`,
+			mode: "import",
+			stage: "import",
+			generatedAt: Date.now(),
+			title: "Review download changes",
+			entries,
+			counts,
+			selectedCount: actionableEntries.length,
+			actionableCount: actionableEntries.length,
+		},
+		notes: fetched.notes,
+		noteEntryIds: entries.map((entry) => entry.id),
+		completionDate: fetched.completionDate,
+	};
+}
+
+export async function importSelectedGoogleKeepNotes(
+	plugin: KeepSidianPlugin,
+	notes: PreNormalizedNote[],
+	callbacks?: SyncCallbacks,
+	completionDate?: string,
+	noteEntryIds?: string[]
+): Promise<number> {
+	await processAndSaveNotes(plugin, notes, callbacks, noteEntryIds);
+	if (completionDate) {
+		persistLastSuccessfulSyncDate(plugin, completionDate);
+	}
+	new Notice("Imported Google Keep notes.");
+	return notes.length;
+}
+
+async function importGoogleKeepNotesBase(
+	plugin: KeepSidianPlugin,
+	fetchFunction: (
+		offset: number,
+		limit: number,
+		filters?: SyncFilters,
+		cursor?: string
+	) => Promise<GoogleKeepImportResponse>,
+	callbacks?: SyncCallbacks
+): Promise<number> {
+	try {
+		const fetched = await fetchImportNotesBase(plugin, fetchFunction, callbacks);
+		const imported = await importSelectedGoogleKeepNotes(
+			plugin,
+			fetched.notes,
+			callbacks,
+			fetched.completionDate
+		);
+		return imported;
+	} catch (error) {
+		new Notice("Failed to import notes.");
+		throw error;
 	}
 }
 
@@ -252,18 +457,37 @@ export function convertOptionsToFeatureFlags(options: NoteImportOptions): Premiu
 export async function processAndSaveNotes(
         plugin: KeepSidianPlugin,
         notes: PreNormalizedNote[],
-        callbacks?: SyncCallbacks
+        callbacks?: SyncCallbacks,
+	noteEntryIds?: string[]
 ) {
         await ensurePascalCaseFrontmatter(plugin);
+	const existingKeepNoteIndex = await buildExistingKeepNoteIndex(plugin.app);
 
         try {
-                for (const note of notes) {
+                for (const [index, note] of notes.entries()) {
                         const normalizedNote = normalizeNote(note);
                         const noteFolder = resolveNoteFolder(plugin.app, plugin.settings, normalizedNote);
                         await ensureFolder(plugin.app, noteFolder);
                         await ensureFolder(plugin.app, mediaFolderPath(noteFolder));
-                        await processAndSaveNote(plugin, note, plugin.settings.saveLocation, normalizedNote);
-                        callbacks?.reportProgress?.();
+                        const entryId = noteEntryIds?.[index];
+                        try {
+                                await processAndSaveNote(
+					plugin,
+					note,
+					plugin.settings.saveLocation,
+					normalizedNote,
+					existingKeepNoteIndex
+				);
+                                callbacks?.reportProgress?.();
+                                if (entryId) {
+                                        callbacks?.onEntrySettled?.(entryId, true);
+                                }
+                        } catch (error: unknown) {
+                                if (entryId) {
+                                        callbacks?.onEntrySettled?.(entryId, false);
+                                }
+                                throw error;
+                        }
                 }
         } finally {
                 await flushLogSync(plugin, { batchKey: NOTE_LOG_BATCH_KEY });
@@ -274,7 +498,8 @@ export async function processAndSaveNote(
         plugin: KeepSidianPlugin,
         note: PreNormalizedNote,
         saveLocation: string,
-        preNormalizedNote?: ReturnType<typeof normalizeNote>
+        preNormalizedNote?: ReturnType<typeof normalizeNote>,
+	existingKeepNoteIndex?: ExistingKeepNoteIndex
 ) {
         const normalizedNote = preNormalizedNote ?? normalizeNote(note);
         const noteTitle = normalizedNote.title;
@@ -282,9 +507,14 @@ export async function processAndSaveNote(
                 await logSync(plugin, "Skipped note without a title", NOTE_LOG_BATCH_OPTIONS);
                 return;
         }
-        const resolvedNotePath = resolveNotePath(plugin.app, plugin.settings, normalizedNote);
+	const resolvedNotePath = resolveNotePath(plugin.app, plugin.settings, normalizedNote);
         let noteFilePath =
-		(await findExistingKeepNotePath(plugin.app, normalizedNote, resolvedNotePath)) ??
+		(await findExistingKeepNotePath(
+			plugin.app,
+			normalizedNote,
+			resolvedNotePath,
+			existingKeepNoteIndex
+		)) ??
 		resolvedNotePath;
         const noteLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
         const noteFolder = dirnameSafe(noteFilePath);
@@ -297,7 +527,8 @@ export async function processAndSaveNote(
 			saveLocation,
 			normalizedNote,
 			plugin.app,
-			noteFilePath
+			noteFilePath,
+			existingKeepNoteIndex
 		);
 		const newFrontmatter = normalizedNote.frontmatter;
 		const newTextWithoutFrontmatter = normalizedNote.textWithoutFrontmatter;
@@ -309,6 +540,9 @@ export async function processAndSaveNote(
                         const newMdContent = wrapMarkdown(mdFrontmatter, newTextWithoutFrontmatter);
                         await ensureParentFolderForFile(plugin.app, noteFilePath);
                         await plugin.app.vault.adapter.write(noteFilePath, newMdContent);
+                        if (existingKeepNoteIndex) {
+                                updateExistingKeepNoteIndex(existingKeepNoteIndex, noteFilePath, normalizedNote);
+                        }
                         await logSync(plugin, `${noteLink} - new file created`, NOTE_LOG_BATCH_OPTIONS);
 	                } else {
 	                        const existingMarkdownFileContentRaw = await plugin.app.vault.adapter.read(noteFilePath);
@@ -337,6 +571,13 @@ export async function processAndSaveNote(
                                 if (!hasConflict) {
                                         await ensureParentFolderForFile(plugin.app, noteFilePath);
                                         await plugin.app.vault.adapter.write(noteFilePath, mergedMdContent);
+                                        if (existingKeepNoteIndex) {
+                                                updateExistingKeepNoteIndex(
+                                                        existingKeepNoteIndex,
+                                                        noteFilePath,
+                                                        normalizedNote
+                                                );
+                                        }
                                         await logSync(
                                                 plugin,
                                                 `${noteLink} - merged (no conflict)`,
@@ -349,6 +590,13 @@ export async function processAndSaveNote(
 
                                         await ensureParentFolderForFile(plugin.app, noteFilePath);
                                         await plugin.app.vault.adapter.write(noteFilePath, mergedMdContent);
+                                        if (existingKeepNoteIndex) {
+                                                updateExistingKeepNoteIndex(
+                                                        existingKeepNoteIndex,
+                                                        noteFilePath,
+                                                        normalizedNote
+                                                );
+                                        }
                                         const conflictLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
                                         await logSync(
                                                 plugin,
@@ -365,6 +613,13 @@ export async function processAndSaveNote(
                                 // overwrite path: write to current path
                                 await ensureParentFolderForFile(plugin.app, noteFilePath);
                                 await plugin.app.vault.adapter.write(noteFilePath, mdContentWithSyncDate);
+                                if (existingKeepNoteIndex) {
+                                        updateExistingKeepNoteIndex(
+                                                existingKeepNoteIndex,
+                                                noteFilePath,
+                                                normalizedNote
+                                        );
+                                }
                                 await logSync(
                                         plugin,
                                         `${noteLink} - ${existedBefore ? "overwritten" : "created"}`,

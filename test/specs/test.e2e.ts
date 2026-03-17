@@ -1,4 +1,9 @@
 import { browser, expect } from "@wdio/globals";
+import {
+	createPreparedSyncPlanFixture,
+	createSyncPlanEntryFixture,
+} from "../../src/test-utils/fixtures/sync-plan";
+import type { SyncMode } from "../../src/types";
 
 describe("KeepSidian", function () {
 	const buttonByText = (label: string): string =>
@@ -94,6 +99,92 @@ describe("KeepSidian", function () {
 				return true;
 			},
 			{ timeout: 30000, interval: 500 }
+		);
+	};
+
+	const openSeededSyncCenter = async (
+		plansByMode: Partial<
+			Record<SyncMode, ReturnType<typeof createPreparedSyncPlanFixture>>
+		>,
+		options?: { runDelayMs?: number; initialMode?: SyncMode; gateAllowed?: boolean }
+	): Promise<void> => {
+		const runDelayMs = options?.runDelayMs ?? 500;
+		const initialMode = options?.initialMode ?? "import";
+		const gateAllowed = options?.gateAllowed ?? false;
+		await browser.executeObsidian(
+			({ app }, preparedPlans, delayMs, requestedMode, allowGate) => {
+				type KeepSidianPluginWindow = Window & {
+					app?: {
+						plugins?: {
+							getPlugin?: (id: string) => {
+								openSyncCenter?: (options?: { mode?: SyncMode }) => void;
+								progressModal?: {
+									options?: {
+										buildSyncPlan?: (mode: SyncMode) => Promise<unknown>;
+										runSyncPlan?: (
+											plan: unknown,
+											callbacks?: {
+												onEntrySettled?: (entryId: string, success: boolean) => void;
+											}
+										) => Promise<unknown>;
+									};
+								};
+							} | null;
+						};
+					};
+				};
+
+				const plugin = (window as KeepSidianPluginWindow).app?.plugins?.getPlugin?.(
+					"keepsidian"
+				);
+				if (!plugin?.openSyncCenter) {
+					throw new Error("KeepSidian plugin or sync center hook not available");
+				}
+
+				plugin.lastSyncSummary = null;
+				if (plugin.settings) {
+					plugin.settings.lastSyncSummary = null;
+				}
+				plugin.progressModal?.close?.();
+				plugin.progressModal = null;
+				plugin.openSyncCenter({ mode: requestedMode });
+				const modal = plugin.progressModal;
+				if (!modal?.options) {
+					throw new Error("KeepSidian sync modal was not created");
+				}
+
+				modal.options.getTwoWayGate = () => ({
+					allowed: allowGate,
+					reasons: allowGate ? [] : ["Confirm backups"],
+				});
+				modal.options.buildSyncPlan = async (mode) => {
+					const selectedPlan = preparedPlans[mode];
+					if (!selectedPlan) {
+						throw new Error(`No seeded plan for mode: ${String(mode)}`);
+					}
+					return selectedPlan;
+				};
+				modal.options.runSyncPlan = async (_currentPlan, callbacks) => {
+					const activePlan =
+						_currentPlan as ReturnType<typeof createPreparedSyncPlanFixture>;
+					const selectableEntries = activePlan.plan.entries.filter(
+						(entry) => entry.selectable && entry.selected
+					);
+					await new Promise((resolve) => {
+						window.setTimeout(() => {
+							for (const entry of selectableEntries) {
+								callbacks?.onEntrySettled?.(entry.id, true);
+							}
+							resolve(undefined);
+						}, delayMs);
+					});
+					return {};
+				};
+			},
+			plansByMode,
+			runDelayMs,
+			initialMode,
+			gateAllowed
 		);
 	};
 
@@ -250,5 +341,120 @@ describe("KeepSidian", function () {
 		);
 
 		await restoreTokenExchange();
+	});
+
+	it("walks setup to review to run to done with a seeded sync plan (desktop)", async function () {
+		if (isAndroid()) {
+			this.skip();
+			return;
+		}
+
+		const seededPlan = createPreparedSyncPlanFixture("import", "import", [
+			createSyncPlanEntryFixture("create", "Create", {
+				id: "create-1",
+				title: "E2E create note",
+				path: "Keep/E2E create note.md",
+			}),
+			createSyncPlanEntryFixture("merge", "Merge", {
+				id: "merge-1",
+				title: "E2E merge note",
+				path: "Keep/E2E merge note.md",
+			}),
+			createSyncPlanEntryFixture("skipped-identical", "Skipped: identical", {
+				id: "skip-1",
+				title: "E2E skipped note",
+				path: "Keep/E2E skipped note.md",
+				selectable: false,
+				selected: false,
+			}),
+		]);
+
+		await openSeededSyncCenter({ import: seededPlan }, { runDelayMs: 700, initialMode: "import" });
+
+		const startSyncButton = browser.$(buttonByText("Start sync"));
+		await startSyncButton.waitForExist({ timeout: 20000 });
+		await startSyncButton.click();
+
+		const reviewTitle = browser.$('//*[normalize-space(.)="Review download plan"]');
+		await reviewTitle.waitForExist({ timeout: 20000 });
+		expect(await browser.$(buttonByText("Back")).isExisting()).toBe(true);
+		expect(await browser.$(buttonByText("Refresh")).isExisting()).toBe(true);
+		expect(await browser.$(buttonByText("Run sync")).isExisting()).toBe(true);
+		expect(await browser.$('//*[contains(normalize-space(.),"Create 1")]').isExisting()).toBe(
+			true
+		);
+
+		await browser.$(buttonByText("Run sync")).click();
+
+		const runningTitle = browser.$('//*[normalize-space(.)="Running download plan"]');
+		await runningTitle.waitForExist({ timeout: 20000 });
+		expect(
+			await browser.$('//*[contains(normalize-space(.),"Created 0/1")]').isExisting()
+		).toBe(true);
+
+		const completeTitle = browser.$('//*[normalize-space(.)="Download complete"]');
+		await completeTitle.waitForExist({ timeout: 20000 });
+		expect(
+			await browser.$('//*[contains(normalize-space(.),"Created 1/1")]').isExisting()
+		).toBe(true);
+		expect(await browser.$(buttonByText("Open sync log")).isExisting()).toBe(true);
+		expect(await browser.$(buttonByText("Close")).isExisting()).toBe(true);
+	});
+
+	it("walks setup to review to run to done for upload mode with seeded data (desktop)", async function () {
+		if (isAndroid()) {
+			this.skip();
+			return;
+		}
+
+		const uploadPlan = createPreparedSyncPlanFixture("push", "upload", [
+			createSyncPlanEntryFixture("upload", "Upload", {
+				id: "upload-1",
+				mode: "push",
+				stage: "upload",
+				title: "E2E upload note",
+				path: "Keep/E2E upload note.md",
+			}),
+			createSyncPlanEntryFixture("skipped-up-to-date", "Skipped: up to date", {
+				id: "uptodate-1",
+				mode: "push",
+				stage: "upload",
+				title: "E2E up to date note",
+				path: "Keep/E2E up to date note.md",
+				selectable: false,
+				selected: false,
+			}),
+		]);
+
+		await openSeededSyncCenter(
+			{ push: uploadPlan },
+			{ runDelayMs: 700, initialMode: "push", gateAllowed: true }
+		);
+
+		const startSyncButton = browser.$(buttonByText("Start sync"));
+		await startSyncButton.waitForExist({ timeout: 20000 });
+
+		await startSyncButton.click();
+
+		const reviewTitle = browser.$('//*[normalize-space(.)="Review upload plan"]');
+		await reviewTitle.waitForExist({ timeout: 20000 });
+		expect(await browser.$('//*[contains(normalize-space(.),"Upload 1")]').isExisting()).toBe(true);
+
+		await browser.$(buttonByText("Run sync")).click();
+
+		const runningTitle = browser.$('//*[normalize-space(.)="Running upload plan"]');
+		await runningTitle.waitForExist({ timeout: 20000 });
+		expect(
+			await browser.$('//*[contains(normalize-space(.),"Uploaded 0/1")]').isExisting()
+		).toBe(true);
+
+		const completeTitle = browser.$('//*[normalize-space(.)="Upload complete"]');
+		await completeTitle.waitForExist({ timeout: 20000 });
+		expect(
+			await browser.$('//*[contains(normalize-space(.),"Uploaded 1/1")]').isExisting()
+		).toBe(true);
+		expect(
+			await browser.$('//*[contains(normalize-space(.),"Already up to date 1/1")]').isExisting()
+		).toBe(true);
 	});
 });
