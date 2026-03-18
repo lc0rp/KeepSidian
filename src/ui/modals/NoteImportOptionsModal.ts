@@ -1,10 +1,14 @@
 import { App, Modal, Setting } from "obsidian";
 import { SubscriptionSettingsTab } from "../settings/SubscriptionSettingsTab";
 import KeepSidianPlugin from "main";
+import type { KeepArchivedStatus, KeepPinnedStatus } from "../../types/subscription";
 
 export interface NoteImportOptions {
 	includeNotesTerms?: string[];
 	excludeNotesTerms?: string[];
+	includeColors?: string[];
+	pinnedStatus?: KeepPinnedStatus;
+	archivedStatus?: KeepArchivedStatus;
 	updateTitle?: boolean;
 	suggestTags?: boolean;
 	maxTags?: number;

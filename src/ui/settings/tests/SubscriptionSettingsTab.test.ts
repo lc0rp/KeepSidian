@@ -14,6 +14,50 @@ jest.mock("../../../config", () => ({
 	KEEPSIDIAN_SERVER_URL: "https://keepsidian.com",
 }));
 
+jest.mock("../../modals/KeepColorPickerModal", () => {
+	class KeepColorPickerModal {
+		app: unknown;
+		options: { selectedColors: string[]; onSave: (selectedColors: string[]) => void };
+
+		constructor(
+			app: unknown,
+			options: { selectedColors: string[]; onSave: (selectedColors: string[]) => void }
+		) {
+			this.app = app;
+			this.options = options;
+			__mockKeepColorPickerModal.instances.push(this);
+		}
+
+		open() {
+			__mockKeepColorPickerModal.openCalls += 1;
+		}
+	}
+
+	const __mockKeepColorPickerModal = {
+		instances: [] as KeepColorPickerModal[],
+		openCalls: 0,
+		reset() {
+			this.instances = [];
+			this.openCalls = 0;
+		},
+	};
+
+	return {
+		KeepColorPickerModal,
+		__mockKeepColorPickerModal,
+	};
+});
+
+const keepColorPickerModalMock = jest.requireMock("../../modals/KeepColorPickerModal") as {
+	__mockKeepColorPickerModal: {
+		instances: Array<{
+			options: { selectedColors: string[]; onSave: (selectedColors: string[]) => void };
+		}>;
+		openCalls: number;
+		reset: () => void;
+	};
+};
+
 // Polyfill for HTMLElement.createSpan for the JSDOM environment
 if (typeof HTMLElement.prototype.createSpan !== "function") {
 	HTMLElement.prototype.createSpan = function (param) {
@@ -92,6 +136,14 @@ interface MockSliderComponent {
 	setValue: jest.Mock<MockSliderComponent, [number]>;
 	setDynamicTooltip: jest.Mock<MockSliderComponent, [boolean?]>;
 	onChange: jest.Mock<MockSliderComponent, [ChangeHandler<number>]>;
+}
+
+interface MockDropdownComponent {
+	addOption: jest.Mock<MockDropdownComponent, [string, string]>;
+	addOptions: jest.Mock<MockDropdownComponent, [Record<string, string>]>;
+	setValue: jest.Mock<MockDropdownComponent, [string]>;
+	onChange: jest.Mock<MockDropdownComponent, [ChangeHandler<string>]>;
+	setDisabled: jest.Mock<MockDropdownComponent, [boolean]>;
 }
 
 const createMockTextComponent = (
@@ -208,6 +260,46 @@ const createMockSliderComponent = (
 	if (parentElement) {
 		attachCreateEl(parentElement, createEl);
 	}
+
+	return component;
+};
+
+const createMockDropdownComponent = (
+	selectEl: HTMLSelectElement
+): MockDropdownComponent => {
+	const component: MockDropdownComponent = {
+		addOption: jest.fn(),
+		addOptions: jest.fn(),
+		setValue: jest.fn(),
+		onChange: jest.fn(),
+		setDisabled: jest.fn(),
+	};
+
+	component.addOption.mockImplementation((value, label) => {
+		const optionEl = document.createElement("option");
+		optionEl.value = value;
+		optionEl.textContent = label;
+		selectEl.appendChild(optionEl);
+		return component;
+	});
+	component.addOptions.mockImplementation((options) => {
+		for (const [value, label] of Object.entries(options)) {
+			component.addOption(value, label);
+		}
+		return component;
+	});
+	component.setValue.mockImplementation((value) => {
+		selectEl.value = value;
+		return component;
+	});
+	component.onChange.mockImplementation((handler) => {
+		selectEl.addEventListener("change", () => handler(selectEl.value));
+		return component;
+	});
+	component.setDisabled.mockImplementation((disabled) => {
+		selectEl.disabled = disabled;
+		return component;
+	});
 
 	return component;
 };
@@ -381,6 +473,14 @@ jest.mock("obsidian", () => {
 			cb(component);
 			return this;
 		}
+
+		addDropdown(cb: (dropdown: MockDropdownComponent) => void) {
+			const selectEl = document.createElement("select");
+			this.controlEl.appendChild(selectEl);
+			const component = createMockDropdownComponent(selectEl);
+			cb(component);
+			return this;
+		}
 	}
 
 	return {
@@ -420,6 +520,7 @@ describe("SubscriptionSettingsTab", () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
+		keepColorPickerModalMock.__mockKeepColorPickerModal.reset();
 		app = new App();
 		plugin = new KeepSidianPlugin(app, TEST_MANIFEST);
 		plugin.settings = {
@@ -438,6 +539,9 @@ describe("SubscriptionSettingsTab", () => {
 				limitToExistingTags: false,
 				includeNotesTerms: [],
 				excludeNotesTerms: [],
+				includeColors: [],
+				pinnedStatus: "all",
+				archivedStatus: "active-only",
 			} as PremiumFeatureSettings,
 		};
 		plugin.subscriptionService = mockSubscriptionService();
@@ -471,9 +575,13 @@ describe("SubscriptionSettingsTab", () => {
 
 			await subscriptionTab.display();
 
-			expect(containerEl.textContent).toContain("✅ Active supporter");
+			expect(containerEl.textContent).toContain("✅ Active supporter (Plan: premium)");
+			expect(containerEl.textContent).toContain("Open billing portal");
+			expect(containerEl.textContent).toContain("Usage");
+			expect(containerEl.textContent).toContain("100 / 1000 notes synced");
 			expect(containerEl.textContent).toContain("Auto-tags");
 			expect(containerEl.textContent).not.toContain("requires a subscription");
+			expect(containerEl.textContent).not.toContain("Manage billing");
 		});
 	});
 
@@ -485,6 +593,10 @@ describe("SubscriptionSettingsTab", () => {
 			expect(containerEl.textContent).toContain("Auto-tags");
 			expect(containerEl.textContent).toContain("Maximum tags");
 			expect(containerEl.textContent).toContain("Tag prefix");
+			expect(containerEl.textContent).toContain("Note colors filter");
+			expect(containerEl.textContent).toContain("Pinned note filter");
+			expect(containerEl.textContent).toContain("Archived note filter");
+			expect(containerEl.textContent).not.toContain("Include yellow notes");
 		});
 
 		it("should display note filtering settings for non-supporters", async () => {
@@ -551,7 +663,7 @@ describe("SubscriptionSettingsTab", () => {
 
 			const subscriptionSection = containerEl.querySelector(".keepsidian-subscription-settings");
 			expect(plugin.subscriptionService.isSubscriptionActive).toHaveBeenNthCalledWith(2, true);
-			expect(subscriptionSection?.textContent).toContain("✅ Active supporter");
+			expect(subscriptionSection?.textContent).toContain("✅ Active supporter (Plan: premium)");
 			expect(subscriptionSection?.textContent).not.toContain(
 				"Support development and unlock advanced features"
 			);
@@ -578,6 +690,49 @@ describe("SubscriptionSettingsTab", () => {
 			);
 			expect(manageLink?.getAttribute("target")).toBe("_blank");
 			expect(manageLink?.getAttribute("rel")).toBe("noopener noreferrer");
+		});
+
+		it("opens the color picker modal and updates the summary on save", async () => {
+			await subscriptionTab.display();
+
+			const chooseButton = Array.from(containerEl.querySelectorAll("button")).find(
+				(button) => button.textContent === "Choose colors"
+			);
+			const summaryEl = containerEl.querySelector(".keepsidian-color-filter-summary");
+
+			expect(chooseButton).toBeTruthy();
+			expect(summaryEl?.textContent).toBe("All colors");
+
+			chooseButton?.click();
+
+			expect(keepColorPickerModalMock.__mockKeepColorPickerModal.openCalls).toBe(1);
+			expect(keepColorPickerModalMock.__mockKeepColorPickerModal.instances).toHaveLength(1);
+
+			keepColorPickerModalMock.__mockKeepColorPickerModal.instances[0]?.options.onSave([
+				"YELLOW",
+				"BLUE",
+			]);
+
+			expect(plugin.settings.premiumFeatures.includeColors).toEqual(["YELLOW", "BLUE"]);
+			expect(summaryEl?.textContent).toBe("Yellow, Blue");
+		});
+
+		it("resets the color filter summary back to all colors", async () => {
+			plugin.settings.premiumFeatures.includeColors = ["YELLOW", "BLUE"];
+
+			await subscriptionTab.display();
+
+			const resetButton = Array.from(containerEl.querySelectorAll("button")).find(
+				(button) => button.textContent === "Reset"
+			);
+			const summaryEl = containerEl.querySelector(".keepsidian-color-filter-summary");
+
+			expect(summaryEl?.textContent).toBe("Yellow, Blue");
+
+			resetButton?.click();
+
+			expect(plugin.settings.premiumFeatures.includeColors).toEqual([]);
+			expect(summaryEl?.textContent).toBe("All colors");
 		});
 	});
 });

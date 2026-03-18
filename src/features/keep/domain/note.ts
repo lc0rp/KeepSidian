@@ -7,6 +7,8 @@ interface NormalizedNote {
 	text: string;
 	created: Date | null;
 	updated: Date | null;
+	color: string | null;
+	pinned: boolean;
 	frontmatter: string;
 	frontmatterDict: FrontmatterDict;
 	archived: boolean;
@@ -25,6 +27,8 @@ interface PreNormalizedNote {
 	text?: string;
 	created?: string;
 	updated?: string;
+	color?: string;
+	pinned?: boolean;
 	frontmatter?: string;
 	frontmatterDict?: FrontmatterDict;
 	archived?: boolean;
@@ -58,6 +62,8 @@ function normalizeNote(note: PreNormalizedNote): NormalizedNote {
 		text: note.text?.trim() || "",
 		created: normalizeDate(note.created) || null,
 		updated: normalizeDate(note.updated) || null,
+		color: typeof note.color === "string" && note.color.trim().length > 0 ? note.color.trim() : null,
+		pinned: note.pinned || false,
 		archived: note.archived || false,
 		trashed: note.trashed || false,
 		labels: normalizeStringArray(note.labels),

@@ -5,6 +5,8 @@ export const validPreNormalizedNote = {
   text: "---\nGoogleKeepCreatedDate: 2024-01-01T00:00:00.000Z\n---\nBody",
   created: "2024-01-01T00:00:00.000Z",
   updated: "2024-01-02T00:00:00.000Z",
+  color: "DEFAULT",
+  pinned: false,
   archived: false,
   trashed: false,
   labels: ["tag1", "tag2"],
@@ -51,6 +53,11 @@ export const responseWithNullBlobUrl = {
 export const validFlags = {
   filter_notes: { terms: ["work", "idea"] },
   skip_notes: { terms: ["personal"] },
+  keep_state_filter: {
+    colors: ["DEFAULT", "YELLOW"],
+    pinned: "pinned",
+    archived: "all",
+  },
   suggest_title: {},
   suggest_tags: { max_tags: 5, restrict_tags: false, prefix: "auto-" },
 };

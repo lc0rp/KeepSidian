@@ -16,6 +16,8 @@ describe("GoogleKeepImportResponseSchema", () => {
     const parsed = GoogleKeepImportResponseSchema.parse(validResponsePage);
     expect(parsed.notes.length).toBe(1);
     expect(parsed.total_notes).toBe(1);
+    expect(parsed.notes[0]?.color).toBe("DEFAULT");
+    expect(parsed.notes[0]?.pinned).toBe(false);
   });
 
   it("accepts a valid empty page without total_notes", () => {
@@ -50,6 +52,11 @@ describe("PremiumFeatureFlagsSchema", () => {
     const parsed = PremiumFeatureFlagsSchema.parse(validFlags);
     expect(parsed.suggest_title).toEqual({});
     expect(parsed.suggest_tags?.prefix).toBe("auto-");
+    expect(parsed.keep_state_filter).toEqual({
+      colors: ["DEFAULT", "YELLOW"],
+      pinned: "pinned",
+      archived: "all",
+    });
   });
 
   it("rejects suggest_tags with missing fields", () => {

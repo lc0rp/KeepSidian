@@ -45,6 +45,8 @@ describe("handleDuplicateNotes", () => {
 			text: "Sample",
 			created: null,
 			updated: null,
+			color: null,
+			pinned: false,
 			frontmatter: "",
 			frontmatterDict: {},
 			archived: false,
@@ -81,6 +83,8 @@ describe("handleDuplicateNotes", () => {
 			text: "Content",
 			created: new Date("2023-05-25"),
 			updated: new Date("2023-05-26"),
+			color: null,
+			pinned: false,
 			frontmatter: "",
 			frontmatterDict: {},
 			archived: false,
@@ -118,6 +122,8 @@ describe("handleDuplicateNotes", () => {
 			text: "Content",
 			created: new Date("2023-05-25"),
 			updated: new Date("2023-05-26"),
+			color: null,
+			pinned: false,
 			frontmatter:
 				"GoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\nGoogleKeepCreatedDate: 2023-05-25T00:00:00.000Z",
 			frontmatterDict: {
@@ -158,6 +164,8 @@ describe("handleDuplicateNotes", () => {
 			text: "Content",
 			created: new Date("2023-05-25"),
 			updated: new Date("2023-05-26"),
+			color: null,
+			pinned: false,
 			frontmatter:
 				"GoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\nGoogleKeepCreatedDate: 2023-05-25T00:00:00.000Z",
 			frontmatterDict: {
@@ -214,6 +222,8 @@ describe("handleDuplicateNotes", () => {
 			text: "Content",
 			created: new Date("2023-05-25"),
 			updated: new Date("2023-05-26"),
+			color: null,
+			pinned: false,
 			frontmatter:
 				"GoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\nGoogleKeepCreatedDate: 2023-05-25T00:00:00.000Z",
 			frontmatterDict: {

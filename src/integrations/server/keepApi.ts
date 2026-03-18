@@ -3,6 +3,7 @@ import { KEEPSIDIAN_SERVER_URL } from "../../config";
 import { httpGetJson, httpPostJson } from "@services/http";
 import type { PreNormalizedNote } from "@features/keep/domain/note";
 import { GoogleKeepImportResponseSchema, PremiumFeatureFlagsSchema } from "@schemas/keep";
+import type { KeepArchivedStatus, KeepPinnedStatus } from "../../types/subscription";
 
 export interface GoogleKeepImportResponse {
 	notes: Array<PreNormalizedNote>;
@@ -16,6 +17,11 @@ export interface PremiumFeatureFlags {
 	};
 	skip_notes?: {
 		terms: string[];
+	};
+	keep_state_filter?: {
+		colors?: string[];
+		pinned?: KeepPinnedStatus;
+		archived?: KeepArchivedStatus;
 	};
 	suggest_title?: Record<string, never>;
 	suggest_tags?: {

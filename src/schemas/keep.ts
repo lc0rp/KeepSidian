@@ -7,6 +7,8 @@ export const PreNormalizedNoteSchema = z.object({
   body: z.string().optional(),
   created: z.string().nullable().optional(),
   updated: z.string().nullable().optional(),
+  color: z.string().optional(),
+  pinned: z.boolean().optional(),
   frontmatter: z.string().optional(),
   frontmatterDict: z.record(z.string(), z.unknown()).optional(),
   archived: z.boolean().optional(),
@@ -30,6 +32,13 @@ export const GoogleKeepImportResponseSchema = z.object({
 export const PremiumFeatureFlagsSchema = z.object({
   filter_notes: z.object({ terms: z.array(z.string()) }).optional(),
   skip_notes: z.object({ terms: z.array(z.string()) }).optional(),
+  keep_state_filter: z
+    .object({
+      colors: z.array(z.string()).optional(),
+      pinned: z.enum(["all", "pinned", "unpinned"]).optional(),
+      archived: z.enum(["active-only", "archived-only", "all"]).optional(),
+    })
+    .optional(),
   // Server expects an empty object if present
   suggest_title: z.object({}).optional(),
   suggest_tags: z

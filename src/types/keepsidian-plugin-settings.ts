@@ -89,6 +89,10 @@ export function resolveLoadedSettings(
 	saved: Partial<KeepSidianPluginSettings> | null | undefined
 ): KeepSidianPluginSettings {
 	const merged = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
+	merged.premiumFeatures = {
+		...DEFAULT_PREMIUM_FEATURES,
+		...(saved?.premiumFeatures ?? {}),
+	};
 
 	if (saved && typeof saved.saveLocation === "undefined") {
 		merged.saveLocation = LEGACY_SAVE_LOCATION;

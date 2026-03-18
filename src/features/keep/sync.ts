@@ -439,6 +439,20 @@ export function convertOptionsToFeatureFlags(options: NoteImportOptions): Premiu
 		};
 	}
 
+	const keepStateFilter: NonNullable<PremiumFeatureFlags["keep_state_filter"]> = {};
+	if (options.includeColors && options.includeColors.length > 0) {
+		keepStateFilter.colors = options.includeColors;
+	}
+	if (options.pinnedStatus && options.pinnedStatus !== "all") {
+		keepStateFilter.pinned = options.pinnedStatus;
+	}
+	if (options.archivedStatus && options.archivedStatus !== "active-only") {
+		keepStateFilter.archived = options.archivedStatus;
+	}
+	if (Object.keys(keepStateFilter).length > 0) {
+		featureFlags.keep_state_filter = keepStateFilter;
+	}
+
 	if (options.updateTitle) {
 		featureFlags.suggest_title = {};
 	}

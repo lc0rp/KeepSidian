@@ -182,6 +182,9 @@ describe("Google Keep Import Functions", () => {
 		const mockOptions: NoteImportOptions = {
 			includeNotesTerms: ["important"],
 			excludeNotesTerms: ["draft"],
+			includeColors: [],
+			pinnedStatus: "all",
+			archivedStatus: "active-only",
 			updateTitle: true,
 			suggestTags: true,
 			maxTags: 3,
@@ -293,6 +296,9 @@ describe("Google Keep Import Functions", () => {
 			const options: NoteImportOptions = {
 				includeNotesTerms: ["term1", "term2"],
 				excludeNotesTerms: ["exclude1"],
+				includeColors: ["YELLOW", "BLUE"],
+				pinnedStatus: "pinned",
+				archivedStatus: "all",
 				updateTitle: true,
 				suggestTags: true,
 				maxTags: 10,
@@ -303,6 +309,11 @@ describe("Google Keep Import Functions", () => {
 			expect(featureFlags).toEqual({
 				filter_notes: { terms: ["term1", "term2"] },
 				skip_notes: { terms: ["exclude1"] },
+				keep_state_filter: {
+					colors: ["YELLOW", "BLUE"],
+					pinned: "pinned",
+					archived: "all",
+				},
 				suggest_title: {},
 				suggest_tags: {
 					max_tags: 10,
@@ -326,6 +337,16 @@ describe("Google Keep Import Functions", () => {
 			expect(featureFlags).toEqual({
 				suggest_title: {},
 			});
+		});
+
+		it("omits keep-state filters when options are at their defaults", () => {
+			const options: NoteImportOptions = {
+				includeColors: [],
+				pinnedStatus: "all",
+				archivedStatus: "active-only",
+			};
+
+			expect(convertOptionsToFeatureFlags(options)).toEqual({});
 		});
 	});
 
@@ -377,6 +398,8 @@ describe("Google Keep Import Functions", () => {
 			frontmatterDict: {},
 			created: null,
 			updated: null,
+			color: null,
+			pinned: false,
 			frontmatter: "",
 			archived: false,
 			trashed: false,

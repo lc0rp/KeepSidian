@@ -1,6 +1,8 @@
 import { Setting } from "obsidian";
 import KeepSidianPlugin from "main";
 import { KEEPSIDIAN_SERVER_URL } from "../../config";
+import { formatKeepColorSummary } from "../../types/subscription";
+import { KeepColorPickerModal } from "../modals/KeepColorPickerModal";
 
 export class SubscriptionSettingsTab {
 	private containerEl: HTMLElement;
@@ -67,6 +69,71 @@ export class SubscriptionSettingsTab {
 					})
 			);
 		if (!isActive) excludeSetting.setClass("requires-subscription");
+
+		const colorFilterSetting = new Setting(containerEl)
+			.setName("Note colors filter")
+			.setDesc("Select one or more note colors to download." + descSuffix);
+		if (!isActive) colorFilterSetting.setClass("requires-subscription");
+		const colorSummaryEl = colorFilterSetting.controlEl.createEl("span", {
+			text: formatKeepColorSummary(premiumFeatureValues.includeColors),
+			cls: "keepsidian-color-filter-summary",
+		});
+		const openColorModalButton = colorFilterSetting.controlEl.createEl("button", {
+			text: "Choose colors",
+			cls: "keepsidian-color-filter-button",
+			attr: { type: "button" },
+		});
+		const resetColorFilterButton = colorFilterSetting.controlEl.createEl("button", {
+			text: "Reset",
+			cls: "keepsidian-color-filter-button",
+			attr: { type: "button" },
+		});
+		const refreshColorFilterSummary = () => {
+			colorSummaryEl.textContent = formatKeepColorSummary(premiumFeatureValues.includeColors);
+		};
+		openColorModalButton.addEventListener("click", () => {
+			new KeepColorPickerModal(plugin.app, {
+				selectedColors: premiumFeatureValues.includeColors,
+				onSave: (selectedColors) => {
+					premiumFeatureValues.includeColors = selectedColors;
+					refreshColorFilterSummary();
+				},
+			}).open();
+		});
+		resetColorFilterButton.addEventListener("click", () => {
+			premiumFeatureValues.includeColors = [];
+			refreshColorFilterSummary();
+		});
+
+		const pinnedSetting = new Setting(containerEl)
+			.setName("Pinned note filter")
+			.setDesc("Download all notes, only pinned notes, or only unpinned notes." + descSuffix)
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("all", "All notes")
+					.addOption("pinned", "Pinned only")
+					.addOption("unpinned", "Unpinned only");
+				dropdown.setValue(premiumFeatureValues.pinnedStatus);
+				dropdown.onChange(async (value) => {
+					premiumFeatureValues.pinnedStatus = value as typeof premiumFeatureValues.pinnedStatus;
+				});
+			});
+		if (!isActive) pinnedSetting.setClass("requires-subscription");
+
+		const archivedSetting = new Setting(containerEl)
+			.setName("Archived note filter")
+			.setDesc("Default is active notes only. Archived-only and all-notes are supporter filters." + descSuffix)
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("active-only", "Active notes only")
+					.addOption("archived-only", "Archived notes only")
+					.addOption("all", "All notes");
+				dropdown.setValue(premiumFeatureValues.archivedStatus);
+				dropdown.onChange(async (value) => {
+					premiumFeatureValues.archivedStatus = value as typeof premiumFeatureValues.archivedStatus;
+				});
+			});
+		if (!isActive) archivedSetting.setClass("requires-subscription");
 
 		// 3.3 Title Updates
 		const titleSetting = new Setting(containerEl)
@@ -202,31 +269,21 @@ export class SubscriptionSettingsTab {
 	private async displayActiveSubscriber(): Promise<void> {
 		const { sectionEl: containerEl } = this;
 		const subscriptionInfo = await this.plugin.subscriptionService.checkSubscription();
-
-		// General info about premium features
-		new Setting(containerEl)
-			.setName("Premium features")
-			.setDesc("Get access to advanced features like two-way sync, title suggestions, and automatic tag creation.")
+		const planId = subscriptionInfo?.plan_details?.plan_id;
+		const supporterSetting = new Setting(containerEl)
+			.setName(planId ? `✅ Active supporter (Plan: ${planId})` : "✅ Active supporter")
+			.setDesc("Thank you for your support! Access supporter-exclusive settings below.")
+			// .setClass("subscription-active")
 			.addExtraButton((button) =>
 				button
-					.setIcon("refresh")
+					.setIcon("refresh-cw")
 					.setTooltip("Check supporter status")
 					.onClick(async () => {
 						await this.display(true);
 					})
 			);
 
-		// Show subscription details
-		new Setting(containerEl)
-			// eslint-disable-next-line obsidianmd/ui/sentence-case
-			.setName("✅ Active supporter")
-			.setDesc("You're a supporter! You can configure your premium settings below.");
-
-		const manageSetting = new Setting(containerEl)
-			.setName("Manage billing.")
-			.setDesc("Open the secure supporter portal to manage billing.");
-
-		const manageLink = manageSetting.controlEl.createEl("a", {
+		const manageLink = supporterSetting.controlEl.createEl("a", {
 			text: "Open billing portal",
 			attr: {
 				href: SubscriptionSettingsTab.buildManageSubscriptionUrl(this.plugin.settings.email),
@@ -237,10 +294,6 @@ export class SubscriptionSettingsTab {
 		});
 		manageLink.classList.add("keepsidian-link-button");
 		manageLink.setAttribute("role", "button");
-
-		if (subscriptionInfo?.plan_details) {
-			new Setting(containerEl).setName("Plan").setDesc(subscriptionInfo.plan_details.plan_id);
-		}
 
 		if (subscriptionInfo?.metering_info) {
 			new Setting(containerEl)

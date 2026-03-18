@@ -89,6 +89,8 @@ describe("normalizeNote", () => {
 		expect(normalizedNote.updated).toEqual(
 			new Date("2023-05-21T11:00:00Z")
 		);
+		expect(normalizedNote.color).toBeNull();
+		expect(normalizedNote.pinned).toBe(false);
 		expect(normalizedNote.frontmatter).toBe("key: value");
 		expect(normalizedNote.textWithoutFrontmatter).toBe("Note body");
 		expect(normalizedNote.frontmatterDict).toEqual({
@@ -137,5 +139,17 @@ describe("normalizeNote", () => {
 			"Just a simple note body"
 		);
 		expect(normalizedNote.frontmatterDict).toEqual({});
+	});
+
+	it("normalizes keep color and pinned state when present", () => {
+		const normalizedNote = normalizeNote({
+			title: "Colored Note",
+			text: "Body",
+			color: "YELLOW",
+			pinned: true,
+		});
+
+		expect(normalizedNote.color).toBe("YELLOW");
+		expect(normalizedNote.pinned).toBe(true);
 	});
 });

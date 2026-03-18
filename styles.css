@@ -10,9 +10,10 @@ If your plugin does not need CSS, delete this file.
 /* Add these styles to your existing styles.css file */
 
 .subscription-active {
-	background-color: var(--background-modifier-success);
-	border-radius: 4px;
-	padding: 8px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 14px;
+	padding: 10px 14px;
 }
 
 .keepsidian-link-button {
@@ -57,8 +58,17 @@ If your plugin does not need CSS, delete this file.
 }
 
 .setting-item.subscription-active .setting-item-control {
-	color: var(--text-success);
-	font-weight: bold;
+	color: inherit;
+	font-weight: inherit;
+}
+
+.setting-item.subscription-active {
+	align-items: flex-start;
+	gap: 12px;
+}
+
+.setting-item.subscription-active .setting-item-info {
+	padding-right: 16px;
 }
 
 .premium-features-list {
@@ -68,6 +78,153 @@ If your plugin does not need CSS, delete this file.
 
 .premium-features-list li {
 	margin: 4px 0;
+}
+
+.keepsidian-color-filter-summary {
+	margin-right: 8px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	white-space: nowrap;
+}
+
+.keepsidian-color-filter-button {
+	margin-left: 6px;
+}
+
+.keepsidian-color-picker-modal-shell .modal {
+	max-width: 520px;
+}
+
+.keepsidian-color-picker-modal {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	min-width: 360px;
+}
+
+.keepsidian-color-picker-modal h2 {
+	margin: 0;
+	font-size: var(--h3-size);
+}
+
+.keepsidian-color-picker-description {
+	margin: 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.keepsidian-color-picker-grid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.keepsidian-color-picker-swatch {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 52px;
+	height: 52px;
+	padding: 0;
+	border: 0;
+	border-radius: 999px;
+	background: transparent !important;
+	box-shadow: none;
+	appearance: none;
+	-webkit-appearance: none;
+	min-width: 0;
+	cursor: var(--cursor, pointer);
+	transition:
+		transform 120ms ease,
+		filter 120ms ease;
+}
+
+.keepsidian-color-picker-swatch::before {
+	content: "";
+	position: absolute;
+	inset: 4px;
+	border-radius: 999px;
+	background: var(--keepsidian-color-swatch);
+	box-shadow:
+		inset 0 0 0 1px rgb(255 255 255 / 45%),
+		0 0 0 2px color-mix(in srgb, var(--background-modifier-border) 78%, transparent);
+	transition:
+		box-shadow 120ms ease,
+		filter 120ms ease;
+}
+
+.keepsidian-color-picker-swatch:hover {
+	transform: translateY(-1px);
+	filter: drop-shadow(0 4px 10px rgb(0 0 0 / 12%));
+}
+
+.keepsidian-color-picker-swatch:hover::before {
+	box-shadow:
+		inset 0 0 0 1px rgb(255 255 255 / 45%),
+		0 0 0 2px
+			color-mix(
+				in srgb,
+				var(--background-modifier-border-hover, var(--background-modifier-border)) 88%,
+				transparent
+			);
+}
+
+.keepsidian-color-picker-swatch.is-selected {
+	filter: none;
+}
+
+.keepsidian-color-picker-swatch.is-selected::before {
+	box-shadow:
+		inset 0 0 0 1px rgb(255 255 255 / 55%),
+		0 0 0 2px var(--color-accent, #a142f4),
+		0 0 0 5px color-mix(in srgb, var(--color-accent, #a142f4) 26%, transparent);
+}
+
+.keepsidian-color-picker-swatch.is-selected::after {
+	content: "✓";
+	position: absolute;
+	top: -7px;
+	right: -5px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 999px;
+	background: var(--color-accent, #a142f4);
+	color: white;
+	font-size: 12px;
+	font-weight: 700;
+	box-shadow: 0 2px 6px rgb(0 0 0 / 18%);
+}
+
+.keepsidian-color-picker-swatch:focus-visible {
+	outline: none;
+}
+
+.keepsidian-color-picker-swatch:focus-visible::before {
+	box-shadow:
+		inset 0 0 0 1px rgb(255 255 255 / 55%),
+		0 0 0 2px var(--color-accent, #a142f4),
+		0 0 0 5px color-mix(in srgb, var(--color-accent, #a142f4) 18%, transparent);
+}
+
+.keepsidian-color-picker-helper {
+	margin: 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.keepsidian-color-picker-helper.is-warning {
+	color: var(--text-warning, var(--text-accent));
+}
+
+.keepsidian-color-picker-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
 }
 
 /* KeepSidian: Status bar progress meter */
