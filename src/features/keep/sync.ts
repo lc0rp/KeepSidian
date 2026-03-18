@@ -23,7 +23,7 @@ import type {
 	PremiumFeatureFlags,
 	SyncFilters,
 } from "@integrations/server/keepApi";
-import type { SyncPlan, SyncPlanEntry } from "@types";
+import type { DownloadScope, SyncPlan, SyncPlanEntry } from "@types";
 import {
 	fetchNotes as apiFetchNotes,
 	fetchNotesWithPremiumFeatures as apiFetchNotesWithPremium,
@@ -68,7 +68,7 @@ function setVaultConfig(plugin: KeepSidianPlugin, key: string, value: unknown): 
 	}
 }
 
-function getLastSuccessfulSyncDate(plugin: KeepSidianPlugin): string | undefined {
+export function getLastSuccessfulSyncDate(plugin: KeepSidianPlugin): string | undefined {
 	const fromSettings = plugin.settings.keepSidianLastSuccessfulSyncDate;
 	if (typeof fromSettings === "string" && fromSettings.trim().length > 0) {
 		return fromSettings;
@@ -85,6 +85,45 @@ function getLastSuccessfulSyncDate(plugin: KeepSidianPlugin): string | undefined
 function persistLastSuccessfulSyncDate(plugin: KeepSidianPlugin, isoString: string): void {
 	plugin.settings.keepSidianLastSuccessfulSyncDate = isoString;
 	setVaultConfig(plugin, LAST_SUCCESSFUL_SYNC_DATE_KEY, isoString);
+}
+
+function parseCustomSinceDate(isoString: string): Date {
+	const parsed = new Date(isoString);
+	if (Number.isNaN(parsed.getTime())) {
+		throw new Error("Choose a valid custom date before preparing the download review.");
+	}
+	if (parsed.getTime() > Date.now()) {
+		throw new Error("Custom download dates must be in the past.");
+	}
+	return parsed;
+}
+
+export function buildDownloadSyncFilters(
+	plugin: KeepSidianPlugin,
+	downloadScope?: DownloadScope
+): SyncFilters | undefined {
+	const scope = downloadScope ?? { kind: "last-sync" };
+
+	if (scope.kind === "all") {
+		return undefined;
+	}
+
+	if (scope.kind === "custom-since") {
+		const since = scope.since?.trim();
+		if (!since) {
+			throw new Error("Choose a custom date.");
+		}
+		return {
+			changed_gt: parseCustomSinceDate(since).toISOString(),
+		};
+	}
+
+	const lastSuccessfulSyncDate = getLastSuccessfulSyncDate(plugin);
+	return lastSuccessfulSyncDate
+		? {
+				changed_gt: lastSuccessfulSyncDate,
+		  }
+		: undefined;
 }
 
 export interface SyncCallbacks {
@@ -127,7 +166,8 @@ async function fetchImportNotesBase(
 		filters?: SyncFilters,
 		cursor?: string
 	) => Promise<GoogleKeepImportResponse>,
-	callbacks?: Pick<SyncCallbacks, "setTotalNotes" | "reportPlanProgress">
+	callbacks?: Pick<SyncCallbacks, "setTotalNotes" | "reportPlanProgress">,
+	downloadScope?: DownloadScope
 ): Promise<FetchImportNotesResult> {
 	try {
 		let offset = 0;
@@ -139,12 +179,7 @@ async function fetchImportNotesBase(
 		let hasReportedTotal = false;
 		const fetchedNotes: PreNormalizedNote[] = [];
 
-		const lastSuccessfulSyncDate = getLastSuccessfulSyncDate(plugin);
-		const syncFilters: SyncFilters | undefined = lastSuccessfulSyncDate
-			? {
-					changed_gt: lastSuccessfulSyncDate,
-			  }
-			: undefined;
+		const syncFilters = buildDownloadSyncFilters(plugin, downloadScope);
 
 		let completionDate: string | undefined;
 
@@ -293,7 +328,8 @@ export async function buildImportSyncPlan(
 	options?: NoteImportOptions,
 	allowPerNoteSelection = true,
 	selectionLockedReason?: string,
-	callbacks?: Pick<SyncCallbacks, "setTotalNotes" | "reportPlanProgress">
+	callbacks?: Pick<SyncCallbacks, "setTotalNotes" | "reportPlanProgress">,
+	downloadScope?: DownloadScope
 ): Promise<BuiltImportSyncPlan> {
 	const { email, token } = plugin.settings;
 	const fetchFunction =
@@ -310,7 +346,7 @@ export async function buildImportSyncPlan(
 					)
 			: (offset: number, limit: number, filters?: SyncFilters, cursor?: string) =>
 					apiFetchNotes(email, token, offset, limit, filters, cursor);
-	const fetched = await fetchImportNotesBase(plugin, fetchFunction, callbacks);
+	const fetched = await fetchImportNotesBase(plugin, fetchFunction, callbacks, downloadScope);
 	const existingKeepNoteIndex = await buildExistingKeepNoteIndex(plugin.app);
 	const entries = await Promise.all(
 		fetched.notes.map((note, index) =>
@@ -371,10 +407,11 @@ async function importGoogleKeepNotesBase(
 		filters?: SyncFilters,
 		cursor?: string
 	) => Promise<GoogleKeepImportResponse>,
-	callbacks?: SyncCallbacks
+	callbacks?: SyncCallbacks,
+	downloadScope?: DownloadScope
 ): Promise<number> {
 	try {
-		const fetched = await fetchImportNotesBase(plugin, fetchFunction, callbacks);
+		const fetched = await fetchImportNotesBase(plugin, fetchFunction, callbacks, downloadScope);
 		const imported = await importSelectedGoogleKeepNotes(
 			plugin,
 			fetched.notes,
@@ -390,21 +427,24 @@ async function importGoogleKeepNotesBase(
 
 export async function importGoogleKeepNotes(
 	plugin: KeepSidianPlugin,
-	callbacks?: SyncCallbacks
+	callbacks?: SyncCallbacks,
+	downloadScope?: DownloadScope
 ): Promise<number> {
 	const { email, token } = plugin.settings;
 	return await importGoogleKeepNotesBase(
 		plugin,
 		(offset, limit, filters, cursor) =>
 			apiFetchNotes(email, token, offset, limit, filters, cursor),
-		callbacks
+		callbacks,
+		downloadScope
 	);
 }
 
 export async function importGoogleKeepNotesWithOptions(
 	plugin: KeepSidianPlugin,
 	options: NoteImportOptions,
-	callbacks?: SyncCallbacks
+	callbacks?: SyncCallbacks,
+	downloadScope?: DownloadScope
 ): Promise<number> {
 	const featureFlags = convertOptionsToFeatureFlags(options);
 	const { email, token } = plugin.settings;
@@ -420,7 +460,8 @@ export async function importGoogleKeepNotesWithOptions(
 				filters,
 				cursor
 			),
-		callbacks
+		callbacks,
+		downloadScope
 	);
 }
 

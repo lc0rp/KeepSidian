@@ -1,5 +1,5 @@
 import { App, Modal } from "obsidian";
-import type { LastSyncSummary, SyncMode, SyncPlan, SyncPlanEntry } from "@types";
+import type { DownloadScope, DownloadScopeKind, LastSyncSummary, SyncMode, SyncPlan, SyncPlanEntry } from "@types";
 import type {
 	PreparedSyncPlan,
 	RunPreparedSyncPlanResult,
@@ -25,11 +25,16 @@ interface TwoWayGateState {
 }
 
 interface SyncProgressModalOptions {
-	buildSyncPlan: (mode: SyncMode, callbacks?: SyncPlanBuildCallbacks) => Promise<PreparedSyncPlan | null>;
+	buildSyncPlan: (
+		mode: SyncMode,
+		callbacks?: SyncPlanBuildCallbacks,
+		downloadScope?: DownloadScope
+	) => Promise<PreparedSyncPlan | null>;
 	runSyncPlan: (preparedPlan: PreparedSyncPlan, callbacks?: SyncPlanRunCallbacks) => Promise<RunPreparedSyncPlanResult>;
 	onOpenSyncLog: () => void | Promise<void>;
 	onClose?: () => void;
 	getTwoWayGate: () => TwoWayGateState;
+	getLastSuccessfulDownloadDate: () => string | undefined;
 	openTwoWaySettings: () => void;
 	getCurrentMode: () => SyncMode | null;
 	getCurrentPhaseLabel: () => string | null;
@@ -137,6 +142,47 @@ function formatGeneratedAt(timestamp: number): string {
 	} catch {
 		return new Date(timestamp).toISOString();
 	}
+}
+
+function formatScopeTimestamp(isoString: string): string {
+	try {
+		return new Date(isoString).toLocaleString();
+	} catch {
+		return isoString;
+	}
+}
+
+function toDatetimeLocalValue(isoString: string): string {
+	const parsed = new Date(isoString);
+	if (Number.isNaN(parsed.getTime())) {
+		return "";
+	}
+
+	const offsetMs = parsed.getTimezoneOffset() * 60_000;
+	return new Date(parsed.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function parseCustomScopeInput(value: string): { iso?: string; error?: string } {
+	if (!value.trim()) {
+		return {
+			error: "Choose a custom date.",
+		};
+	}
+
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) {
+		return {
+			error: "Choose a valid custom date.",
+		};
+	}
+
+	if (parsed.getTime() > Date.now()) {
+		return {
+			error: "Custom date must be in the past.",
+		};
+	}
+
+	return { iso: parsed.toISOString() };
 }
 
 function clonePlan(plan: SyncPlan): SyncPlan {
@@ -288,6 +334,8 @@ function isInstantEntry(entry: SyncPlanEntry): boolean {
 export class SyncProgressModal extends Modal {
 	private options: SyncProgressModalOptions;
 	private selectedMode: SyncMode = "import";
+	private downloadScopeKind: DownloadScopeKind = "last-sync";
+	private customSinceInput = "";
 	private showSyncOptions = false;
 	private isSyncing = false;
 	private isGeneratingReview = false;
@@ -331,6 +379,52 @@ export class SyncProgressModal extends Modal {
 		void this.refreshUI();
 	}
 
+	private getLastSuccessfulDownloadDate(): string | undefined {
+		return this.options.getLastSuccessfulDownloadDate();
+	}
+
+	private setDownloadScopeKind(kind: DownloadScopeKind) {
+		if (this.downloadScopeKind === kind) {
+			return;
+		}
+
+		this.downloadScopeKind = kind;
+		this.modalAlert = null;
+		if (kind === "custom-since" && !this.customSinceInput) {
+			const lastSuccessfulDownloadDate = this.getLastSuccessfulDownloadDate();
+			if (lastSuccessfulDownloadDate) {
+				this.customSinceInput = toDatetimeLocalValue(lastSuccessfulDownloadDate);
+			}
+		}
+		void this.refreshUI();
+	}
+
+	private getDownloadScope(): DownloadScope {
+		if (this.downloadScopeKind === "all") {
+			return { kind: "all" };
+		}
+
+		if (this.downloadScopeKind === "custom-since") {
+			const parsed = parseCustomScopeInput(this.customSinceInput);
+			if (!parsed.iso) {
+				throw new Error(parsed.error ?? "Choose a custom date.");
+			}
+			return {
+				kind: "custom-since",
+				since: parsed.iso,
+			};
+		}
+
+		return { kind: "last-sync" };
+	}
+
+	private getCustomScopeError(): string | null {
+		if (this.downloadScopeKind !== "custom-since") {
+			return null;
+		}
+		return parseCustomScopeInput(this.customSinceInput).error ?? null;
+	}
+
 	async beginReview(mode = this.selectedMode) {
 		if (this.isSyncing || this.isGeneratingReview) {
 			return;
@@ -347,19 +441,24 @@ export class SyncProgressModal extends Modal {
 		this.modalAlert = null;
 		await this.refreshUI();
 		try {
-			const preparedPlan = await this.options.buildSyncPlan(mode, {
-				setTotalNotes: (total) => {
-					this.planBuildTotal = total;
-					void this.refreshUI();
-				},
-				reportPlanProgress: (processed, total) => {
-					this.planBuildProcessed = processed;
-					if (typeof total === "number" && total > 0) {
+			const downloadScope = modeUsesDownload(mode) ? this.getDownloadScope() : undefined;
+			const preparedPlan = await this.options.buildSyncPlan(
+				mode,
+				{
+					setTotalNotes: (total) => {
 						this.planBuildTotal = total;
-					}
-					void this.refreshUI();
+						void this.refreshUI();
+					},
+					reportPlanProgress: (processed, total) => {
+						this.planBuildProcessed = processed;
+						if (typeof total === "number" && total > 0) {
+							this.planBuildTotal = total;
+						}
+						void this.refreshUI();
+					},
 				},
-			});
+				downloadScope
+			);
 			if (preparedPlan) {
 				preparedPlan.plan.title = getPlanTitle(preparedPlan.plan);
 				this.preparedPlan = preparedPlan;
@@ -720,6 +819,7 @@ export class SyncProgressModal extends Modal {
 			});
 
 			if (modeUsesDownload(this.selectedMode)) {
+				this.renderDownloadScopeSection(syncOptionsContainerEl);
 				const isSupporterActive = await this.options.isSupporterActive();
 				if (renderVersion !== this.renderVersion) {
 					return;
@@ -772,6 +872,83 @@ export class SyncProgressModal extends Modal {
 		closeButton.type = "button";
 		closeButton.classList.add("keepsidian-modal-close");
 		closeButton.addEventListener("click", () => this.close());
+	}
+
+	private renderDownloadScopeSection(containerEl: HTMLElement) {
+		const sectionEl = createChild(containerEl, "div");
+		sectionEl.classList.add("keepsidian-sync-center-mode-section", "keepsidian-sync-center-scope-section");
+
+		const heading = createChild(sectionEl, "div", { text: "Start date" });
+		heading.classList.add("keepsidian-sync-center-mode-label");
+
+		const optionsEl = createChild(sectionEl, "div");
+		optionsEl.classList.add("keepsidian-sync-center-modes");
+		optionsEl.setAttribute("role", "radiogroup");
+		optionsEl.setAttribute("aria-label", "Start date");
+
+		const lastSuccessfulDownloadDate = this.getLastSuccessfulDownloadDate();
+		const lastSyncDescription = lastSuccessfulDownloadDate
+			? `Last sync: ${formatScopeTimestamp(lastSuccessfulDownloadDate)}.`
+			: "None yet.";
+
+		this.renderDownloadScopeOption(optionsEl, "Last successful sync", "last-sync", lastSyncDescription);
+		this.renderDownloadScopeOption(optionsEl, "All dates", "all", "");
+		this.renderDownloadScopeOption(optionsEl, "Custom", "custom-since", "");
+
+		if (this.downloadScopeKind === "custom-since") {
+			const inputWrap = createChild(sectionEl, "label");
+			inputWrap.classList.add("keepsidian-sync-center-scope-input-wrap");
+
+			const input = createChild(inputWrap, "input");
+			input.type = "datetime-local";
+			input.value = this.customSinceInput;
+			input.classList.add("keepsidian-sync-center-scope-input");
+			input.addEventListener("input", () => {
+				this.customSinceInput = input.value;
+				this.modalAlert = null;
+			});
+			input.addEventListener("change", () => {
+				this.customSinceInput = input.value;
+				this.modalAlert = null;
+				void this.refreshUI();
+			});
+
+			const error = this.getCustomScopeError();
+			const helperText = error ?? "Notes changed after this date will be included.";
+			const helper = createChild(sectionEl, "div", { text: helperText });
+			helper.classList.add("keepsidian-sync-center-scope-helper");
+			if (error) {
+				helper.classList.add("is-warning");
+			}
+		}
+	}
+
+	private renderDownloadScopeOption(
+		containerEl: HTMLElement,
+		label: string,
+		kind: DownloadScopeKind,
+		description: string
+	) {
+		const button = this.createActionButton(containerEl, "", async () => {
+			this.setDownloadScopeKind(kind);
+		});
+		button.classList.add("keepsidian-sync-center-mode-button", "keepsidian-sync-center-scope-button");
+		button.classList.toggle("is-selected", this.downloadScopeKind === kind);
+		button.setAttribute("role", "radio");
+		button.setAttribute("aria-checked", this.downloadScopeKind === kind ? "true" : "false");
+
+		const indicator = createChild(button, "span");
+		indicator.classList.add("keepsidian-sync-center-mode-indicator");
+		indicator.setAttribute("aria-hidden", "true");
+
+		const body = createChild(button, "span");
+		body.classList.add("keepsidian-sync-center-scope-option-body");
+
+		const title = createChild(body, "span", { text: label });
+		title.classList.add("keepsidian-sync-center-mode-text");
+
+		const copy = createChild(body, "span", { text: description });
+		copy.classList.add("keepsidian-sync-center-scope-option-copy");
 	}
 
 	private renderPlanSurface(surface: "review" | "running" | "result") {

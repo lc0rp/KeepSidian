@@ -5,7 +5,7 @@ export function registerRibbonIcon(plugin: KeepSidianPlugin) {
 			"folder-sync",
 			"KeepSidian: sync now",
 		async (_evt: MouseEvent) => {
-			plugin.openSyncCenter({ mode: "import", autoStart: true });
+			plugin.openSyncCenter();
 		}
 	);
 }

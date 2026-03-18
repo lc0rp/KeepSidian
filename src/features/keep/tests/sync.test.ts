@@ -119,6 +119,37 @@ describe("Google Keep Import Functions", () => {
 			expect(requestParams.url).not.toContain("updated_gt=");
 		});
 
+		it("omits sync date filters for one-off all-notes downloads", async () => {
+			mockPlugin.settings.keepSidianLastSuccessfulSyncDate = "2024-01-01T00:00:00.000Z";
+
+			await importGoogleKeepNotes(mockPlugin, undefined, { kind: "all" });
+
+			const [[requestParams]] = (requestUrl as jest.Mock).mock.calls;
+			expect(requestParams.url).not.toContain("changed_gt=");
+			expect(requestParams.url).not.toContain("created_gt=");
+			expect(requestParams.url).not.toContain("updated_gt=");
+		});
+
+		it("uses a one-off custom sync date when requested", async () => {
+			await importGoogleKeepNotes(mockPlugin, undefined, {
+				kind: "custom-since",
+				since: "2024-03-15T14:30:00.000Z",
+			});
+
+			const [[requestParams]] = (requestUrl as jest.Mock).mock.calls;
+			expect(requestParams.url).toContain("changed_gt=2024-03-15T14%3A30%3A00.000Z");
+		});
+
+		it("treats last-sync scope as all-notes when there is no saved sync date", async () => {
+			mockPlugin.settings.keepSidianLastSuccessfulSyncDate = null;
+			getVaultConfigMock.mockReturnValue(undefined);
+
+			await importGoogleKeepNotes(mockPlugin, undefined, { kind: "last-sync" });
+
+			const [[requestParams]] = (requestUrl as jest.Mock).mock.calls;
+			expect(requestParams.url).not.toContain("changed_gt=");
+		});
+
 		it("persists the last successful sync date after import", async () => {
 			jest.useFakeTimers().setSystemTime(new Date("2024-03-03T12:34:56.000Z"));
 
@@ -288,6 +319,43 @@ describe("Google Keep Import Functions", () => {
 					selectionLockedReason: "Available to project supporters",
 				})
 			);
+		});
+
+		it("uses a custom download scope when building the review plan", async () => {
+			const response = {
+				notes: [{ title: "Create note", text: "body-1" }],
+			};
+			(requestUrl as jest.Mock)
+				.mockResolvedValueOnce({
+					status: 200,
+					headers: {},
+					arrayBuffer: new ArrayBuffer(0),
+					json: () => response,
+					text: JSON.stringify(response),
+				} as RequestUrlResponse)
+				.mockResolvedValueOnce({
+					status: 200,
+					headers: {},
+					arrayBuffer: new ArrayBuffer(0),
+					json: () => ({ notes: [] }),
+					text: JSON.stringify({ notes: [] }),
+				} as RequestUrlResponse);
+			(handleDuplicateNotes as jest.Mock).mockResolvedValueOnce("create");
+
+			await buildImportSyncPlan(
+				mockPlugin,
+				undefined,
+				true,
+				undefined,
+				undefined,
+				{
+					kind: "custom-since",
+					since: "2024-04-01T08:45:00.000Z",
+				}
+			);
+
+			const [[requestParams]] = (requestUrl as jest.Mock).mock.calls;
+			expect(requestParams.url).toContain("changed_gt=2024-04-01T08%3A45%3A00.000Z");
 		});
 	});
 

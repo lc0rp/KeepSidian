@@ -7,6 +7,8 @@ import type { SyncMode } from "../../src/types";
 
 describe("KeepSidian", function () {
 	const buttonByText = (label: string): string =>
+		`//*[self::button or @role="button"][contains(normalize-space(.),"${label}")]`;
+	const exactButtonByText = (label: string): string =>
 		`//*[self::button or @role="button"][normalize-space(.)="${label}"]`;
 
 	const openKeepSidianSettingsTab = async (): Promise<void> => {
@@ -371,6 +373,21 @@ describe("KeepSidian", function () {
 
 		await openSeededSyncCenter({ import: seededPlan }, { runDelayMs: 700, initialMode: "import" });
 
+		const customizeSyncButton = browser.$(buttonByText("Customize sync"));
+		await customizeSyncButton.waitForExist({ timeout: 20000 });
+		await customizeSyncButton.click();
+
+		const downloadScopeHeading = browser.$('//*[normalize-space(.)="Start date"]');
+		await downloadScopeHeading.waitForExist({ timeout: 20000 });
+		expect(await browser.$(buttonByText("Last successful sync")).isExisting()).toBe(true);
+		expect(await browser.$(buttonByText("All dates")).isExisting()).toBe(true);
+		expect(await browser.$(exactButtonByText("Custom")).isExisting()).toBe(true);
+
+		await browser.$(exactButtonByText("Custom")).click();
+		const customSinceInput = browser.$('//input[@type="datetime-local"]');
+		await customSinceInput.waitForExist({ timeout: 20000 });
+		await browser.$(exactButtonByText("All dates")).click();
+
 		const startSyncButton = browser.$(buttonByText("Start sync"));
 		await startSyncButton.waitForExist({ timeout: 20000 });
 		await startSyncButton.click();
@@ -379,12 +396,12 @@ describe("KeepSidian", function () {
 		await reviewTitle.waitForExist({ timeout: 20000 });
 		expect(await browser.$(buttonByText("Back")).isExisting()).toBe(true);
 		expect(await browser.$(buttonByText("Refresh")).isExisting()).toBe(true);
-		expect(await browser.$(buttonByText("Run sync")).isExisting()).toBe(true);
+		expect(await browser.$(buttonByText("Execute")).isExisting()).toBe(true);
 		expect(await browser.$('//*[contains(normalize-space(.),"Create 1")]').isExisting()).toBe(
 			true
 		);
 
-		await browser.$(buttonByText("Run sync")).click();
+		await browser.$(buttonByText("Execute")).click();
 
 		const runningTitle = browser.$('//*[normalize-space(.)="Running download plan"]');
 		await runningTitle.waitForExist({ timeout: 20000 });
@@ -440,7 +457,7 @@ describe("KeepSidian", function () {
 		await reviewTitle.waitForExist({ timeout: 20000 });
 		expect(await browser.$('//*[contains(normalize-space(.),"Upload 1")]').isExisting()).toBe(true);
 
-		await browser.$(buttonByText("Run sync")).click();
+		await browser.$(buttonByText("Execute")).click();
 
 		const runningTitle = browser.$('//*[normalize-space(.)="Running upload plan"]');
 		await runningTitle.waitForExist({ timeout: 20000 });

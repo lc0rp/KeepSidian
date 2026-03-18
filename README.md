@@ -35,15 +35,16 @@ Obsidian secret storage when available, and does not log or store your credentia
 
 KeepSidian now centers manual sync around one primary action: **Sync now**.
 
-- Every manual sync is now **review-first**. `Sync now`, the ribbon action, and the legacy sync commands all open the
-  Sync Center and generate a reviewable sync plan before anything runs.
+- Every manual sync is now **review-first**. `Sync now` and the legacy sync commands open the Sync Center and generate a
+  reviewable sync plan before anything runs. The ribbon action opens the Sync Center setup state so you can choose
+  options first.
 
 - The compact Sync Center is now the setup surface. Use **Start sync** from there to build a plan, then approve the
   larger review modal before anything runs. Supporters can deselect individual rows; non-supporters see the same row
   controls in a locked state.
 
-- **Open sync center** opens the Sync Center without starting a sync. Use the **Options** section to switch between
-  **Download**, **Upload**, or **Two-way sync** before building the review plan.
+- **Open sync center** and the ribbon action open the Sync Center without starting a sync. Use the **Options** section
+  to switch between **Download**, **Upload**, or **Two-way sync** before building the review plan.
 
 - Legacy commands for **Perform two-way sync**, **Download notes from Google Keep**, and **Upload notes to Google Keep**
   remain available during the transition window, but they all route into the same Sync Center experience and status

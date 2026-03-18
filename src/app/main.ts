@@ -7,6 +7,7 @@ import type { NoteImportOptions } from "@ui/modals/NoteImportOptionsModal";
 import { SyncProgressModal } from "@ui/modals/SyncProgressModal";
 import { initializeStatusBar } from "@app/sync-ui";
 import { logSync } from "@app/logging";
+import { getLastSuccessfulSyncDate } from "@features/keep/sync";
 import { KeepSidianSettingsTab } from "@ui/settings/KeepSidianSettingsTab";
 import { SubscriptionSettingsTab } from "@ui/settings/SubscriptionSettingsTab";
 import { registerRibbonAndCommands } from "@app/commands";
@@ -341,11 +342,11 @@ export default class KeepSidianPlugin extends Plugin {
 	private ensureSyncCenterModal(): SyncProgressModal {
 		if (!this.progressModal) {
 			this.progressModal = new SyncProgressModal(this.app, {
-				buildSyncPlan: async (mode, callbacks) => {
+				buildSyncPlan: async (mode, callbacks, downloadScope) => {
 					if (!this.ensureCredentials()) {
 						return null;
 					}
-					return await buildManualSyncPlan(this, mode, callbacks);
+					return await buildManualSyncPlan(this, mode, callbacks, downloadScope);
 				},
 				runSyncPlan: async (preparedPlan, callbacks) => {
 					if (this.isSyncing) {
@@ -369,6 +370,7 @@ export default class KeepSidianPlugin extends Plugin {
 				},
 				onOpenSyncLog: () => this.openLatestSyncLog(),
 				getTwoWayGate: () => this.getTwoWayGateSnapshot(),
+				getLastSuccessfulDownloadDate: () => getLastSuccessfulSyncDate(this),
 				openTwoWaySettings: () => this.openTwoWaySettings(),
 				getCurrentMode: () => this.currentSyncMode,
 				getCurrentPhaseLabel: () => this.currentSyncPhaseLabel,

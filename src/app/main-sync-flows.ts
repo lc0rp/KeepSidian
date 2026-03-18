@@ -12,7 +12,7 @@ import {
 	setTotalNotes as uiSetTotalNotes,
 	reportSyncProgress,
 } from "@app/sync-ui";
-import type { SyncMode, SyncPlan, SyncPlanStage } from "@types";
+import type { DownloadScope, SyncMode, SyncPlan, SyncPlanStage } from "@types";
 import {
 	buildImportSyncPlan,
 	importGoogleKeepNotes,
@@ -97,7 +97,8 @@ async function getManualSupportState(plugin: KeepSidianPlugin): Promise<boolean>
 export async function buildManualSyncPlan(
 	plugin: KeepSidianPlugin,
 	mode: SyncMode,
-	callbacks?: SyncPlanBuildCallbacks
+	callbacks?: SyncPlanBuildCallbacks,
+	downloadScope?: DownloadScope
 ): Promise<PreparedSyncPlan | null> {
 	await ensureStoragePathsOrThrow(plugin);
 
@@ -132,7 +133,8 @@ export async function buildManualSyncPlan(
 		isSupporterActive ? plugin.settings.premiumFeatures : undefined,
 		allowPerNoteSelection,
 		selectionLockedReason,
-		callbacks
+		callbacks,
+		downloadScope
 	);
 
 	return {

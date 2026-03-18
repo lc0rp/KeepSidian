@@ -11,6 +11,7 @@ describe("SyncProgressModal", () => {
 	let gateState: { allowed: boolean; reasons: string[] };
 	let currentMode: SyncMode | null;
 	let currentPhaseLabel: string | null;
+	let lastSuccessfulDownloadDate: string | undefined;
 	let modalOptions: ReturnType<typeof createOptions>;
 
 	function createOptions() {
@@ -45,6 +46,7 @@ describe("SyncProgressModal", () => {
 			onOpenSyncLog,
 			onClose: jest.fn(),
 			getTwoWayGate: () => gateState,
+			getLastSuccessfulDownloadDate: () => lastSuccessfulDownloadDate,
 			openTwoWaySettings,
 			getCurrentMode: () => currentMode,
 			getCurrentPhaseLabel: () => currentPhaseLabel,
@@ -55,17 +57,21 @@ describe("SyncProgressModal", () => {
 	}
 
 	function getButton(modal: SyncProgressModal, label: string): HTMLButtonElement {
-		const button = Array.from(modal.contentEl.querySelectorAll("button")).find(
-			(candidate) => candidate.textContent?.trim() === label
-		);
+		const buttons = Array.from(modal.contentEl.querySelectorAll("button"));
+		const button =
+			buttons.find((candidate) => (candidate.textContent?.replace(/\s+/g, " ").trim() ?? "") === label) ??
+			buttons.find((candidate) => (candidate.textContent?.replace(/\s+/g, " ").trim() ?? "").includes(label));
 		expect(button).toBeTruthy();
 		return button as HTMLButtonElement;
 	}
 
 	function findButton(modal: SyncProgressModal, label: string): HTMLButtonElement | null {
-		return (Array.from(modal.contentEl.querySelectorAll("button")).find(
-			(candidate) => candidate.textContent?.trim() === label
-		) ?? null) as HTMLButtonElement | null;
+		const buttons = Array.from(modal.contentEl.querySelectorAll("button"));
+		return (
+			buttons.find((candidate) => (candidate.textContent?.replace(/\s+/g, " ").trim() ?? "") === label) ??
+			buttons.find((candidate) => (candidate.textContent?.replace(/\s+/g, " ").trim() ?? "").includes(label)) ??
+			null
+		) as HTMLButtonElement | null;
 	}
 
 	function getRowTitles(modal: SyncProgressModal): string[] {
@@ -97,6 +103,7 @@ describe("SyncProgressModal", () => {
 		gateState = { allowed: false, reasons: ["Confirm backups"] };
 		currentMode = null;
 		currentPhaseLabel = null;
+		lastSuccessfulDownloadDate = "2024-03-01T09:15:00.000Z";
 		modalOptions = createOptions();
 	});
 
@@ -106,13 +113,13 @@ describe("SyncProgressModal", () => {
 		await flushUI();
 
 		expect(modal.contentEl.textContent).toContain("Sync center");
-		expect(modal.contentEl.textContent).toContain("Choose sync options, then start sync.");
+		expect(modal.contentEl.textContent).toContain("Start or customize sync.");
 		expect(modal.contentEl.textContent).toContain("Start");
 		expect(modal.contentEl.textContent).toContain("Review");
 		expect(modal.contentEl.textContent).toContain("Done");
 		expect(getButton(modal, "Start sync")).toBeTruthy();
 		expect(getButton(modal, "Open sync log")).toBeTruthy();
-		expect(getButton(modal, "Advanced")).toBeTruthy();
+		expect(getButton(modal, "Customize sync")).toBeTruthy();
 		expect(findButton(modal, "Run sync")).toBeNull();
 	});
 
@@ -127,14 +134,15 @@ describe("SyncProgressModal", () => {
 			expect.objectContaining({
 				setTotalNotes: expect.any(Function),
 				reportPlanProgress: expect.any(Function),
-			})
+			}),
+			{ kind: "last-sync" }
 		);
 		expect(modal.contentEl.textContent).toContain("Review download plan");
 		expect(modal.contentEl.textContent).not.toContain("Download step");
 		expect(getButton(modal, "Back")).toBeTruthy();
 		expect(getButton(modal, "Refresh")).toBeTruthy();
-		expect(getButton(modal, "Run sync")).toBeTruthy();
-		expect(findButton(modal, "Advanced")).toBeNull();
+		expect(getButton(modal, "Execute")).toBeTruthy();
+		expect(findButton(modal, "Customize sync")).toBeNull();
 		expect(findButton(modal, "Open sync log")).toBeNull();
 	});
 
@@ -162,32 +170,98 @@ describe("SyncProgressModal", () => {
 		expect(getButton(modal, "Downloaded, please wait ...")).toBeTruthy();
 	});
 
-	test("advanced mode still renders supporter import options for download-capable modes only", async () => {
+	test("customize sync renders start-date controls for download-capable modes only", async () => {
 		const modal = new SyncProgressModal(app, modalOptions);
 		modal.onOpen();
 
-		expect(getButton(modal, "Advanced").getAttribute("aria-expanded")).toBe("false");
+		expect(getButton(modal, "Customize sync").getAttribute("aria-expanded")).toBe("false");
 
-		getButton(modal, "Advanced").click();
+		getButton(modal, "Customize sync").click();
 		await flushUI();
 
-		expect(getButton(modal, "Advanced").getAttribute("aria-expanded")).toBe("true");
+		expect(getButton(modal, "Customize sync").getAttribute("aria-expanded")).toBe("true");
 		expect(modal.contentEl.textContent).toContain("Mode");
+		expect(modal.contentEl.textContent).toContain("Start date");
+		expect(modal.contentEl.textContent).toContain("Last successful sync");
+		expect(modal.contentEl.textContent).toContain("Last sync:");
+		expect(modal.contentEl.textContent).toContain("2024");
 		expect(modalOptions.isSupporterActive).toHaveBeenCalled();
 		expect(modal.contentEl.textContent).toContain("Download options");
 		expect(modal.contentEl.textContent).toContain("Premium options active: true");
+		expect(modal.contentEl.querySelector('input[type="datetime-local"]')).toBeNull();
 
-		getButton(modal, "Upload only").click();
+		getButton(modal, "Custom").click();
 		await flushUI();
 
+		const input = modal.contentEl.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+		expect(input).toBeTruthy();
+		expect(input.value).toContain("2024-03-01T");
+
+		getButton(modal, "Upload").click();
+		await flushUI();
+
+		expect(modal.contentEl.textContent).not.toContain("Start date");
 		expect(modal.contentEl.textContent).not.toContain("Premium options active: true");
 	});
 
-	test("advanced two-way mode surfaces gate guidance and deep-links to settings", async () => {
+	test("invalid or future custom dates block review generation", async () => {
 		const modal = new SyncProgressModal(app, modalOptions);
 		modal.onOpen();
 
-		getButton(modal, "Advanced").click();
+		getButton(modal, "Customize sync").click();
+		await flushUI();
+		getButton(modal, "Custom").click();
+		await flushUI();
+
+		const input = modal.contentEl.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+		expect(input).toBeTruthy();
+		input.value = "2999-01-01T00:00";
+		input.dispatchEvent(new Event("change"));
+		await flushUI();
+
+		getButton(modal, "Start sync").click();
+		await flushUI();
+
+		expect(modalOptions.buildSyncPlan).not.toHaveBeenCalled();
+		expect(modal.contentEl.textContent).toContain("Couldn’t prepare the sync review");
+		expect(modal.contentEl.textContent).toContain("Custom date must be in the past.");
+	});
+
+	test("reopening the modal resets download scope to the default", async () => {
+		const firstModal = new SyncProgressModal(app, modalOptions);
+		firstModal.onOpen();
+		getButton(firstModal, "Customize sync").click();
+		await flushUI();
+		getButton(firstModal, "All dates").click();
+		await flushUI();
+		getButton(firstModal, "Start sync").click();
+		await flushUI();
+
+		expect(modalOptions.buildSyncPlan).toHaveBeenLastCalledWith(
+			"import",
+			expect.any(Object),
+			{ kind: "all" }
+		);
+
+		const secondModal = new SyncProgressModal(app, modalOptions);
+		secondModal.onOpen();
+		getButton(secondModal, "Customize sync").click();
+		await flushUI();
+		getButton(secondModal, "Start sync").click();
+		await flushUI();
+
+		expect(modalOptions.buildSyncPlan).toHaveBeenLastCalledWith(
+			"import",
+			expect.any(Object),
+			{ kind: "last-sync" }
+		);
+	});
+
+	test("customize sync two-way mode surfaces gate guidance and deep-links to settings", async () => {
+		const modal = new SyncProgressModal(app, modalOptions);
+		modal.onOpen();
+
+		getButton(modal, "Customize sync").click();
 		await flushUI();
 		getButton(modal, "Two-way sync").click();
 		await flushUI();
@@ -210,7 +284,7 @@ describe("SyncProgressModal", () => {
 		expect(modal.contentEl.textContent).toContain(
 			"The KeepSidian server could not be reached. Check your connection or make sure the sync server is running, then try again."
 		);
-		expect(modal.contentEl.textContent).toContain("Choose sync options, then start sync.");
+		expect(modal.contentEl.textContent).toContain("Start or customize sync.");
 	});
 
 	test("shows a friendly sync-center alert when execution cannot reach the server", async () => {
@@ -220,7 +294,7 @@ describe("SyncProgressModal", () => {
 		modal.onOpen();
 		getButton(modal, "Start sync").click();
 		await flushUI();
-		getButton(modal, "Run sync").click();
+		getButton(modal, "Execute").click();
 		await flushUI();
 
 		expect(modal.contentEl.textContent).toContain("Couldn’t finish the sync");
@@ -337,7 +411,7 @@ describe("SyncProgressModal", () => {
 		getButton(modal, "Start sync").click();
 		await flushUI();
 
-		getButton(modal, "Run sync").click();
+		getButton(modal, "Execute").click();
 		await flushUI();
 
 		expect(modal.contentEl.textContent).toContain("Running download plan");
@@ -394,13 +468,23 @@ describe("SyncProgressModal", () => {
 
 		const modal = new SyncProgressModal(app, modalOptions);
 		modal.onOpen();
+		getButton(modal, "Customize sync").click();
+		await flushUI();
+		getButton(modal, "All dates").click();
+		await flushUI();
 		modal.setSelectedMode("two-way");
 		getButton(modal, "Start sync").click();
 		await flushUI();
 
 		expect(modal.contentEl.textContent).toContain("Review download plan");
+		expect(modalOptions.buildSyncPlan).toHaveBeenNthCalledWith(
+			1,
+			"two-way",
+			expect.any(Object),
+			{ kind: "all" }
+		);
 
-		getButton(modal, "Run sync").click();
+		getButton(modal, "Execute").click();
 		await flushUI();
 
 		expect(modal.contentEl.textContent).toContain("Review upload plan");

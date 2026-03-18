@@ -383,6 +383,12 @@ If your plugin does not need CSS, delete this file.
 	gap: 8px;
 }
 
+.keepsidian-sync-center-scope-section {
+	margin-top: 14px;
+	padding-top: 14px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
 .keepsidian-sync-center-mode-label {
 	font-size: var(--font-ui-small);
 	font-weight: 600;
@@ -393,7 +399,9 @@ If your plugin does not need CSS, delete this file.
 
 .keepsidian-sync-center-mode-button {
 	flex: 1 1 120px;
+	align-items: center;
 	justify-content: flex-start;
+	min-height: 52px;
 	padding: 8px 12px 8px 10px;
 	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
 	background: color-mix(in srgb, var(--background-secondary) 82%, transparent);
@@ -426,6 +434,59 @@ If your plugin does not need CSS, delete this file.
 .keepsidian-sync-center-mode-text {
 	font-size: var(--font-ui-small);
 	font-weight: 600;
+}
+
+.keepsidian-sync-center-scope-copy {
+	margin: 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.4;
+}
+
+.keepsidian-sync-center-scope-button {
+	align-items: center;
+}
+
+.keepsidian-sync-center-scope-option-body {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	justify-content: center;
+	min-height: 36px;
+}
+
+.keepsidian-sync-center-scope-option-copy {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.35;
+	white-space: normal;
+}
+
+.keepsidian-sync-center-scope-input-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.keepsidian-sync-center-scope-input-label {
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.keepsidian-sync-center-scope-input {
+	width: 100%;
+}
+
+.keepsidian-sync-center-scope-helper {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.4;
+}
+
+.keepsidian-sync-center-scope-helper.is-warning {
+	color: var(--text-error, var(--text-warning, var(--text-accent)));
 }
 
 .keepsidian-sync-center-mode-button.is-selected {

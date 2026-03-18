@@ -7,7 +7,7 @@ import * as SyncModule from "../../features/keep/sync";
 import { DEFAULT_SETTINGS } from "../../types/keepsidian-plugin-settings";
 import { SubscriptionService } from "../../services/subscription";
 import { KeepSidianSettingsTab } from "../../ui/settings/KeepSidianSettingsTab";
-import { registerCommands } from "../../app/commands";
+import { registerCommands, registerRibbonIcon } from "../../app/commands";
 import * as LoggingModule from "../../app/logging";
 
 describe("KeepSidianPlugin", () => {
@@ -1000,6 +1000,25 @@ describe("KeepSidianPlugin", () => {
 				mode: "two-way",
 				autoStart: true,
 			});
+
+			openSyncCenterSpy.mockRestore();
+		});
+
+		it("routes the ribbon icon through the idle sync center", async () => {
+			registerRibbonIcon(plugin);
+			const addRibbonIconMock = plugin.addRibbonIcon as jest.Mock;
+			const ribbonHandler = addRibbonIconMock.mock.calls[0]?.[2] as
+				| ((evt: MouseEvent) => Promise<void>)
+				| undefined;
+			const openSyncCenterSpy = jest
+				.spyOn(plugin, "openSyncCenter")
+				.mockImplementation(() => {});
+
+			expect(ribbonHandler).toBeDefined();
+			await ribbonHandler?.(new MouseEvent("click"));
+
+			expect(openSyncCenterSpy).toHaveBeenCalledTimes(1);
+			expect(openSyncCenterSpy).toHaveBeenCalledWith();
 
 			openSyncCenterSpy.mockRestore();
 		});
