@@ -1003,5 +1003,21 @@ describe("KeepSidianPlugin", () => {
 
 			openSyncCenterSpy.mockRestore();
 		});
+
+		it("routes the sync-log command through openLatestSyncLog", async () => {
+			registerCommands(plugin);
+			const addCommandMock = plugin.addCommand as jest.Mock;
+			const openLogCommand = addCommandMock.mock.calls.find(
+				([options]) => options.id === "open-sync-log-file"
+			)?.[0];
+			const openLatestSyncLogSpy = jest
+				.spyOn(plugin, "openLatestSyncLog")
+				.mockResolvedValue(undefined);
+
+			await openLogCommand.callback();
+
+			expect(openLatestSyncLogSpy).toHaveBeenCalledTimes(1);
+			openLatestSyncLogSpy.mockRestore();
+		});
 	});
 });
