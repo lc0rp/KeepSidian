@@ -427,6 +427,12 @@ jest.mock("obsidian", () => {
 		setDisabled(disabled: boolean) {
 			if (disabled) {
 				this.settingEl.classList.add("is-disabled");
+			} else {
+				this.settingEl.classList.remove("is-disabled");
+			}
+			const actionableEls = this.controlEl.querySelectorAll("input, button, select");
+			for (const el of actionableEls) {
+				(el as HTMLInputElement | HTMLButtonElement | HTMLSelectElement).disabled = disabled;
 			}
 			return this;
 		}
@@ -503,6 +509,12 @@ const mockSubscriptionService = () => {
 	} as unknown as SubscriptionService;
 };
 
+function findSettingByLabel(container: HTMLElement, label: string): HTMLElement | null {
+	return Array.from(container.querySelectorAll(".setting-item")).find((item) => {
+		return item.querySelector(".setting-item-name")?.textContent === label;
+	}) ?? null;
+}
+
 describe("SubscriptionSettingsTab", () => {
 	let app: App;
 	let containerEl: HTMLElement;
@@ -545,6 +557,7 @@ describe("SubscriptionSettingsTab", () => {
 			} as PremiumFeatureSettings,
 		};
 		plugin.subscriptionService = mockSubscriptionService();
+		plugin.saveSettings = jest.fn().mockResolvedValue(undefined);
 
 		const keepSidianSettingsTab = new KeepSidianSettingsTab(app, plugin);
 		containerEl = keepSidianSettingsTab.containerEl;
@@ -712,9 +725,11 @@ describe("SubscriptionSettingsTab", () => {
 				"YELLOW",
 				"BLUE",
 			]);
+			await new Promise((resolve) => setTimeout(resolve, 0));
 
 			expect(plugin.settings.premiumFeatures.includeColors).toEqual(["YELLOW", "BLUE"]);
 			expect(summaryEl?.textContent).toBe("Yellow, Blue");
+			expect(plugin.saveSettings).toHaveBeenCalled();
 		});
 
 		it("resets the color filter summary back to all colors", async () => {
@@ -730,9 +745,86 @@ describe("SubscriptionSettingsTab", () => {
 			expect(summaryEl?.textContent).toBe("Yellow, Blue");
 
 			resetButton?.click();
+			await new Promise((resolve) => setTimeout(resolve, 0));
 
 			expect(plugin.settings.premiumFeatures.includeColors).toEqual([]);
 			expect(summaryEl?.textContent).toBe("All colors");
+			expect(plugin.saveSettings).toHaveBeenCalled();
+		});
+
+		it("persists premium feature text and toggle edits", async () => {
+			await subscriptionTab.display();
+
+			const includeSetting = findSettingByLabel(containerEl, "Only include notes containing");
+			const autoTagsSetting = findSettingByLabel(containerEl, "Auto-tags");
+			const includeInput = includeSetting?.querySelector('input[type="text"]') as
+				| HTMLInputElement
+				| undefined;
+			const autoTagsToggle = autoTagsSetting?.querySelector('input[type="checkbox"]') as
+				| HTMLInputElement
+				| undefined;
+
+			if (!includeInput || !autoTagsToggle) {
+				throw new Error("Premium feature controls not rendered");
+			}
+
+			includeInput.value = "alpha, beta";
+			includeInput.dispatchEvent(new Event("input"));
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			autoTagsToggle.checked = true;
+			autoTagsToggle.dispatchEvent(new Event("change"));
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(plugin.settings.premiumFeatures.includeNotesTerms).toEqual(["alpha", "beta"]);
+			expect(plugin.settings.premiumFeatures.suggestTags).toBe(true);
+			expect(plugin.saveSettings).toHaveBeenCalledTimes(2);
+		});
+
+		it("refreshes Auto-tags dependent controls immediately when toggled", async () => {
+			await subscriptionTab.display();
+
+			const autoTagsSetting = findSettingByLabel(containerEl, "Auto-tags");
+			const maxTagsSetting = findSettingByLabel(containerEl, "Maximum tags");
+			const tagPrefixSetting = findSettingByLabel(containerEl, "Tag prefix");
+			const limitSetting = findSettingByLabel(containerEl, "Limit to existing tags");
+
+			const autoTagsToggle = autoTagsSetting?.querySelector('input[type="checkbox"]') as
+				| HTMLInputElement
+				| undefined;
+			const maxTagsInput = maxTagsSetting?.querySelector('input[type="range"]') as
+				| HTMLInputElement
+				| undefined;
+			const tagPrefixInput = tagPrefixSetting?.querySelector('input[type="text"]') as
+				| HTMLInputElement
+				| undefined;
+			const limitToggle = limitSetting?.querySelector('input[type="checkbox"]') as
+				| HTMLInputElement
+				| undefined;
+
+			if (!autoTagsToggle || !maxTagsInput || !tagPrefixInput || !limitToggle) {
+				throw new Error("Auto-tags controls not rendered");
+			}
+
+			expect(maxTagsInput.disabled).toBe(true);
+			expect(tagPrefixInput.disabled).toBe(true);
+			expect(limitToggle.disabled).toBe(true);
+
+			autoTagsToggle.checked = true;
+			autoTagsToggle.dispatchEvent(new Event("change"));
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(maxTagsInput.disabled).toBe(false);
+			expect(tagPrefixInput.disabled).toBe(false);
+			expect(limitToggle.disabled).toBe(false);
+
+			autoTagsToggle.checked = false;
+			autoTagsToggle.dispatchEvent(new Event("change"));
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(maxTagsInput.disabled).toBe(true);
+			expect(tagPrefixInput.disabled).toBe(true);
+			expect(limitToggle.disabled).toBe(true);
 		});
 	});
 });

@@ -37,6 +37,19 @@ export class SubscriptionSettingsTab {
 	static displayPremiumFeatures(containerEl: HTMLElement, plugin: KeepSidianPlugin, isActive: boolean): void {
 		const descSuffix = isActive ? "" : " (Available to project supporters)";
 		const premiumFeatureValues = plugin.settings.premiumFeatures;
+		const persistPremiumFeatureChange = async (applyChange: () => void): Promise<void> => {
+			applyChange();
+			await plugin.saveSettings();
+		};
+		let maxTagsSetting: Setting | null = null;
+		let tagPrefixSetting: Setting | null = null;
+		let limitSetting: Setting | null = null;
+		const refreshTagSettingsState = () => {
+			const tagSuggestionsEnabled = premiumFeatureValues.suggestTags;
+			maxTagsSetting?.setDisabled(!tagSuggestionsEnabled);
+			tagPrefixSetting?.setDisabled(!tagSuggestionsEnabled);
+			limitSetting?.setDisabled(!tagSuggestionsEnabled);
+		};
 		// 3.2 Filter Notes
 		const includeSetting = new Setting(containerEl)
 			.setName("Only include notes containing")
@@ -46,10 +59,12 @@ export class SubscriptionSettingsTab {
 					.setPlaceholder("Term 1, term 2, ...")
 					.setValue(premiumFeatureValues.includeNotesTerms.join(", "))
 					.onChange(async (value) => {
-						premiumFeatureValues.includeNotesTerms = value
-							.split(",")
-							.map((k) => k.trim())
-							.filter((k) => k);
+						await persistPremiumFeatureChange(() => {
+							premiumFeatureValues.includeNotesTerms = value
+								.split(",")
+								.map((k) => k.trim())
+								.filter((k) => k);
+						});
 					})
 			);
 		if (!isActive) includeSetting.setClass("requires-subscription");
@@ -62,10 +77,12 @@ export class SubscriptionSettingsTab {
 					.setPlaceholder("Term 1, term 2, ...")
 					.setValue(premiumFeatureValues.excludeNotesTerms.join(", "))
 					.onChange(async (value) => {
-						premiumFeatureValues.excludeNotesTerms = value
-							.split(",")
-							.map((k) => k.trim())
-							.filter((k) => k);
+						await persistPremiumFeatureChange(() => {
+							premiumFeatureValues.excludeNotesTerms = value
+								.split(",")
+								.map((k) => k.trim())
+								.filter((k) => k);
+						});
 					})
 			);
 		if (!isActive) excludeSetting.setClass("requires-subscription");
@@ -95,14 +112,18 @@ export class SubscriptionSettingsTab {
 			new KeepColorPickerModal(plugin.app, {
 				selectedColors: premiumFeatureValues.includeColors,
 				onSave: (selectedColors) => {
-					premiumFeatureValues.includeColors = selectedColors;
-					refreshColorFilterSummary();
+					void persistPremiumFeatureChange(() => {
+						premiumFeatureValues.includeColors = selectedColors;
+						refreshColorFilterSummary();
+					});
 				},
 			}).open();
 		});
 		resetColorFilterButton.addEventListener("click", () => {
-			premiumFeatureValues.includeColors = [];
-			refreshColorFilterSummary();
+			void persistPremiumFeatureChange(() => {
+				premiumFeatureValues.includeColors = [];
+				refreshColorFilterSummary();
+			});
 		});
 
 		const pinnedSetting = new Setting(containerEl)
@@ -115,7 +136,9 @@ export class SubscriptionSettingsTab {
 					.addOption("unpinned", "Unpinned only");
 				dropdown.setValue(premiumFeatureValues.pinnedStatus);
 				dropdown.onChange(async (value) => {
-					premiumFeatureValues.pinnedStatus = value as typeof premiumFeatureValues.pinnedStatus;
+					await persistPremiumFeatureChange(() => {
+						premiumFeatureValues.pinnedStatus = value as typeof premiumFeatureValues.pinnedStatus;
+					});
 				});
 			});
 		if (!isActive) pinnedSetting.setClass("requires-subscription");
@@ -130,7 +153,9 @@ export class SubscriptionSettingsTab {
 					.addOption("all", "All notes");
 				dropdown.setValue(premiumFeatureValues.archivedStatus);
 				dropdown.onChange(async (value) => {
-					premiumFeatureValues.archivedStatus = value as typeof premiumFeatureValues.archivedStatus;
+					await persistPremiumFeatureChange(() => {
+						premiumFeatureValues.archivedStatus = value as typeof premiumFeatureValues.archivedStatus;
+					});
 				});
 			});
 		if (!isActive) archivedSetting.setClass("requires-subscription");
@@ -141,7 +166,9 @@ export class SubscriptionSettingsTab {
 			.setDesc("Suggest titles based on note content. Original title will be saved in note." + descSuffix)
 			.addToggle((toggle) =>
 				toggle.setValue(premiumFeatureValues.updateTitle).onChange(async (value) => {
-					premiumFeatureValues.updateTitle = value;
+					await persistPremiumFeatureChange(() => {
+						premiumFeatureValues.updateTitle = value;
+					});
 				})
 			);
 		if (!isActive) titleSetting.setClass("requires-subscription");
@@ -152,12 +179,15 @@ export class SubscriptionSettingsTab {
 			.setDesc("Generate tags based on note content." + descSuffix)
 			.addToggle((toggle) =>
 				toggle.setValue(premiumFeatureValues.suggestTags).onChange(async (value) => {
-					premiumFeatureValues.suggestTags = value;
+					await persistPremiumFeatureChange(() => {
+						premiumFeatureValues.suggestTags = value;
+						refreshTagSettingsState();
+					});
 				})
 			);
 		if (!isActive) autoTagSetting.setClass("requires-subscription");
 
-		const maxTagsSetting = new Setting(containerEl)
+		maxTagsSetting = new Setting(containerEl)
 			.setName("Maximum tags")
 			.setDesc("Maximum number of tags to generate." + descSuffix)
 			.addSlider((slider) =>
@@ -165,13 +195,15 @@ export class SubscriptionSettingsTab {
 					.setLimits(1, 10, 1)
 					.setValue(premiumFeatureValues.maxTags)
 					.onChange(async (value) => {
-						premiumFeatureValues.maxTags = value;
+						await persistPremiumFeatureChange(() => {
+							premiumFeatureValues.maxTags = value;
+						});
 					})
 			)
 			.setDisabled(!premiumFeatureValues.suggestTags);
 		if (!isActive) maxTagsSetting.setClass("requires-subscription");
 
-		const tagPrefixSetting = new Setting(containerEl)
+		tagPrefixSetting = new Setting(containerEl)
 			.setName("Tag prefix")
 			.setDesc("Prefix to identify generated tags (leave empty for none)." + descSuffix)
 			.addText((text) =>
@@ -179,22 +211,28 @@ export class SubscriptionSettingsTab {
 					.setValue(premiumFeatureValues.tagPrefix)
 					.setPlaceholder("Auto-")
 					.onChange(async (value) => {
-						premiumFeatureValues.tagPrefix = value;
+						await persistPremiumFeatureChange(() => {
+							premiumFeatureValues.tagPrefix = value;
+						});
 					})
 			)
 			.setDisabled(!premiumFeatureValues.suggestTags);
 		if (!isActive) tagPrefixSetting.setClass("requires-subscription");
 
-		const limitSetting = new Setting(containerEl)
+		limitSetting = new Setting(containerEl)
 			.setName("Limit to existing tags")
 			.setDesc("Only generate tags that already exist in your vault." + descSuffix)
 			.addToggle((toggle) =>
 				toggle.setValue(premiumFeatureValues.limitToExistingTags).onChange(async (value) => {
-					premiumFeatureValues.limitToExistingTags = value;
+					await persistPremiumFeatureChange(() => {
+						premiumFeatureValues.limitToExistingTags = value;
+					});
 				})
 			)
 			.setDisabled(!premiumFeatureValues.suggestTags);
 		if (!isActive) limitSetting.setClass("requires-subscription");
+
+		refreshTagSettingsState();
 	}
 
 	private static buildManageSubscriptionUrl(email: string): string {
