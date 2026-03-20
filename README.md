@@ -10,16 +10,14 @@
 
 As a regular user of both Google Keep and Obsidian, I set out to make it easier to exchange data between both apps.
 
-This plugin supports syncing between Google Keep and Obsidian, on-demand or automatically on a schedule.
+KeepSidian syncs notes between Google Keep and Obsidian, on demand or automatically on a schedule. The current plugin
+experience centers manual sync around the Sync Center, where you can review a download, upload, or two-way plan before
+anything changes in your vault or in Google Keep.
 
 - Versions 1.1.2+: Introducing two-way sync!
 - Versions 1.1.1 and below: Only downloading supported
 
 Please share your feedback in the [issues section](https://github.com/lc0rp/KeepSidian/issues) on GitHub.
-
-## Developer documentation
-
-Maintainer-focused documentation lives in `docs/` (start at [`docs/README.md`](./docs/README.md)).
 
 ## KIM based sync server
 
@@ -31,44 +29,26 @@ When you start a sync, you will provide your Google Keep email and a token gener
 credentials are stored on your computer, sent when you sync, and then discarded. KeepSidian stores sync tokens in
 Obsidian secret storage when available, and does not log or store your credentials or notes on the server.
 
-## Sync commands
+## Manual sync and the Sync Center
 
 KeepSidian now centers manual sync around one primary action: **Sync now**.
 
-- Every manual sync is now **review-first**. `Sync now` and the legacy sync commands open the Sync Center and generate a
-  reviewable sync plan before anything runs. The ribbon action opens the Sync Center setup state so you can choose
-  options first.
-
-- The compact Sync Center is now the setup surface. Use **Start sync** from there to build a plan, then approve the
-  larger review modal before anything runs. Supporters can deselect individual rows; non-supporters see the same row
-  controls in a locked state.
-
-- **Open sync center** and the ribbon action open the Sync Center without starting a sync. Use the **Options** section
-  to switch between **Download**, **Upload**, or **Two-way sync** before building the review plan.
-
+- `Sync now` opens the Sync Center and immediately starts building a reviewable download plan.
+- `Open sync center` opens the same surface without starting a sync, so you can choose the mode first.
+- The ribbon icon and status-bar item also open the Sync Center.
+- The Sync Center can build plans for **Download**, **Upload**, or **Two-way sync**.
+- Download plans support three start-date scopes:
+  - `Last successful sync`
+  - `All dates`
+  - `Custom`
+- Two-way sync uses two staged reviews: first the download plan, then the upload plan created from the updated local
+  state.
 - Legacy commands for **Perform two-way sync**, **Download notes from Google Keep**, and **Upload notes to Google Keep**
-  remain available during the transition window, but they all route into the same Sync Center experience and status
-  reporting.
+  still exist, but they now route into the same Sync Center flow.
 
-- **Perform two-way sync** (v1.1.2+) now uses two staged reviews: first the download plan, then the exact upload plan
-  after the import stage finishes.
-
-- **Download notes from Google Keep** downloads notes from Google Keep into the configured vault folder. It remembers
-  the last successful sync date and only downloads notes that have been updated since then.
-
-- **Upload notes to Google Keep** (v1.1.2+) scans the sync folder for Markdown files whose `KeepSidianLastSyncedDate` is
-  older than the file's modified timestamp, bundles any attachments in the `media/` folder that have been updated since
-  the last push, and sends the payload to Google Keep.
-
-  > **Note**: Uploads are a beta feature and require opting in via plugin settings. They may also require an active
-  > subscription. Attachments referenced from the note and located under `media/` are included in the upload payload;
-  > server support may vary by attachment type.
-
-- **Open sync log file** opens the most recent log file in a new pane.
-
-When a manual sync is running, the larger review modal stays open and mirrors live progress with category chips and the
-same reviewed list. Background sync stays quiet by default, but still updates the notice and status bar so you can open
-the Sync Center from the status bar whenever you want more detail.
+Every manual sync is review-first. The setup view builds a plan, then the larger review modal shows grouped counts and
+the exact notes/actions before execution. While a sync is running, the status bar, notices, and review modal stay in
+sync so you can track progress from either place.
 
 ## Activity log (v1.1.0+)
 
@@ -149,13 +129,18 @@ After installation, go to "Settings > Community Plugins > KeepSidian" in Obsidia
 In the plugin settings, you will need to provide:
 
 - Enter your Google Keep email.
-- Enter the folder to sync to (relative to your vault). The folder is created automatically if it doesn't exist.
+- Choose a save location in your vault. New installs default to `/KeepSidian`.
+- Optionally customize the save-location pattern with `{now.*}` and `{note.*}` variables such as year, month, day, or
+  date.
+- Optionally customize the imported note filename pattern. The default is `{title}`.
 - Enable/disable automatic syncing.
 
 ### Retrieve a Google Keep token
 
-Click "Retrieve Token," and a browser window should open, prompting you to log into Google. Once you have done so, we
-shall generate a token that will be used to access your Google Keep account.
+- Desktop: use one of the built-in browser automation wizards, or follow the manual KIM instructions and paste the
+  token yourself.
+- Mobile: the retrieval wizard is hidden. Paste a token captured on desktop, or paste a short-lived `oauth2_4...`
+  token and let KeepSidian exchange it through the server.
 
 **PRIVACY NOTE**: THIS TOKEN IS ONLY STORED ON YOUR COMPUTER. When supported by your Obsidian version, KeepSidian stores
 the token in Obsidian secret storage.
@@ -185,6 +170,13 @@ When a local note and its Google Keep counterpart have both been modified since 
 to merge the differing bodies of the notes. The frontmatter of the existing note is preserved and excluded from the
 merge comparison. If the merge succeeds, the note is updated in place; otherwise, the incoming version is saved as a
 separate `-conflict-<timestamp>.md` file.
+
+## Attachments
+
+- Downloaded attachments are stored under the sync folder's `media/` directory.
+- Upload scans Markdown notes under the save location and includes referenced attachments that resolve into `media/`.
+- Missing attachments are skipped and recorded in the sync log.
+- Media uploads are still considered experimental and server support may vary by attachment type.
 
 ## Other plugins
 

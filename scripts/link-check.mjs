@@ -1,9 +1,11 @@
 #!/usr/bin/env node
+import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 
 const root = process.cwd();
 const fix = process.argv.includes("--fix");
+const localIgnoreFile = path.join(root, ".linkcheckignore");
 const ignoredDirs = new Set([
 	"node_modules",
 	".git",
@@ -18,6 +20,146 @@ const ignoredDirs = new Set([
 
 const toPosix = (p) => p.split(path.sep).join("/");
 
+function resolveGitRoot(startDir) {
+	try {
+		return execFileSync("git", ["rev-parse", "--show-toplevel"], {
+			cwd: startDir,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+	} catch {
+		return null;
+	}
+}
+
+function escapeRegex(text) {
+	return text.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
+}
+
+function globToRegexSource(pattern) {
+	let source = "";
+	for (let index = 0; index < pattern.length; index += 1) {
+		const char = pattern[index];
+		if (char === "*") {
+			if (pattern[index + 1] === "*") {
+				source += ".*";
+				index += 1;
+			} else {
+				source += "[^/]*";
+			}
+			continue;
+		}
+		if (char === "?") {
+			source += "[^/]";
+			continue;
+		}
+		source += escapeRegex(char);
+	}
+	return source;
+}
+
+function compileLocalIgnorePatterns(filePath) {
+	if (!fs.existsSync(filePath)) {
+		return [];
+	}
+
+	return fs
+		.readFileSync(filePath, "utf8")
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0 && !line.startsWith("#"))
+		.map((rawPattern) => {
+			let pattern = rawPattern;
+			let negated = false;
+			if (pattern.startsWith("!")) {
+				negated = true;
+				pattern = pattern.slice(1);
+			}
+
+			let anchoredToRoot = false;
+			if (pattern.startsWith("/")) {
+				anchoredToRoot = true;
+				pattern = pattern.slice(1);
+			}
+
+			let directoryOnly = false;
+			if (pattern.endsWith("/")) {
+				directoryOnly = true;
+				pattern = pattern.slice(0, -1);
+			}
+
+			const hasSlash = pattern.includes("/");
+			return {
+				raw: rawPattern,
+				negated,
+				directoryOnly,
+				anchoredToRoot,
+				hasSlash,
+				regex: new RegExp(`^${globToRegexSource(pattern)}$`),
+			};
+		});
+}
+
+const gitRoot = resolveGitRoot(root);
+const localIgnorePatterns = compileLocalIgnorePatterns(localIgnoreFile);
+
+function isIgnoredByLocalConfig(fullPath, isDirectory) {
+	if (localIgnorePatterns.length === 0) {
+		return false;
+	}
+
+	const relativePath = toPosix(path.relative(root, fullPath));
+	if (!relativePath || relativePath.startsWith("..")) {
+		return false;
+	}
+
+	const pathForMatch = isDirectory ? `${relativePath}/` : relativePath;
+	const pathWithoutSlash = pathForMatch.endsWith("/") ? pathForMatch.slice(0, -1) : pathForMatch;
+	const segments = pathWithoutSlash.split("/").filter(Boolean);
+
+	let ignored = false;
+	for (const pattern of localIgnorePatterns) {
+		if (pattern.directoryOnly && !isDirectory) {
+			continue;
+		}
+
+		let matched = false;
+		if (!pattern.hasSlash && !pattern.anchoredToRoot) {
+			matched = segments.some((segment) => pattern.regex.test(segment));
+		} else {
+			matched = pattern.regex.test(pathWithoutSlash);
+		}
+
+		if (matched) {
+			ignored = !pattern.negated;
+		}
+	}
+
+	return ignored;
+}
+
+function isIgnoredByGit(fullPath, isDirectory) {
+	if (!gitRoot) {
+		return false;
+	}
+
+	const relativePath = toPosix(path.relative(gitRoot, fullPath));
+	if (!relativePath || relativePath.startsWith("..")) {
+		return false;
+	}
+
+	const candidate = isDirectory ? `${relativePath}/` : relativePath;
+	try {
+		execFileSync("git", ["check-ignore", "--quiet", "--no-index", candidate], {
+			cwd: gitRoot,
+			stdio: "ignore",
+		});
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 function walk(dir) {
 	const entries = fs.readdirSync(dir, { withFileTypes: true });
 	const files = [];
@@ -25,6 +167,8 @@ function walk(dir) {
 		if (ignoredDirs.has(entry.name)) continue;
 		if (entry.isDirectory() && entry.name.startsWith(".") && entry.name !== ".github") continue;
 		const full = path.join(dir, entry.name);
+		if (isIgnoredByLocalConfig(full, entry.isDirectory())) continue;
+		if (isIgnoredByGit(full, entry.isDirectory())) continue;
 		if (entry.isDirectory()) files.push(...walk(full));
 		else if (entry.isFile()) files.push(full);
 	}
