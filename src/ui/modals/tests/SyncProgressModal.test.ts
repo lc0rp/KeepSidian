@@ -415,6 +415,9 @@ describe("SyncProgressModal", () => {
 		await flushUI();
 
 		expect(modal.contentEl.textContent).toContain("Running download plan");
+		expect(modal.contentEl.textContent).toContain("2 selected. 1 pending.");
+		expect(modal.contentEl.textContent).toContain("1 of 2 selected notes dealt with.");
+		expect(modal.contentEl.textContent).toContain("Notes 1/2");
 		expect(modal.contentEl.textContent).toContain("Created 0/1");
 		expect(modal.contentEl.textContent).toContain("Conflict copy 1/1");
 		expect(modal.contentEl.textContent).toContain("Already up to date 1/1");
@@ -429,6 +432,9 @@ describe("SyncProgressModal", () => {
 		runCallback.onEntrySettled("create-1", true);
 		await flushUI();
 
+		expect(modal.contentEl.textContent).toContain("2 selected. 0 pending.");
+		expect(modal.contentEl.textContent).toContain("2 of 2 selected notes dealt with.");
+		expect(modal.contentEl.textContent).toContain("Notes 2/2");
 		expect(modal.contentEl.textContent).toContain("Created 1/1");
 
 		deferred.resolve({});
@@ -436,6 +442,47 @@ describe("SyncProgressModal", () => {
 
 		expect(modal.contentEl.textContent).toContain("Download complete");
 		expect(modal.contentEl.textContent).toContain("Open sync log");
+	});
+
+	test("running updates keep the plan container stable instead of rebuilding the modal", async () => {
+		const plan = createPreparedSyncPlanFixture("import", "import", [
+			createSyncPlanEntryFixture("create", "Create", {
+				id: "create-1",
+				title: "Create row",
+			}),
+			createSyncPlanEntryFixture("merge", "Merge", {
+				id: "merge-1",
+				title: "Merge row",
+			}),
+		]);
+		const deferred = createDeferredResult();
+		modalOptions.buildSyncPlan.mockResolvedValueOnce(plan);
+		modalOptions.runSyncPlan.mockImplementationOnce(async (_preparedPlan, callbacks) => {
+			void callbacks?.onEntrySettled;
+			return await deferred.promise;
+		});
+
+		const modal = new SyncProgressModal(app, modalOptions);
+		modal.onOpen();
+		getButton(modal, "Start sync").click();
+		await flushUI();
+		getButton(modal, "Execute").click();
+		await flushUI();
+
+		const planEl = modal.contentEl.querySelector(".keepsidian-sync-plan");
+		const listEl = modal.contentEl.querySelector(".keepsidian-sync-plan-list");
+		expect(planEl).toBeTruthy();
+		expect(listEl).toBeTruthy();
+
+		const runCallback = modalOptions.runSyncPlan.mock.calls[0]?.[1];
+		runCallback.onEntrySettled("create-1", true);
+		await flushUI();
+
+		expect(modal.contentEl.querySelector(".keepsidian-sync-plan")).toBe(planEl);
+		expect(modal.contentEl.querySelector(".keepsidian-sync-plan-list")).toBe(listEl);
+
+		deferred.resolve({});
+		await flushUI();
 	});
 
 	test("two-way review advances to upload review and refreshes the upload stage in place", async () => {

@@ -119,6 +119,17 @@ function getSummary(plugin: KeepSidianPlugin): LastSyncSummary | null {
 	return plugin.lastSyncSummary ?? null;
 }
 
+function clearScheduledSyncUiHides(plugin: KeepSidianPlugin) {
+	if (plugin.progressNoticeHideTimeout) {
+		clearTimeout(plugin.progressNoticeHideTimeout);
+		plugin.progressNoticeHideTimeout = null;
+	}
+	if (plugin.progressBarHideTimeout) {
+		clearTimeout(plugin.progressBarHideTimeout);
+		plugin.progressBarHideTimeout = null;
+	}
+}
+
 export function initializeStatusBar(plugin: KeepSidianPlugin) {
 	ensureStatusBarElements(plugin);
 	updateStatusBarSummary(plugin);
@@ -143,6 +154,12 @@ export function startSyncUI(plugin: KeepSidianPlugin) {
 	plugin.processedNotes = 0;
 	plugin.totalNotes = null;
 	ensureStatusBarElements(plugin);
+	clearScheduledSyncUiHides(plugin);
+
+	if (plugin.progressNotice) {
+		getNoticeControls(plugin.progressNotice)?.hide?.();
+		plugin.progressNotice = null;
+	}
 
 	if (plugin.progressContainerEl) {
 		plugin.progressContainerEl.classList.remove(HIDDEN_CLASS);
@@ -187,6 +204,7 @@ export function reportSyncProgress(plugin: KeepSidianPlugin) {
 }
 
 export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
+	clearScheduledSyncUiHides(plugin);
 	if (plugin.progressNotice) {
 		const noticeControls = getNoticeControls(plugin.progressNotice);
 		const setMessage = noticeControls?.setMessage;
@@ -199,8 +217,13 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 		const hideNotice = noticeControls?.hide;
 		if (hideNotice) {
 			const delay = success ? 4000 : 10000;
-			setTimeout(() => {
-				hideNotice.call(noticeControls);
+			const activeNotice = plugin.progressNotice;
+			plugin.progressNoticeHideTimeout = setTimeout(() => {
+				if (plugin.progressNotice === activeNotice) {
+					hideNotice.call(noticeControls);
+					plugin.progressNotice = null;
+				}
+				plugin.progressNoticeHideTimeout = null;
 			}, delay);
 		}
 	}
@@ -219,10 +242,11 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 	if (plugin.progressContainerEl) {
 		plugin.progressContainerEl.toggleClass("complete", !!success);
 		plugin.progressContainerEl.toggleClass("failed", !success);
-		setTimeout(() => {
+		plugin.progressBarHideTimeout = setTimeout(() => {
 			if (plugin.progressContainerEl) {
 				plugin.progressContainerEl.classList.add(HIDDEN_CLASS);
 			}
+			plugin.progressBarHideTimeout = null;
 		}, 3000);
 	}
 	plugin.progressModal?.setComplete(success, plugin.processedNotes);

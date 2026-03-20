@@ -1,7 +1,9 @@
 jest.mock("obsidian");
 
+import { Notice } from "obsidian";
 import KeepSidianPlugin from "../../main";
-import { initializeStatusBar } from "../../app/sync-ui";
+import { finishSyncUI, initializeStatusBar, startSyncUI } from "../../app/sync-ui";
+import { HIDDEN_CLASS } from "../../app/ui-constants";
 import { DEFAULT_SETTINGS } from "../../types/keepsidian-plugin-settings";
 
 const TEST_MANIFEST = {
@@ -58,5 +60,67 @@ describe("status bar gating", () => {
 
 		expect(openSyncCenterSpy).toHaveBeenCalledTimes(1);
 		openSyncCenterSpy.mockRestore();
+	});
+
+	it("cancels stale finish timers when a new sync starts", () => {
+		jest.useFakeTimers();
+		const notices: Array<{ hide: jest.Mock; setMessage: jest.Mock }> = [];
+		const NoticeMock = Notice as unknown as jest.Mock;
+		NoticeMock.mockImplementation((message: string, timeout?: number) => {
+			const notice = {
+				message,
+				timeout,
+				hide: jest.fn(),
+				setMessage: jest.fn(),
+			};
+			notices.push(notice);
+			return notice;
+		});
+
+		startSyncUI(plugin);
+		finishSyncUI(plugin, true);
+
+		expect(notices).toHaveLength(1);
+		expect(plugin.progressContainerEl?.classList.contains(HIDDEN_CLASS)).toBe(false);
+
+		startSyncUI(plugin);
+
+		expect(notices).toHaveLength(2);
+		expect(notices[0]?.hide).toHaveBeenCalledTimes(1);
+		expect(plugin.progressContainerEl?.classList.contains(HIDDEN_CLASS)).toBe(false);
+
+		jest.advanceTimersByTime(10_000);
+
+		expect(notices[1]?.hide).not.toHaveBeenCalled();
+		expect(plugin.progressContainerEl?.classList.contains(HIDDEN_CLASS)).toBe(false);
+		jest.useRealTimers();
+	});
+
+	it("still hides the finished sync UI after the configured delay when no new sync starts", () => {
+		jest.useFakeTimers();
+		const hide = jest.fn();
+		const NoticeMock = Notice as unknown as jest.Mock;
+		NoticeMock.mockImplementation((message: string, timeout?: number) => ({
+			message,
+			timeout,
+			hide,
+			setMessage: jest.fn(),
+		}));
+
+		startSyncUI(plugin);
+		finishSyncUI(plugin, true);
+
+		expect(plugin.progressContainerEl?.classList.contains(HIDDEN_CLASS)).toBe(false);
+
+		jest.advanceTimersByTime(2999);
+		expect(plugin.progressContainerEl?.classList.contains(HIDDEN_CLASS)).toBe(false);
+		expect(hide).not.toHaveBeenCalled();
+
+		jest.advanceTimersByTime(1);
+		expect(plugin.progressContainerEl?.classList.contains(HIDDEN_CLASS)).toBe(true);
+
+		jest.advanceTimersByTime(1000);
+		expect(hide).toHaveBeenCalledTimes(1);
+		jest.useRealTimers();
 	});
 });

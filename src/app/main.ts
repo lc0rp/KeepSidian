@@ -54,6 +54,8 @@ export default class KeepSidianPlugin extends Plugin {
 	progressBar: ProgressBarComponent | null = null;
 	progressModal: SyncProgressModal | null = null;
 	progressNotice: Notice | null = null;
+	progressNoticeHideTimeout: ReturnType<typeof setTimeout> | null = null;
+	progressBarHideTimeout: ReturnType<typeof setTimeout> | null = null;
 	processedNotes = 0;
 	totalNotes: number | null = null;
 	lastSyncSummary: LastSyncSummary | null = null;

@@ -351,6 +351,17 @@ export class SyncProgressModal extends Modal {
 	private planBuildTotal: number | undefined;
 	private modalAlert: ModalAlertState | null = null;
 	private renderVersion = 0;
+	private titleEl: HTMLHeadingElement | null = null;
+	private stepperEl: HTMLDivElement | null = null;
+	private statusEl: HTMLDivElement | null = null;
+	private alertHostEl: HTMLDivElement | null = null;
+	private bodyEl: HTMLDivElement | null = null;
+	private footerEl: HTMLDivElement | null = null;
+	private planActionsEl: HTMLDivElement | null = null;
+	private planPanelEl: HTMLDivElement | null = null;
+	private planSummaryEl: HTMLDivElement | null = null;
+	private planSelectionSummaryEl: HTMLDivElement | null = null;
+	private planListEl: HTMLDivElement | null = null;
 
 	constructor(app: App, options: SyncProgressModalOptions) {
 		super(app);
@@ -363,6 +374,17 @@ export class SyncProgressModal extends Modal {
 
 	onClose() {
 		clearElement(this.contentEl);
+		this.titleEl = null;
+		this.stepperEl = null;
+		this.statusEl = null;
+		this.alertHostEl = null;
+		this.bodyEl = null;
+		this.footerEl = null;
+		this.planActionsEl = null;
+		this.planPanelEl = null;
+		this.planSummaryEl = null;
+		this.planSelectionSummaryEl = null;
+		this.planListEl = null;
 		this.options.onClose?.();
 	}
 
@@ -571,6 +593,27 @@ export class SyncProgressModal extends Modal {
 		void this.refreshUI();
 	}
 
+	private ensureLayout() {
+		if (this.titleEl && this.stepperEl && this.statusEl && this.alertHostEl && this.bodyEl && this.footerEl) {
+			return;
+		}
+
+		clearElement(this.contentEl);
+		this.contentEl.className = "keepsidian-modal";
+
+		this.titleEl = createChild(this.contentEl, "h2");
+		this.titleEl.classList.add("keepsidian-modal-title");
+
+		this.stepperEl = createChild(this.contentEl, "div");
+		this.statusEl = createChild(this.contentEl, "div");
+		this.statusEl.classList.add("keepsidian-modal-status");
+		this.statusEl.setAttribute("aria-live", "polite");
+
+		this.alertHostEl = createChild(this.contentEl, "div");
+		this.bodyEl = createChild(this.contentEl, "div");
+		this.footerEl = createChild(this.contentEl, "div");
+	}
+
 	private getSurface(): ModalSurface {
 		if (this.isSyncing && this.executionSnapshot) {
 			return "running";
@@ -587,7 +630,7 @@ export class SyncProgressModal extends Modal {
 	private async refreshUI() {
 		const renderVersion = ++this.renderVersion;
 		const surface = this.getSurface();
-		clearElement(this.contentEl);
+		this.ensureLayout();
 		this.contentEl.className = "keepsidian-modal";
 		this.contentEl.classList.add(surface === "setup" ? "keepsidian-modal--compact" : "keepsidian-modal--plan");
 		this.modalEl.classList.remove("keepsidian-modal-shell--compact", "keepsidian-modal-shell--plan");
@@ -595,22 +638,34 @@ export class SyncProgressModal extends Modal {
 			surface === "setup" ? "keepsidian-modal-shell--compact" : "keepsidian-modal-shell--plan"
 		);
 
-		const titleEl = createChild(this.contentEl, "h2", { text: this.getTitle(surface) });
-		titleEl.classList.add("keepsidian-modal-title");
+		if (this.titleEl) {
+			this.titleEl.textContent = this.getTitle(surface);
+		}
 
-		this.renderStepper(surface);
+		if (this.stepperEl) {
+			this.renderStepper(this.stepperEl, surface);
+		}
 
-		const statusEl = createChild(this.contentEl, "div", {
-			text: this.getStatusCopy(surface),
-		});
-		statusEl.classList.add("keepsidian-modal-status");
-		statusEl.setAttribute("aria-live", "polite");
+		if (this.statusEl) {
+			this.statusEl.textContent = this.getStatusCopy(surface);
+		}
 
-		if (this.modalAlert) {
-			this.renderAlert(this.modalAlert);
+		if (this.alertHostEl) {
+			clearElement(this.alertHostEl);
+			if (this.modalAlert) {
+				this.renderAlert(this.alertHostEl, this.modalAlert);
+			}
 		}
 
 		if (surface === "setup") {
+			this.planActionsEl = null;
+			this.planPanelEl = null;
+			this.planSummaryEl = null;
+			this.planSelectionSummaryEl = null;
+			this.planListEl = null;
+			if (this.footerEl) {
+				clearElement(this.footerEl);
+			}
 			await this.renderSetupSurface(renderVersion);
 			return;
 		}
@@ -618,8 +673,8 @@ export class SyncProgressModal extends Modal {
 		this.renderPlanSurface(surface);
 	}
 
-	private renderAlert(alert: ModalAlertState) {
-		const alertEl = createChild(this.contentEl, "div");
+	private renderAlert(containerEl: HTMLElement, alert: ModalAlertState) {
+		const alertEl = createChild(containerEl, "div");
 		alertEl.classList.add("keepsidian-modal-alert");
 		alertEl.setAttribute("role", "alert");
 		const titleEl = createChild(alertEl, "div", { text: alert.title });
@@ -688,9 +743,9 @@ export class SyncProgressModal extends Modal {
 		return "";
 	}
 
-	private renderStepper(surface: ModalSurface) {
-		const stepperEl = createChild(this.contentEl, "div");
-		stepperEl.classList.add("keepsidian-sync-stepper");
+	private renderStepper(containerEl: HTMLElement, surface: ModalSurface) {
+		clearElement(containerEl);
+		containerEl.className = "keepsidian-sync-stepper";
 
 		const firstProgress = this.getStartStepProgress(surface);
 		const secondProgress = this.getReviewStepProgress(surface);
@@ -712,14 +767,14 @@ export class SyncProgressModal extends Modal {
 		];
 
 		steps.forEach((step, index) => {
-			const stepEl = createChild(stepperEl, "div");
+			const stepEl = createChild(containerEl, "div");
 			stepEl.classList.add("keepsidian-sync-stepper-step", `is-${step.state}`);
 			const nodeEl = createChild(stepEl, "div");
 			nodeEl.classList.add("keepsidian-sync-stepper-node");
 			const labelEl = createChild(stepEl, "div", { text: step.label });
 			labelEl.classList.add("keepsidian-sync-stepper-label");
 			if (index < steps.length - 1) {
-				const connectorEl = createChild(stepperEl, "div");
+				const connectorEl = createChild(containerEl, "div");
 				connectorEl.classList.add("keepsidian-sync-stepper-connector");
 				const fillEl = createChild(connectorEl, "div");
 				fillEl.classList.add("keepsidian-sync-stepper-connector-fill");
@@ -752,7 +807,7 @@ export class SyncProgressModal extends Modal {
 		if (surface !== "running" || !this.executionSnapshot) {
 			return 0;
 		}
-		const totalEntries = this.executionSnapshot.plan.entries.length;
+		const totalEntries = this.getExecutionSelectedCount();
 		if (totalEntries <= 0) {
 			return 0;
 		}
@@ -760,7 +815,11 @@ export class SyncProgressModal extends Modal {
 	}
 
 	private async renderSetupSurface(renderVersion: number) {
-		const actionsEl = createChild(this.contentEl, "div");
+		if (!this.bodyEl) {
+			return;
+		}
+		clearElement(this.bodyEl);
+		const actionsEl = createChild(this.bodyEl, "div");
 		actionsEl.classList.add("keepsidian-modal-actions");
 
 		const startButton = this.createActionButton(
@@ -788,7 +847,7 @@ export class SyncProgressModal extends Modal {
 		syncOptionsButton.setAttribute("aria-expanded", this.showSyncOptions ? "true" : "false");
 		syncOptionsButton.classList.toggle("is-expanded", this.showSyncOptions);
 
-		const syncOptionsContainerEl = createChild(this.contentEl, "div");
+		const syncOptionsContainerEl = createChild(this.bodyEl, "div");
 		syncOptionsContainerEl.classList.add("keepsidian-sync-center-options");
 		syncOptionsContainerEl.hidden = !this.showSyncOptions;
 
@@ -868,7 +927,7 @@ export class SyncProgressModal extends Modal {
 			}
 		}
 
-		const closeButton = createChild(this.contentEl, "button", { text: "Close" });
+		const closeButton = createChild(this.bodyEl, "button", { text: "Close" });
 		closeButton.type = "button";
 		closeButton.classList.add("keepsidian-modal-close");
 		closeButton.addEventListener("click", () => this.close());
@@ -951,12 +1010,34 @@ export class SyncProgressModal extends Modal {
 		copy.classList.add("keepsidian-sync-center-scope-option-copy");
 	}
 
+	private ensurePlanSurfaceStructure() {
+		if (!this.bodyEl) {
+			return;
+		}
+		if (this.planActionsEl && this.planPanelEl && this.planSummaryEl && this.planSelectionSummaryEl && this.planListEl) {
+			return;
+		}
+		clearElement(this.bodyEl);
+		this.planActionsEl = createChild(this.bodyEl, "div");
+		this.planActionsEl.classList.add("keepsidian-modal-actions");
+		this.planPanelEl = createChild(this.bodyEl, "div");
+		this.planPanelEl.classList.add("keepsidian-sync-plan");
+		this.planSummaryEl = createChild(this.planPanelEl, "div");
+		this.planSummaryEl.classList.add("keepsidian-sync-plan-summary");
+		this.planSelectionSummaryEl = createChild(this.planPanelEl, "div");
+		this.planListEl = createChild(this.planPanelEl, "div");
+		this.planListEl.classList.add("keepsidian-sync-plan-list");
+	}
+
 	private renderPlanSurface(surface: "review" | "running" | "result") {
-		const actionsEl = createChild(this.contentEl, "div");
-		actionsEl.classList.add("keepsidian-modal-actions");
+		this.ensurePlanSurfaceStructure();
+		if (!this.planActionsEl || !this.planPanelEl || !this.planSummaryEl || !this.planSelectionSummaryEl || !this.planListEl) {
+			return;
+		}
+		clearElement(this.planActionsEl);
 
 		if (surface === "review") {
-			const backButton = this.createActionButton(actionsEl, "◀︎ Back", async () => {
+			const backButton = this.createActionButton(this.planActionsEl, "◀︎ Back", async () => {
 				this.preparedPlan = null;
 				this.executionSnapshot = null;
 				this.showExecutionResult = false;
@@ -965,12 +1046,12 @@ export class SyncProgressModal extends Modal {
 			});
 			backButton.classList.add("keepsidian-modal-action--back");
 
-			const refreshButton = this.createActionButton(actionsEl, "↻ Refresh", async () => {
+			const refreshButton = this.createActionButton(this.planActionsEl, "↻ Refresh", async () => {
 				await this.refreshCurrentReview();
 			});
 			refreshButton.classList.add("keepsidian-modal-action--refresh-review");
 
-			const runButton = this.createActionButton(actionsEl, "Execute ▶︎", async () => {
+			const runButton = this.createActionButton(this.planActionsEl, "Execute ▶︎", async () => {
 				await this.runReviewedPlan();
 			});
 			runButton.classList.add("mod-cta", "keepsidian-modal-action--primary");
@@ -980,24 +1061,19 @@ export class SyncProgressModal extends Modal {
 				this.preparedPlan.plan.entries.every((entry) => !entry.selectable || !entry.selected);
 		}
 
-		const panelEl = createChild(this.contentEl, "div");
-		panelEl.classList.add("keepsidian-sync-plan");
-		const summaryEl = createChild(panelEl, "div");
-		summaryEl.classList.add("keepsidian-sync-plan-summary");
+		clearElement(this.planSummaryEl);
 
 		if (surface === "review" && this.preparedPlan) {
-			const reviewCopy = createChild(summaryEl, "div", {
+			const reviewCopy = createChild(this.planSummaryEl, "div", {
 				text: `${this.preparedPlan.plan.actionableCount} changes found.`,
 			});
 			reviewCopy.classList.add("keepsidian-sync-plan-summary-copy");
 		}
 
 		if ((surface === "running" || surface === "result") && this.executionSnapshot) {
-			const selectedCount = this.executionSnapshot.plan.entries.filter(
-				(entry) => entry.selectable && entry.selected
-			).length;
+			const selectedCount = this.getExecutionSelectedCount();
 			const handledCount = this.getExecutionHandledCount();
-			const runtimeCopy = createChild(summaryEl, "div", {
+			const runtimeCopy = createChild(this.planSummaryEl, "div", {
 				text:
 					surface === "running"
 						? `${handledCount} of ${selectedCount} selected notes dealt with.`
@@ -1006,18 +1082,21 @@ export class SyncProgressModal extends Modal {
 			runtimeCopy.classList.add("keepsidian-sync-plan-summary-copy");
 		}
 
-		this.renderChips(summaryEl, surface);
-		this.renderSelectionSummary(panelEl, surface);
-		this.renderEntries(panelEl, surface);
+		this.renderChips(this.planSummaryEl, surface);
+		this.renderSelectionSummary(this.planSelectionSummaryEl, surface);
+		this.renderEntries(this.planListEl, surface);
 
-		if (surface === "result") {
-			const footerEl = createChild(this.contentEl, "div");
-			footerEl.classList.add("keepsidian-modal-actions");
-			const openLogButton = this.createActionButton(footerEl, "Open sync log", async () => {
+		if (this.footerEl) {
+			clearElement(this.footerEl);
+		}
+
+		if (surface === "result" && this.footerEl) {
+			this.footerEl.classList.add("keepsidian-modal-actions");
+			const openLogButton = this.createActionButton(this.footerEl, "Open sync log", async () => {
 				await this.options.onOpenSyncLog();
 			});
 			openLogButton.classList.add("keepsidian-modal-action--open-log");
-			const closeButton = this.createActionButton(footerEl, "Close", async () => {
+			const closeButton = this.createActionButton(this.footerEl, "Close", async () => {
 				this.close();
 			});
 			closeButton.classList.add("mod-cta", "keepsidian-modal-action--primary");
@@ -1080,25 +1159,25 @@ export class SyncProgressModal extends Modal {
 	}
 
 	private renderSelectionSummary(containerEl: HTMLElement, surface: "review" | "running" | "result") {
+		clearElement(containerEl);
+		containerEl.className = "keepsidian-sync-plan-selection-summary";
 		if (surface !== "review" || !this.preparedPlan) {
 			return;
 		}
 		const entries = this.preparedPlan.plan.entries;
 		const canBulkToggle = entries.some((entry) => entry.selectable && !entry.selectionLocked);
 		const selectedCount = entries.filter((entry) => entry.selectable && entry.selected).length;
-		const summaryEl = createChild(containerEl, "div");
-		summaryEl.classList.add("keepsidian-sync-plan-selection-summary");
-		createChild(summaryEl, "div", {
+		createChild(containerEl, "div", {
 			text: `${selectedCount} of ${this.preparedPlan.plan.actionableCount} changes selected.`,
 		});
 		if (!canBulkToggle) {
-			createChild(summaryEl, "div", {
+			createChild(containerEl, "div", {
 				text: "Per-note selection is available to project supporters.",
 			}).classList.add("keepsidian-sync-plan-selection-caption");
 			return;
 		}
 
-		const toggleWrap = createChild(summaryEl, "label");
+		const toggleWrap = createChild(containerEl, "label");
 		toggleWrap.classList.add("keepsidian-sync-plan-select-all");
 		const checkbox = createChild(toggleWrap, "input");
 		checkbox.type = "checkbox";
@@ -1119,10 +1198,10 @@ export class SyncProgressModal extends Modal {
 	}
 
 	private renderEntries(containerEl: HTMLElement, surface: "review" | "running" | "result") {
-		const listEl = createChild(containerEl, "div");
-		listEl.classList.add("keepsidian-sync-plan-list");
+		clearElement(containerEl);
+		containerEl.className = "keepsidian-sync-plan-list";
 		for (const entry of this.getFilteredEntries(surface)) {
-			const row = createChild(listEl, "div");
+			const row = createChild(containerEl, "div");
 			row.classList.add("keepsidian-sync-plan-row");
 			const chipKey = getChipKeyForEntry(entry);
 			row.classList.add(`is-group-${chipKey}`);
@@ -1245,16 +1324,27 @@ export class SyncProgressModal extends Modal {
 		const denominators = new Map<ChipKey, number>();
 		const numerators = new Map<ChipKey, number>();
 		const entries = this.executionSnapshot.plan.entries;
-		denominators.set("notes", entries.length);
+		const selectedEntries = entries.filter((entry) => entry.selectable && entry.selected);
+		const supplementalEntries = entries.filter((entry) => !entry.selectable);
+		denominators.set("notes", selectedEntries.length);
 		numerators.set("notes", 0);
 
-		for (const entry of entries) {
+		for (const entry of selectedEntries) {
 			const key = getChipKeyForEntry(entry);
 			denominators.set(key, (denominators.get(key) ?? 0) + 1);
 			const state = this.executionSnapshot.entryStates.get(entry.id) ?? "pending";
-			if (state !== "pending") {
+			if (state === "done" || state === "failed" || state === "instant") {
 				numerators.set(key, (numerators.get(key) ?? 0) + 1);
 				numerators.set("notes", (numerators.get("notes") ?? 0) + 1);
+			}
+		}
+
+		for (const entry of supplementalEntries) {
+			const key = getChipKeyForEntry(entry);
+			const state = this.executionSnapshot.entryStates.get(entry.id) ?? "pending";
+			denominators.set(key, (denominators.get(key) ?? 0) + 1);
+			if (state === "done" || state === "failed" || state === "instant") {
+				numerators.set(key, (numerators.get(key) ?? 0) + 1);
 			}
 		}
 
@@ -1280,12 +1370,23 @@ export class SyncProgressModal extends Modal {
 			return 0;
 		}
 		let handledCount = 0;
-		for (const state of this.executionSnapshot.entryStates.values()) {
-			if (state !== "pending") {
+		for (const entry of this.executionSnapshot.plan.entries) {
+			if (!entry.selectable || !entry.selected) {
+				continue;
+			}
+			const state = this.executionSnapshot.entryStates.get(entry.id);
+			if (state === "done" || state === "failed" || state === "instant") {
 				handledCount += 1;
 			}
 		}
 		return handledCount;
+	}
+
+	private getExecutionSelectedCount(): number {
+		if (!this.executionSnapshot) {
+			return 0;
+		}
+		return this.executionSnapshot.plan.entries.filter((entry) => entry.selectable && entry.selected).length;
 	}
 
 	private createActionButton(
