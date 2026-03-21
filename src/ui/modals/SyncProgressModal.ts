@@ -351,7 +351,7 @@ export class SyncProgressModal extends Modal {
 	private planBuildTotal: number | undefined;
 	private modalAlert: ModalAlertState | null = null;
 	private renderVersion = 0;
-	private titleEl: HTMLHeadingElement | null = null;
+	private modalTitleEl: HTMLHeadingElement | null = null;
 	private stepperEl: HTMLDivElement | null = null;
 	private statusEl: HTMLDivElement | null = null;
 	private alertHostEl: HTMLDivElement | null = null;
@@ -374,7 +374,7 @@ export class SyncProgressModal extends Modal {
 
 	onClose() {
 		clearElement(this.contentEl);
-		this.titleEl = null;
+		this.modalTitleEl = null;
 		this.stepperEl = null;
 		this.statusEl = null;
 		this.alertHostEl = null;
@@ -594,15 +594,15 @@ export class SyncProgressModal extends Modal {
 	}
 
 	private ensureLayout() {
-		if (this.titleEl && this.stepperEl && this.statusEl && this.alertHostEl && this.bodyEl && this.footerEl) {
+		if (this.modalTitleEl && this.stepperEl && this.statusEl && this.alertHostEl && this.bodyEl && this.footerEl) {
 			return;
 		}
 
 		clearElement(this.contentEl);
 		this.contentEl.className = "keepsidian-modal";
 
-		this.titleEl = createChild(this.contentEl, "h2");
-		this.titleEl.classList.add("keepsidian-modal-title");
+		this.modalTitleEl = createChild(this.contentEl, "h2");
+		this.modalTitleEl.classList.add("keepsidian-modal-title");
 
 		this.stepperEl = createChild(this.contentEl, "div");
 		this.statusEl = createChild(this.contentEl, "div");
@@ -638,8 +638,8 @@ export class SyncProgressModal extends Modal {
 			surface === "setup" ? "keepsidian-modal-shell--compact" : "keepsidian-modal-shell--plan"
 		);
 
-		if (this.titleEl) {
-			this.titleEl.textContent = this.getTitle(surface);
+		if (this.modalTitleEl) {
+			this.modalTitleEl.textContent = this.getTitle(surface);
 		}
 
 		if (this.stepperEl) {

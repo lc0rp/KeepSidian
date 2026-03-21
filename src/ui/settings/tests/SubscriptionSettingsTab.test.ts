@@ -510,9 +510,10 @@ const mockSubscriptionService = () => {
 };
 
 function findSettingByLabel(container: HTMLElement, label: string): HTMLElement | null {
-	return Array.from(container.querySelectorAll(".setting-item")).find((item) => {
+	const match = Array.from(container.querySelectorAll(".setting-item")).find((item) => {
 		return item.querySelector(".setting-item-name")?.textContent === label;
-	}) ?? null;
+	});
+	return match instanceof HTMLElement ? match : null;
 }
 
 describe("SubscriptionSettingsTab", () => {
