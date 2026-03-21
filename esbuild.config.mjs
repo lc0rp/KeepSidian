@@ -177,6 +177,9 @@ const context = await esbuild.context({
 	format: "cjs",
 	target: "es2018",
 	logLevel: "info",
+	logOverride: {
+		"require-resolve-not-external": "silent",
+	},
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
 	plugins: [

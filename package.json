@@ -30,8 +30,12 @@
 		"bmad:validate": "bmad-method validate",
 		"wdio": "wdio run ./wdio.conf.mts",
 		"wdio:mobile": "wdio run ./wdio.mobile.conf.mts",
+		"wdio:live": "wdio run ./wdio.live.conf.mts",
+		"bundle:live": "node esbuild.config.mjs production && npm run verify:bundles",
 		"e2e:desktop": "npm run build && npm run wdio",
 		"e2e:android": "npm run build && npm run wdio:mobile",
+		"e2e:live": "npm run bundle:live && npm run wdio:live",
+		"e2e:live:build": "npm run build && npm run wdio:live",
 		"appium:android": "ANDROID_SDK_ROOT=\"$HOME/Library/Android/sdk\" ANDROID_HOME=\"$HOME/Library/Android/sdk\" PATH=\"$HOME/Library/Android/sdk/platform-tools:$HOME/Library/Android/sdk/emulator:$HOME/Library/Android/sdk/cmdline-tools/latest/bin:$PATH\" npx appium server --address 127.0.0.1 --port 4723 --allow-insecure \"*:chromedriver_autodownload,*:adb_shell\""
 	},
 	"keywords": [
