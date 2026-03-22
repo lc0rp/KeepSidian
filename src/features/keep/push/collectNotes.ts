@@ -3,10 +3,7 @@ import type KeepSidianPlugin from "@app/main";
 import { extractFrontmatter, getFrontmatterStringValue } from "../domain/note";
 import { dirnameSafe, mediaFolderPath, normalizePathSafe } from "@services/paths";
 import { isKeepSidianFrontmatter, listMarkdownFilesRecursively } from "../domain/noteLookup";
-import {
-	CONFLICT_FILE_SUFFIX,
-	FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY,
-} from "../constants";
+import { CONFLICT_FILE_SUFFIX, FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY } from "../constants";
 import { ensurePascalCaseFrontmatter } from "../migrations/fixFrontmatterCasing";
 import type { PushAttachmentPayload } from "@integrations/server/keepApi";
 
@@ -78,11 +75,7 @@ function resolveRelativePath(baseDir: string, target: string): string {
 	return stack.join("/");
 }
 
-function extractAttachmentReferences(
-	noteContent: string,
-	notePath: string,
-	saveLocation: string
-): string[] {
+function extractAttachmentReferences(noteContent: string, notePath: string, saveLocation: string): string[] {
 	const references = new Set<string>();
 	const mediaFolder = mediaFolderPath(saveLocation);
 	const mediaFolderNormalized = normalizePathSafe(mediaFolder);
@@ -204,9 +197,7 @@ async function collectAttachments(
 			const stat = typeof adapter.stat === "function" ? await adapter.stat(attachmentPath) : null;
 			const updated = stat?.mtime ? roundDateToSeconds(new Date(stat.mtime)) : null;
 			const shouldInclude =
-				roundedLastSynced === null ||
-				updated === null ||
-				updated.getTime() > roundedLastSynced.getTime();
+				roundedLastSynced === null || updated === null || updated.getTime() > roundedLastSynced.getTime();
 			if (!shouldInclude) {
 				continue;
 			}
@@ -240,14 +231,12 @@ function deriveNoteTitle(relativePath: string): string {
 	return fileName.replace(/\.md$/i, "");
 }
 
-export async function collectNotesToPush(
-	plugin: KeepSidianPlugin
-): Promise<CollectedNotesResult> {
+export async function collectNotesToPush(plugin: KeepSidianPlugin): Promise<CollectedNotesResult> {
 	const adapter = plugin.app.vault.adapter as VaultAdapter;
 	const saveLocation = plugin.settings.saveLocation;
 	await ensurePascalCaseFrontmatter(plugin);
 
-	const markdownFiles = await listMarkdownFilesRecursively(adapter, "");
+	const markdownFiles = await listMarkdownFilesRecursively(adapter, saveLocation);
 
 	const notesToPush: NoteForPush[] = [];
 	const skippedNotes: Array<{ path: string; reason: string }> = [];
@@ -267,15 +256,11 @@ export async function collectNotesToPush(
 			if (!isKeepSidianFrontmatter(frontmatterDict)) {
 				continue;
 			}
-			const lastSyncedValue = getFrontmatterStringValue(
-				frontmatterDict,
-				FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY
-			);
+			const lastSyncedValue = getFrontmatterStringValue(frontmatterDict, FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY);
 			const lastSyncedDate = parseDate(lastSyncedValue);
 			const stat = typeof adapter.stat === "function" ? await adapter.stat(filePath) : null;
 			const modifiedDate = stat?.mtime ? roundDateToSeconds(new Date(stat.mtime)) : null;
-			const roundedLastSyncedDate =
-				lastSyncedDate !== null ? roundDateToSeconds(lastSyncedDate) : null;
+			const roundedLastSyncedDate = lastSyncedDate !== null ? roundDateToSeconds(lastSyncedDate) : null;
 			const modifiedSinceLastSync =
 				!roundedLastSyncedDate ||
 				(modifiedDate !== null &&

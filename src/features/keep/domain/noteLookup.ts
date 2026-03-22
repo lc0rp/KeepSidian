@@ -34,10 +34,21 @@ export interface ExistingKeepNoteIndex {
 	existingPaths: Set<string>;
 }
 
-export async function listMarkdownFilesRecursively(
-	adapter: ListableAdapter,
-	folder = ""
-): Promise<string[]> {
+function normalizeVaultPathForScope(path: string): string {
+	return normalizePathSafe(path).replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
+function isPathWithinFolder(path: string, folder: string): boolean {
+	const normalizedFolder = normalizeVaultPathForScope(folder);
+	if (!normalizedFolder) {
+		return true;
+	}
+
+	const normalizedPath = normalizeVaultPathForScope(path);
+	return normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`);
+}
+
+export async function listMarkdownFilesRecursively(adapter: ListableAdapter, folder = ""): Promise<string[]> {
 	const normalizedFolder = normalizePathSafe(folder);
 	if (typeof adapter.list !== "function") {
 		return [];
@@ -62,30 +73,32 @@ export async function listMarkdownFilesRecursively(
 
 export function isKeepSidianFrontmatter(frontmatterDict: Record<string, unknown>): boolean {
 	return (
-		typeof getFrontmatterStringValue(frontmatterDict, FRONTMATTER_GOOGLE_KEEP_URL_KEY) ===
-			"string" ||
-		typeof getFrontmatterStringValue(frontmatterDict, FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY) ===
-			"string" ||
-		typeof getFrontmatterStringValue(frontmatterDict, FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY) ===
-			"string" ||
-		typeof getFrontmatterStringValue(frontmatterDict, FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY) ===
-			"string"
+		typeof getFrontmatterStringValue(frontmatterDict, FRONTMATTER_GOOGLE_KEEP_URL_KEY) === "string" ||
+		typeof getFrontmatterStringValue(frontmatterDict, FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY) === "string" ||
+		typeof getFrontmatterStringValue(frontmatterDict, FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY) === "string" ||
+		typeof getFrontmatterStringValue(frontmatterDict, FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY) === "string"
 	);
 }
 
 export async function buildExistingKeepNoteIndex(
-	app: MetadataBackedApp
+	app: MetadataBackedApp,
+	rootFolder = ""
 ): Promise<ExistingKeepNoteIndex> {
 	const adapter = app.vault.adapter;
 	const metadataBackedFiles = app.vault.getMarkdownFiles?.();
 	if (Array.isArray(metadataBackedFiles) && metadataBackedFiles.length > 0) {
 		const existingPaths = new Set(
-			metadataBackedFiles.map((file) => normalizePathSafe(file.path)).filter((path) => path.length > 0)
+			metadataBackedFiles
+				.map((file) => normalizePathSafe(file.path))
+				.filter((path) => path.length > 0 && isPathWithinFolder(path, rootFolder))
 		);
 		const pathByKeepUrl = new Map<string, string>();
 
 		for (const file of metadataBackedFiles) {
 			const normalizedPath = normalizePathSafe(file.path);
+			if (!isPathWithinFolder(normalizedPath, rootFolder)) {
+				continue;
+			}
 			const frontmatterDict = app.metadataCache?.getFileCache?.(file)?.frontmatter;
 			if (!frontmatterDict) {
 				continue;
@@ -102,7 +115,7 @@ export async function buildExistingKeepNoteIndex(
 		};
 	}
 
-	const markdownFiles = await listMarkdownFilesRecursively(adapter, "");
+	const markdownFiles = await listMarkdownFilesRecursively(adapter, rootFolder);
 	const existingPaths = new Set(markdownFiles.map((filePath) => normalizePathSafe(filePath)));
 	const pathByKeepUrl = new Map<string, string>();
 
@@ -132,10 +145,7 @@ export function updateExistingKeepNoteIndex(
 ): void {
 	const normalizedPath = normalizePathSafe(filePath);
 	index.existingPaths.add(normalizedPath);
-	const incomingKeepUrl = getFrontmatterStringValue(
-		incomingNote.frontmatterDict,
-		FRONTMATTER_GOOGLE_KEEP_URL_KEY
-	);
+	const incomingKeepUrl = getFrontmatterStringValue(incomingNote.frontmatterDict, FRONTMATTER_GOOGLE_KEEP_URL_KEY);
 	if (incomingKeepUrl) {
 		index.pathByKeepUrl.set(incomingKeepUrl, normalizedPath);
 	}
@@ -145,7 +155,8 @@ export async function findExistingKeepNotePath(
 	app: { vault: { adapter: ListableAdapter } },
 	incomingNote: NormalizedNote,
 	preferredPath?: string,
-	index?: ExistingKeepNoteIndex
+	index?: ExistingKeepNoteIndex,
+	rootFolder = ""
 ): Promise<string | null> {
 	const adapter = app.vault.adapter;
 	const normalizedPreferredPath = preferredPath ? normalizePathSafe(preferredPath) : null;
@@ -159,10 +170,7 @@ export async function findExistingKeepNotePath(
 		}
 	}
 
-	const incomingKeepUrl = getFrontmatterStringValue(
-		incomingNote.frontmatterDict,
-		FRONTMATTER_GOOGLE_KEEP_URL_KEY
-	);
+	const incomingKeepUrl = getFrontmatterStringValue(incomingNote.frontmatterDict, FRONTMATTER_GOOGLE_KEEP_URL_KEY);
 	if (!incomingKeepUrl) {
 		return normalizedPreferredPath;
 	}
@@ -171,6 +179,6 @@ export async function findExistingKeepNotePath(
 		return index.pathByKeepUrl.get(incomingKeepUrl) ?? normalizedPreferredPath;
 	}
 
-	const builtIndex = await buildExistingKeepNoteIndex(app);
+	const builtIndex = await buildExistingKeepNoteIndex(app, rootFolder);
 	return builtIndex.pathByKeepUrl.get(incomingKeepUrl) ?? normalizedPreferredPath;
 }

@@ -1,15 +1,8 @@
-import {
-	normalizeDate,
-	handleDuplicateNotes,
-	checkForDuplicateData,
-} from "../compare";
+import { normalizeDate, handleDuplicateNotes, checkForDuplicateData } from "../compare";
 import { NormalizedNote } from "../note";
 import type { App } from "obsidian";
 import { buildExistingKeepNoteIndex, findExistingKeepNotePath } from "../noteLookup";
-import {
-	createMockPlugin,
-	type MockVaultAdapter,
-} from "../../../../test-utils/mocks/plugin";
+import { createMockPlugin, type MockVaultAdapter } from "../../../../test-utils/mocks/plugin";
 
 describe("normalizeDate", () => {
 	it("should return null for undefined input", () => {
@@ -60,19 +53,13 @@ describe("handleDuplicateNotes", () => {
 			textWithoutFrontmatter: "",
 		};
 
-		const result = await handleDuplicateNotes(
-			"/save/location",
-			note,
-			mockApp
-		);
+		const result = await handleDuplicateNotes("/save/location", note, mockApp);
 		expect(result).toBe("create");
 	});
 
 	it("should call checkForDuplicateData when file exists", async () => {
 		adapter.exists.mockResolvedValue(true);
-		adapter.read.mockResolvedValue(
-			"---\nCreated: 2023-05-25\n---\nExisting content"
-		);
+		adapter.read.mockResolvedValue("---\nCreated: 2023-05-25\n---\nExisting content");
 		adapter.stat.mockResolvedValue({
 			ctime: Date.now(),
 			mtime: Date.now(),
@@ -98,20 +85,14 @@ describe("handleDuplicateNotes", () => {
 			textWithoutFrontmatter: "New content",
 		};
 
-		const result = await handleDuplicateNotes(
-			"/save/location",
-			incomingNote,
-			mockApp
-		);
+		const result = await handleDuplicateNotes("/save/location", incomingNote, mockApp);
 		expect(["skip", "merge", "overwrite"]).toContain(result);
 	});
 
-	it("finds existing notes by GoogleKeepUrl when the filename no longer matches the title", async () => {
-		adapter.exists.mockImplementation(async (path: string) => path === "Archive/old-name.md");
-		adapter.list.mockResolvedValue({ files: ["Archive/old-name.md"], folders: [] });
-		adapter.read.mockResolvedValue(
-			"---\nGoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\n---\nExisting content"
-		);
+	it("finds existing notes by GoogleKeepUrl when the filename no longer matches the title inside saveLocation", async () => {
+		adapter.exists.mockImplementation(async (path: string) => path === "/save/location/old-name.md");
+		adapter.list.mockResolvedValue({ files: ["/save/location/old-name.md"], folders: [] });
+		adapter.read.mockResolvedValue("---\nGoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\n---\nExisting content");
 		adapter.stat.mockResolvedValue({
 			ctime: Date.now(),
 			mtime: Date.now(),
@@ -142,18 +123,18 @@ describe("handleDuplicateNotes", () => {
 
 		const result = await handleDuplicateNotes("/save/location", incomingNote, mockApp);
 		expect(["skip", "merge", "overwrite"]).toContain(result);
-		expect(adapter.list).toHaveBeenCalled();
-		expect(adapter.exists).toHaveBeenCalledWith("Archive/old-name.md");
+		expect(adapter.list).toHaveBeenCalledWith("/save/location");
+		expect(adapter.exists).toHaveBeenCalledWith("/save/location/old-name.md");
 	});
 
-	it("reuses a prebuilt Keep-note index instead of rescanning the vault", async () => {
+	it("reuses a prebuilt Keep-note index instead of rescanning saveLocation", async () => {
 		adapter.exists.mockResolvedValue(false);
 		adapter.list.mockResolvedValue({
-			files: ["Archive/old-name.md", "Daily/unrelated.md"],
+			files: ["/save/location/old-name.md", "/save/location/unrelated.md"],
 			folders: [],
 		});
 		adapter.read.mockImplementation(async (path: string) => {
-			if (path === "Archive/old-name.md") {
+			if (path === "/save/location/old-name.md") {
 				return "---\nGoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\n---\nExisting";
 			}
 			return "---\n---\nOther";
@@ -182,24 +163,27 @@ describe("handleDuplicateNotes", () => {
 			textWithoutFrontmatter: "New content",
 		};
 
-		const index = await buildExistingKeepNoteIndex(mockApp);
+		const index = await buildExistingKeepNoteIndex(mockApp, "/save/location");
 		const readCallsAfterIndexBuild = adapter.read.mock.calls.length;
 
 		const resolvedPath = await findExistingKeepNotePath(
 			mockApp,
 			incomingNote,
 			"/save/location/Renamed title.md",
-			index
+			index,
+			"/save/location"
 		);
 
-		expect(resolvedPath).toBe("Archive/old-name.md");
+		expect(resolvedPath).toBe("/save/location/old-name.md");
 		expect(adapter.list).toHaveBeenCalledTimes(1);
 		expect(adapter.read).toHaveBeenCalledTimes(readCallsAfterIndexBuild);
 	});
 
-	it("builds the Keep-note index from metadata cache when available", async () => {
-		(mockApp.vault as unknown as { getMarkdownFiles: () => Array<{ path: string }> }).getMarkdownFiles =
-			() => [{ path: "Archive/old-name.md" }, { path: "Daily/unrelated.md" }];
+	it("ignores matching Keep notes outside saveLocation when building the metadata-backed index", async () => {
+		(mockApp.vault as unknown as { getMarkdownFiles: () => Array<{ path: string }> }).getMarkdownFiles = () => [
+			{ path: "Archive/old-name.md" },
+			{ path: "/save/location/unrelated.md" },
+		];
 		(
 			mockApp as unknown as {
 				metadataCache: {
@@ -213,7 +197,7 @@ describe("handleDuplicateNotes", () => {
 							frontmatter: {
 								GoogleKeepUrl: "https://keep.google.com/u/0/#NOTE/123",
 							},
-					  }
+						}
 					: { frontmatter: {} },
 		};
 
@@ -240,15 +224,16 @@ describe("handleDuplicateNotes", () => {
 			textWithoutFrontmatter: "New content",
 		};
 
-		const index = await buildExistingKeepNoteIndex(mockApp);
+		const index = await buildExistingKeepNoteIndex(mockApp, "/save/location");
 		const resolvedPath = await findExistingKeepNotePath(
 			mockApp,
 			incomingNote,
 			"/save/location/Renamed title.md",
-			index
+			index,
+			"/save/location"
 		);
 
-		expect(resolvedPath).toBe("Archive/old-name.md");
+		expect(resolvedPath).toBe("/save/location/Renamed title.md");
 		expect(adapter.list).not.toHaveBeenCalled();
 		expect(adapter.read).not.toHaveBeenCalled();
 	});
@@ -306,8 +291,6 @@ describe("checkForDuplicateData", () => {
 			lastSyncedDate: new Date("2023-05-26"),
 		};
 
-		expect(checkForDuplicateData(incomingFile, existingFile)).toBe(
-			"overwrite"
-		);
+		expect(checkForDuplicateData(incomingFile, existingFile)).toBe("overwrite");
 	});
 });

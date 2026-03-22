@@ -1,10 +1,5 @@
 import { App } from "obsidian";
-import {
-	NormalizedNote,
-	normalizeDate,
-	extractFrontmatter,
-	getFrontmatterStringValue,
-} from "./note";
+import { NormalizedNote, normalizeDate, extractFrontmatter, getFrontmatterStringValue } from "./note";
 import {
 	FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY,
 	FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY,
@@ -36,45 +31,24 @@ function getUpdatedFileInfo(incomingNote: NormalizedNote): UpdatedFileInfo {
 	};
 }
 
-async function getExistingFileInfo(
-	noteFilePath: string,
-	app: App
-): Promise<ExistingFileInfo> {
+async function getExistingFileInfo(noteFilePath: string, app: App): Promise<ExistingFileInfo> {
 	const existingContent = await app.vault.adapter.read(noteFilePath);
-	const [, existingBody, existingFrontMatterDict] =
-		extractFrontmatter(existingContent);
+	const [, existingBody, existingFrontMatterDict] = extractFrontmatter(existingContent);
 
 	const existingCreatedDate = normalizeDate(
-		getFrontmatterStringValue(
-			existingFrontMatterDict,
-			FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY
-		)
+		getFrontmatterStringValue(existingFrontMatterDict, FRONTMATTER_GOOGLE_KEEP_CREATED_DATE_KEY)
 	);
 	const existingUpdatedDate = normalizeDate(
-		getFrontmatterStringValue(
-			existingFrontMatterDict,
-			FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY
-		)
+		getFrontmatterStringValue(existingFrontMatterDict, FRONTMATTER_GOOGLE_KEEP_UPDATED_DATE_KEY)
 	);
 	const existingLastSyncedDate = normalizeDate(
-		getFrontmatterStringValue(
-			existingFrontMatterDict,
-			FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY
-		)
+		getFrontmatterStringValue(existingFrontMatterDict, FRONTMATTER_KEEP_SIDIAN_LAST_SYNCED_DATE_KEY)
 	);
 	// Get fsCreatedDate and fsUpdatedDate from noteFilePath
-	const fsCreatedDateTimeStamp = await app.vault.adapter
-		.stat(noteFilePath)
-		.then((stat) => stat?.ctime);
-	const fsUpdatedDateTimeStamp = await app.vault.adapter
-		.stat(noteFilePath)
-		.then((stat) => stat?.mtime);
-	const fsCreatedDate = fsCreatedDateTimeStamp
-		? new Date(fsCreatedDateTimeStamp)
-		: null;
-	const fsUpdatedDate = fsUpdatedDateTimeStamp
-		? new Date(fsUpdatedDateTimeStamp)
-		: null;
+	const fsCreatedDateTimeStamp = await app.vault.adapter.stat(noteFilePath).then((stat) => stat?.ctime);
+	const fsUpdatedDateTimeStamp = await app.vault.adapter.stat(noteFilePath).then((stat) => stat?.mtime);
+	const fsCreatedDate = fsCreatedDateTimeStamp ? new Date(fsCreatedDateTimeStamp) : null;
+	const fsUpdatedDate = fsUpdatedDateTimeStamp ? new Date(fsUpdatedDateTimeStamp) : null;
 
 	return {
 		// Read from noteFilePath
@@ -96,17 +70,13 @@ async function handleDuplicateNotes(
 ): Promise<"skip" | "merge" | "overwrite" | "create"> {
 	const preferredPath = noteFilePathOverride ?? buildNotePath(saveLocation, incomingNote.title);
 	const noteFilePath =
-		(await findExistingKeepNotePath(app, incomingNote, preferredPath, existingKeepNoteIndex)) ??
+		(await findExistingKeepNotePath(app, incomingNote, preferredPath, existingKeepNoteIndex, saveLocation)) ??
 		preferredPath;
 	const fileExists = await app.vault.adapter.exists(noteFilePath);
 
 	if (fileExists) {
-		const updatedFileInfo: UpdatedFileInfo =
-			getUpdatedFileInfo(incomingNote);
-		const existingFileInfo: ExistingFileInfo = await getExistingFileInfo(
-			noteFilePath,
-			app
-		);
+		const updatedFileInfo: UpdatedFileInfo = getUpdatedFileInfo(incomingNote);
+		const existingFileInfo: ExistingFileInfo = await getExistingFileInfo(noteFilePath, app);
 
 		return checkForDuplicateData(updatedFileInfo, existingFileInfo);
 	} else {
@@ -124,18 +94,11 @@ function checkForDuplicateData(
 	const incomingUpdatedDate = incomingFile.updatedDate || currentDate;
 
 	// Normalize dates for existing file
-	const existingUpdatedDate =
-		existingFile.fsUpdatedDate ||
-		existingFile.updatedDate ||
-		existingFile.fsCreatedDate;
-	const lastSyncedDate =
-		existingFile.lastSyncedDate || existingFile.fsCreatedDate;
+	const existingUpdatedDate = existingFile.fsUpdatedDate || existingFile.updatedDate || existingFile.fsCreatedDate;
+	const lastSyncedDate = existingFile.lastSyncedDate || existingFile.fsCreatedDate;
 
 	// Step 1: Check if the contents are exactly the same
-	if (
-		incomingFile.textWithoutFrontmatter ===
-		existingFile.textWithoutFrontmatter
-	) {
+	if (incomingFile.textWithoutFrontmatter === existingFile.textWithoutFrontmatter) {
 		return "skip";
 	}
 
@@ -175,10 +138,4 @@ function checkForDuplicateData(
 	}
 }
 
-export {
-	normalizeDate,
-	handleDuplicateNotes,
-	checkForDuplicateData,
-	getExistingFileInfo,
-	getUpdatedFileInfo,
-};
+export { normalizeDate, handleDuplicateNotes, checkForDuplicateData, getExistingFileInfo, getUpdatedFileInfo };

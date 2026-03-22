@@ -41,56 +41,82 @@ export class SubscriptionSettingsTab {
 			applyChange();
 			await plugin.saveSettings();
 		};
+		const setSettingDisabledState = (setting: Setting, disabled: boolean): void => {
+			setting.setDisabled(disabled);
+			const actionableElements = setting.controlEl.querySelectorAll("input, button, select, textarea");
+			for (const element of actionableElements) {
+				(
+					element as HTMLInputElement | HTMLButtonElement | HTMLSelectElement | HTMLTextAreaElement
+				).disabled = disabled;
+			}
+		};
+		const applySupporterLock = <T extends Setting>(setting: T): T => {
+			if (!isActive) {
+				setting.setClass("requires-subscription");
+				setSettingDisabledState(setting, true);
+			}
+			return setting;
+		};
 		let maxTagsSetting: Setting | null = null;
 		let tagPrefixSetting: Setting | null = null;
 		let limitSetting: Setting | null = null;
 		const refreshTagSettingsState = () => {
 			const tagSuggestionsEnabled = premiumFeatureValues.suggestTags;
-			maxTagsSetting?.setDisabled(!tagSuggestionsEnabled);
-			tagPrefixSetting?.setDisabled(!tagSuggestionsEnabled);
-			limitSetting?.setDisabled(!tagSuggestionsEnabled);
+			const shouldDisableDependentTagSettings = !isActive || !tagSuggestionsEnabled;
+			if (maxTagsSetting) {
+				setSettingDisabledState(maxTagsSetting, shouldDisableDependentTagSettings);
+			}
+			if (tagPrefixSetting) {
+				setSettingDisabledState(tagPrefixSetting, shouldDisableDependentTagSettings);
+			}
+			if (limitSetting) {
+				setSettingDisabledState(limitSetting, shouldDisableDependentTagSettings);
+			}
 		};
 		// 3.2 Filter Notes
-		const includeSetting = new Setting(containerEl)
-			.setName("Only include notes containing")
-			.setDesc("Terms to include (comma-separated)." + descSuffix)
-			.addText((text) =>
-				text
-					.setPlaceholder("Term 1, term 2, ...")
-					.setValue(premiumFeatureValues.includeNotesTerms.join(", "))
-					.onChange(async (value) => {
-						await persistPremiumFeatureChange(() => {
-							premiumFeatureValues.includeNotesTerms = value
-								.split(",")
-								.map((k) => k.trim())
-								.filter((k) => k);
-						});
-					})
-			);
-		if (!isActive) includeSetting.setClass("requires-subscription");
+		applySupporterLock(
+			new Setting(containerEl)
+				.setName("Only include notes containing")
+				.setDesc("Terms to include (comma-separated)." + descSuffix)
+				.addText((text) =>
+					text
+						.setPlaceholder("Term 1, term 2, ...")
+						.setValue(premiumFeatureValues.includeNotesTerms.join(", "))
+						.onChange(async (value) => {
+							await persistPremiumFeatureChange(() => {
+								premiumFeatureValues.includeNotesTerms = value
+									.split(",")
+									.map((k) => k.trim())
+									.filter((k) => k);
+							});
+						})
+				)
+		);
 
-		const excludeSetting = new Setting(containerEl)
-			.setName("Exclude notes containing")
-			.setDesc("Terms to skip (comma-separated)." + descSuffix)
-			.addText((text) =>
-				text
-					.setPlaceholder("Term 1, term 2, ...")
-					.setValue(premiumFeatureValues.excludeNotesTerms.join(", "))
-					.onChange(async (value) => {
-						await persistPremiumFeatureChange(() => {
-							premiumFeatureValues.excludeNotesTerms = value
-								.split(",")
-								.map((k) => k.trim())
-								.filter((k) => k);
-						});
-					})
-			);
-		if (!isActive) excludeSetting.setClass("requires-subscription");
+		applySupporterLock(
+			new Setting(containerEl)
+				.setName("Exclude notes containing")
+				.setDesc("Terms to skip (comma-separated)." + descSuffix)
+				.addText((text) =>
+					text
+						.setPlaceholder("Term 1, term 2, ...")
+						.setValue(premiumFeatureValues.excludeNotesTerms.join(", "))
+						.onChange(async (value) => {
+							await persistPremiumFeatureChange(() => {
+								premiumFeatureValues.excludeNotesTerms = value
+									.split(",")
+									.map((k) => k.trim())
+									.filter((k) => k);
+							});
+						})
+				)
+		);
 
-		const colorFilterSetting = new Setting(containerEl)
-			.setName("Note colors filter")
-			.setDesc("Select one or more note colors to download." + descSuffix);
-		if (!isActive) colorFilterSetting.setClass("requires-subscription");
+		const colorFilterSetting = applySupporterLock(
+			new Setting(containerEl)
+				.setName("Note colors filter")
+				.setDesc("Select one or more note colors to download." + descSuffix)
+		);
 		const colorSummaryEl = colorFilterSetting.controlEl.createEl("span", {
 			text: formatKeepColorSummary(premiumFeatureValues.includeColors),
 			cls: "keepsidian-color-filter-summary",
@@ -125,112 +151,122 @@ export class SubscriptionSettingsTab {
 				refreshColorFilterSummary();
 			});
 		});
+		if (!isActive) {
+			setSettingDisabledState(colorFilterSetting, true);
+		}
 
-		const pinnedSetting = new Setting(containerEl)
-			.setName("Pinned note filter")
-			.setDesc("Download all notes, only pinned notes, or only unpinned notes." + descSuffix)
-			.addDropdown((dropdown) => {
-				dropdown
-					.addOption("all", "All notes")
-					.addOption("pinned", "Pinned only")
-					.addOption("unpinned", "Unpinned only");
-				dropdown.setValue(premiumFeatureValues.pinnedStatus);
-				dropdown.onChange(async (value) => {
-					await persistPremiumFeatureChange(() => {
-						premiumFeatureValues.pinnedStatus = value as typeof premiumFeatureValues.pinnedStatus;
+		applySupporterLock(
+			new Setting(containerEl)
+				.setName("Pinned note filter")
+				.setDesc("Download all notes, only pinned notes, or only unpinned notes." + descSuffix)
+				.addDropdown((dropdown) => {
+					dropdown
+						.addOption("all", "All notes")
+						.addOption("pinned", "Pinned only")
+						.addOption("unpinned", "Unpinned only");
+					dropdown.setValue(premiumFeatureValues.pinnedStatus);
+					dropdown.onChange(async (value) => {
+						await persistPremiumFeatureChange(() => {
+							premiumFeatureValues.pinnedStatus = value as typeof premiumFeatureValues.pinnedStatus;
+						});
 					});
-				});
-			});
-		if (!isActive) pinnedSetting.setClass("requires-subscription");
+				})
+		);
 
-		const archivedSetting = new Setting(containerEl)
-			.setName("Archived note filter")
-			.setDesc("Default is active notes only. Archived-only and all-notes are supporter filters." + descSuffix)
-			.addDropdown((dropdown) => {
-				dropdown
-					.addOption("active-only", "Active notes only")
-					.addOption("archived-only", "Archived notes only")
-					.addOption("all", "All notes");
-				dropdown.setValue(premiumFeatureValues.archivedStatus);
-				dropdown.onChange(async (value) => {
-					await persistPremiumFeatureChange(() => {
-						premiumFeatureValues.archivedStatus = value as typeof premiumFeatureValues.archivedStatus;
+		applySupporterLock(
+			new Setting(containerEl)
+				.setName("Archived note filter")
+				.setDesc("Default is active notes only. Archived-only and all-notes are supporter filters." + descSuffix)
+				.addDropdown((dropdown) => {
+					dropdown
+						.addOption("active-only", "Active notes only")
+						.addOption("archived-only", "Archived notes only")
+						.addOption("all", "All notes");
+					dropdown.setValue(premiumFeatureValues.archivedStatus);
+					dropdown.onChange(async (value) => {
+						await persistPremiumFeatureChange(() => {
+							premiumFeatureValues.archivedStatus = value as typeof premiumFeatureValues.archivedStatus;
+						});
 					});
-				});
-			});
-		if (!isActive) archivedSetting.setClass("requires-subscription");
+				})
+		);
 
 		// 3.3 Title Updates
-		const titleSetting = new Setting(containerEl)
-			.setName("Smart titles")
-			.setDesc("Suggest titles based on note content. Original title will be saved in note." + descSuffix)
-			.addToggle((toggle) =>
-				toggle.setValue(premiumFeatureValues.updateTitle).onChange(async (value) => {
-					await persistPremiumFeatureChange(() => {
-						premiumFeatureValues.updateTitle = value;
-					});
-				})
-			);
-		if (!isActive) titleSetting.setClass("requires-subscription");
+		applySupporterLock(
+			new Setting(containerEl)
+				.setName("Smart titles")
+				.setDesc("Suggest titles based on note content. Original title will be saved in note." + descSuffix)
+				.addToggle((toggle) =>
+					toggle.setValue(premiumFeatureValues.updateTitle).onChange(async (value) => {
+						await persistPremiumFeatureChange(() => {
+							premiumFeatureValues.updateTitle = value;
+						});
+					})
+				)
+		);
 
 		// 3.4 Tag Suggestions
-		const autoTagSetting = new Setting(containerEl)
-			.setName("Auto-tags")
-			.setDesc("Generate tags based on note content." + descSuffix)
-			.addToggle((toggle) =>
-				toggle.setValue(premiumFeatureValues.suggestTags).onChange(async (value) => {
-					await persistPremiumFeatureChange(() => {
-						premiumFeatureValues.suggestTags = value;
-						refreshTagSettingsState();
-					});
-				})
-			);
-		if (!isActive) autoTagSetting.setClass("requires-subscription");
-
-		maxTagsSetting = new Setting(containerEl)
-			.setName("Maximum tags")
-			.setDesc("Maximum number of tags to generate." + descSuffix)
-			.addSlider((slider) =>
-				slider
-					.setLimits(1, 10, 1)
-					.setValue(premiumFeatureValues.maxTags)
-					.onChange(async (value) => {
+		applySupporterLock(
+			new Setting(containerEl)
+				.setName("Auto-tags")
+				.setDesc("Generate tags based on note content." + descSuffix)
+				.addToggle((toggle) =>
+					toggle.setValue(premiumFeatureValues.suggestTags).onChange(async (value) => {
 						await persistPremiumFeatureChange(() => {
-							premiumFeatureValues.maxTags = value;
+							premiumFeatureValues.suggestTags = value;
+							refreshTagSettingsState();
 						});
 					})
-			)
-			.setDisabled(!premiumFeatureValues.suggestTags);
-		if (!isActive) maxTagsSetting.setClass("requires-subscription");
+				)
+		);
 
-		tagPrefixSetting = new Setting(containerEl)
-			.setName("Tag prefix")
-			.setDesc("Prefix to identify generated tags (leave empty for none)." + descSuffix)
-			.addText((text) =>
-				text
-					.setValue(premiumFeatureValues.tagPrefix)
-					.setPlaceholder("Auto-")
-					.onChange(async (value) => {
+		maxTagsSetting = applySupporterLock(
+			new Setting(containerEl)
+				.setName("Maximum tags")
+				.setDesc("Maximum number of tags to generate." + descSuffix)
+				.addSlider((slider) =>
+					slider
+						.setLimits(1, 10, 1)
+						.setValue(premiumFeatureValues.maxTags)
+						.onChange(async (value) => {
+							await persistPremiumFeatureChange(() => {
+								premiumFeatureValues.maxTags = value;
+							});
+						})
+				)
+				.setDisabled(!isActive || !premiumFeatureValues.suggestTags)
+		);
+
+		tagPrefixSetting = applySupporterLock(
+			new Setting(containerEl)
+				.setName("Tag prefix")
+				.setDesc("Prefix to identify generated tags (leave empty for none)." + descSuffix)
+				.addText((text) =>
+					text
+						.setValue(premiumFeatureValues.tagPrefix)
+						.setPlaceholder("Auto-")
+						.onChange(async (value) => {
+							await persistPremiumFeatureChange(() => {
+								premiumFeatureValues.tagPrefix = value;
+							});
+						})
+				)
+				.setDisabled(!isActive || !premiumFeatureValues.suggestTags)
+		);
+
+		limitSetting = applySupporterLock(
+			new Setting(containerEl)
+				.setName("Limit to existing tags")
+				.setDesc("Only generate tags that already exist in your vault." + descSuffix)
+				.addToggle((toggle) =>
+					toggle.setValue(premiumFeatureValues.limitToExistingTags).onChange(async (value) => {
 						await persistPremiumFeatureChange(() => {
-							premiumFeatureValues.tagPrefix = value;
+							premiumFeatureValues.limitToExistingTags = value;
 						});
 					})
-			)
-			.setDisabled(!premiumFeatureValues.suggestTags);
-		if (!isActive) tagPrefixSetting.setClass("requires-subscription");
-
-		limitSetting = new Setting(containerEl)
-			.setName("Limit to existing tags")
-			.setDesc("Only generate tags that already exist in your vault." + descSuffix)
-			.addToggle((toggle) =>
-				toggle.setValue(premiumFeatureValues.limitToExistingTags).onChange(async (value) => {
-					await persistPremiumFeatureChange(() => {
-						premiumFeatureValues.limitToExistingTags = value;
-					});
-				})
-			)
-			.setDisabled(!premiumFeatureValues.suggestTags);
-		if (!isActive) limitSetting.setClass("requires-subscription");
+				)
+				.setDisabled(!isActive || !premiumFeatureValues.suggestTags)
+		);
 
 		refreshTagSettingsState();
 	}

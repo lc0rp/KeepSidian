@@ -19,10 +19,7 @@ jest.mock("../../modals/KeepColorPickerModal", () => {
 		app: unknown;
 		options: { selectedColors: string[]; onSave: (selectedColors: string[]) => void };
 
-		constructor(
-			app: unknown,
-			options: { selectedColors: string[]; onSave: (selectedColors: string[]) => void }
-		) {
+		constructor(app: unknown, options: { selectedColors: string[]; onSave: (selectedColors: string[]) => void }) {
 			this.app = app;
 			this.options = options;
 			__mockKeepColorPickerModal.instances.push(this);
@@ -146,10 +143,7 @@ interface MockDropdownComponent {
 	setDisabled: jest.Mock<MockDropdownComponent, [boolean]>;
 }
 
-const createMockTextComponent = (
-	inputEl: HTMLInputElement,
-	createEl: CreateElFn
-): MockTextComponent => {
+const createMockTextComponent = (inputEl: HTMLInputElement, createEl: CreateElFn): MockTextComponent => {
 	const component: MockTextComponent = {
 		inputEl,
 		setPlaceholder: jest.fn(),
@@ -234,10 +228,7 @@ const createMockExtraButtonComponent = (buttonEl: HTMLButtonElement): MockExtraB
 	return component;
 };
 
-const createMockSliderComponent = (
-	inputEl: HTMLInputElement,
-	createEl: CreateElFn
-): MockSliderComponent => {
+const createMockSliderComponent = (inputEl: HTMLInputElement, createEl: CreateElFn): MockSliderComponent => {
 	const component: MockSliderComponent = {
 		setLimits: jest.fn(),
 		setValue: jest.fn(),
@@ -264,9 +255,7 @@ const createMockSliderComponent = (
 	return component;
 };
 
-const createMockDropdownComponent = (
-	selectEl: HTMLSelectElement
-): MockDropdownComponent => {
+const createMockDropdownComponent = (selectEl: HTMLSelectElement): MockDropdownComponent => {
 	const component: MockDropdownComponent = {
 		addOption: jest.fn(),
 		addOptions: jest.fn(),
@@ -355,10 +344,7 @@ function createElImpl(
 	opts?: CreateElOptions | string,
 	callback?: (el: HTMLElementWithCreateEl) => void
 ): HTMLElementWithCreateEl {
-	const element = attachCreateEl(
-		document.createElement(tag),
-		createElImpl as unknown as CreateElFn
-	);
+	const element = attachCreateEl(document.createElement(tag), createElImpl as unknown as CreateElFn);
 	applyOptions(element, opts);
 	this.appendChild(element);
 	if (callback) {
@@ -571,9 +557,7 @@ describe("SubscriptionSettingsTab", () => {
 
 			await subscriptionTab.display();
 
-			expect(containerEl.querySelector("em")?.textContent).toBe(
-				"Support development and unlock advanced features"
-			);
+			expect(containerEl.querySelector("em")?.textContent).toBe("Support development and unlock advanced features");
 			expect(containerEl.textContent).toContain("Auto-tags");
 			expect(containerEl.textContent).toContain("Available to project supporters");
 		});
@@ -621,6 +605,73 @@ describe("SubscriptionSettingsTab", () => {
 			expect(containerEl.textContent).toContain("Exclude notes containing");
 			expect(containerEl.textContent).toContain("Available to project supporters");
 		});
+
+		it("disables premium controls for non-supporters", async () => {
+			plugin.settings.premiumFeatures.suggestTags = true;
+			plugin.settings.premiumFeatures.limitToExistingTags = true;
+			plugin.settings.premiumFeatures.updateTitle = true;
+			jest.spyOn(plugin.subscriptionService, "isSubscriptionActive").mockResolvedValue(false);
+
+			await subscriptionTab.display();
+
+			const includeInput = findSettingByLabel(containerEl, "Only include notes containing")?.querySelector(
+				'input[type="text"]'
+			) as HTMLInputElement | null;
+			const excludeInput = findSettingByLabel(containerEl, "Exclude notes containing")?.querySelector(
+				'input[type="text"]'
+			) as HTMLInputElement | null;
+			const chooseColorsButton = Array.from(containerEl.querySelectorAll("button")).find(
+				(button) => button.textContent === "Choose colors"
+			) as HTMLButtonElement | undefined;
+			const resetColorsButton = Array.from(containerEl.querySelectorAll("button")).find(
+				(button) => button.textContent === "Reset"
+			) as HTMLButtonElement | undefined;
+			const pinnedSelect = findSettingByLabel(containerEl, "Pinned note filter")?.querySelector(
+				"select"
+			) as HTMLSelectElement | null;
+			const archivedSelect = findSettingByLabel(containerEl, "Archived note filter")?.querySelector(
+				"select"
+			) as HTMLSelectElement | null;
+			const smartTitlesToggle = findSettingByLabel(containerEl, "Smart titles")?.querySelector(
+				'input[type="checkbox"]'
+			) as HTMLInputElement | null;
+			const autoTagsToggle = findSettingByLabel(containerEl, "Auto-tags")?.querySelector(
+				'input[type="checkbox"]'
+			) as HTMLInputElement | null;
+			const maxTagsInput = findSettingByLabel(containerEl, "Maximum tags")?.querySelector(
+				'input[type="range"]'
+			) as HTMLInputElement | null;
+			const tagPrefixInput = findSettingByLabel(containerEl, "Tag prefix")?.querySelector(
+				'input[type="text"]'
+			) as HTMLInputElement | null;
+			const limitToggle = findSettingByLabel(containerEl, "Limit to existing tags")?.querySelector(
+				'input[type="checkbox"]'
+			) as HTMLInputElement | null;
+
+			expect(includeInput?.disabled).toBe(true);
+			expect(excludeInput?.disabled).toBe(true);
+			expect(chooseColorsButton?.disabled).toBe(true);
+			expect(resetColorsButton?.disabled).toBe(true);
+			expect(pinnedSelect?.disabled).toBe(true);
+			expect(archivedSelect?.disabled).toBe(true);
+			expect(smartTitlesToggle?.disabled).toBe(true);
+			expect(autoTagsToggle?.disabled).toBe(true);
+			expect(maxTagsInput?.disabled).toBe(true);
+			expect(tagPrefixInput?.disabled).toBe(true);
+			expect(limitToggle?.disabled).toBe(true);
+
+			const saveCallsBeforeInteraction = (plugin.saveSettings as jest.Mock).mock.calls.length;
+			chooseColorsButton?.click();
+			resetColorsButton?.click();
+			autoTagsToggle?.click();
+			smartTitlesToggle?.click();
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(keepColorPickerModalMock.__mockKeepColorPickerModal.openCalls).toBe(0);
+			expect(plugin.settings.premiumFeatures.suggestTags).toBe(true);
+			expect(plugin.settings.premiumFeatures.updateTitle).toBe(true);
+			expect(plugin.saveSettings).toHaveBeenCalledTimes(saveCallsBeforeInteraction);
+		});
 	});
 
 	describe("Event Handlers", () => {
@@ -632,9 +683,7 @@ describe("SubscriptionSettingsTab", () => {
 			await subscriptionTab.display();
 
 			// Find and simulate click on refresh button
-			const refreshButton = containerEl.querySelector(
-				'[aria-label="Check subscription status"]'
-			) as HTMLElement;
+			const refreshButton = containerEl.querySelector('[aria-label="Check subscription status"]') as HTMLElement;
 			refreshButton?.click();
 
 			expect(plugin.subscriptionService.checkSubscription).toHaveBeenCalled();
@@ -645,9 +694,7 @@ describe("SubscriptionSettingsTab", () => {
 
 			await subscriptionTab.display();
 
-			const subscribeLink = containerEl.querySelector(
-				'a[data-keepsidian-link="subscribe"]'
-			);
+			const subscribeLink = containerEl.querySelector('a[data-keepsidian-link="subscribe"]');
 			expect(subscribeLink).not.toBeNull();
 			expect(subscribeLink?.getAttribute("href")).toBe("https://keepsidian.com/subscribe");
 			expect(subscribeLink?.getAttribute("target")).toBe("_blank");
@@ -678,9 +725,7 @@ describe("SubscriptionSettingsTab", () => {
 			const subscriptionSection = containerEl.querySelector(".keepsidian-subscription-settings");
 			expect(plugin.subscriptionService.isSubscriptionActive).toHaveBeenNthCalledWith(2, true);
 			expect(subscriptionSection?.textContent).toContain("✅ Active supporter (Plan: premium)");
-			expect(subscriptionSection?.textContent).not.toContain(
-				"Support development and unlock advanced features"
-			);
+			expect(subscriptionSection?.textContent).not.toContain("Support development and unlock advanced features");
 			expect(subscriptionSection?.querySelectorAll(".setting-heading")).toHaveLength(1);
 		});
 
@@ -695,9 +740,7 @@ describe("SubscriptionSettingsTab", () => {
 
 			await subscriptionTab.display();
 
-			const manageLink = containerEl.querySelector(
-				'a[data-keepsidian-link="manage-subscription"]'
-			);
+			const manageLink = containerEl.querySelector('a[data-keepsidian-link="manage-subscription"]');
 			expect(manageLink).not.toBeNull();
 			expect(manageLink?.getAttribute("href")).toBe(
 				"https://keepsidian.com/subscriber/portal?prefilled_email=test%40example.com"
@@ -722,10 +765,7 @@ describe("SubscriptionSettingsTab", () => {
 			expect(keepColorPickerModalMock.__mockKeepColorPickerModal.openCalls).toBe(1);
 			expect(keepColorPickerModalMock.__mockKeepColorPickerModal.instances).toHaveLength(1);
 
-			keepColorPickerModalMock.__mockKeepColorPickerModal.instances[0]?.options.onSave([
-				"YELLOW",
-				"BLUE",
-			]);
+			keepColorPickerModalMock.__mockKeepColorPickerModal.instances[0]?.options.onSave(["YELLOW", "BLUE"]);
 			await new Promise((resolve) => setTimeout(resolve, 0));
 
 			expect(plugin.settings.premiumFeatures.includeColors).toEqual(["YELLOW", "BLUE"]);
@@ -758,12 +798,8 @@ describe("SubscriptionSettingsTab", () => {
 
 			const includeSetting = findSettingByLabel(containerEl, "Only include notes containing");
 			const autoTagsSetting = findSettingByLabel(containerEl, "Auto-tags");
-			const includeInput = includeSetting?.querySelector('input[type="text"]') as
-				| HTMLInputElement
-				| undefined;
-			const autoTagsToggle = autoTagsSetting?.querySelector('input[type="checkbox"]') as
-				| HTMLInputElement
-				| undefined;
+			const includeInput = includeSetting?.querySelector('input[type="text"]') as HTMLInputElement | undefined;
+			const autoTagsToggle = autoTagsSetting?.querySelector('input[type="checkbox"]') as HTMLInputElement | undefined;
 
 			if (!includeInput || !autoTagsToggle) {
 				throw new Error("Premium feature controls not rendered");
@@ -790,18 +826,10 @@ describe("SubscriptionSettingsTab", () => {
 			const tagPrefixSetting = findSettingByLabel(containerEl, "Tag prefix");
 			const limitSetting = findSettingByLabel(containerEl, "Limit to existing tags");
 
-			const autoTagsToggle = autoTagsSetting?.querySelector('input[type="checkbox"]') as
-				| HTMLInputElement
-				| undefined;
-			const maxTagsInput = maxTagsSetting?.querySelector('input[type="range"]') as
-				| HTMLInputElement
-				| undefined;
-			const tagPrefixInput = tagPrefixSetting?.querySelector('input[type="text"]') as
-				| HTMLInputElement
-				| undefined;
-			const limitToggle = limitSetting?.querySelector('input[type="checkbox"]') as
-				| HTMLInputElement
-				| undefined;
+			const autoTagsToggle = autoTagsSetting?.querySelector('input[type="checkbox"]') as HTMLInputElement | undefined;
+			const maxTagsInput = maxTagsSetting?.querySelector('input[type="range"]') as HTMLInputElement | undefined;
+			const tagPrefixInput = tagPrefixSetting?.querySelector('input[type="text"]') as HTMLInputElement | undefined;
+			const limitToggle = limitSetting?.querySelector('input[type="checkbox"]') as HTMLInputElement | undefined;
 
 			if (!autoTagsToggle || !maxTagsInput || !tagPrefixInput || !limitToggle) {
 				throw new Error("Auto-tags controls not rendered");

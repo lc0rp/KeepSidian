@@ -58,10 +58,7 @@ describe("pushGoogleKeepNotes", () => {
 
 		const plugin = base as unknown as KeepSidianPlugin;
 		const adapter = plugin.app.vault.adapter as unknown as MockVaultAdapter;
-		const createFolderMock = plugin.app.vault.createFolder as unknown as jest.Mock<
-			Promise<void>,
-			[string]
-		>;
+		const createFolderMock = plugin.app.vault.createFolder as unknown as jest.Mock<Promise<void>, [string]>;
 		createFolderMock.mockResolvedValue(undefined);
 
 		return { plugin, adapter };
@@ -78,9 +75,7 @@ describe("pushGoogleKeepNotes", () => {
 	it("skips notes that are up to date", async () => {
 		const { plugin, adapter } = createPlugin();
 		adapter.list.mockResolvedValue({ files: ["Keep/note.md"], folders: [] });
-		adapter.read.mockResolvedValue(
-			`---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent`
-		);
+		adapter.read.mockResolvedValue(`---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent`);
 		adapter.stat.mockResolvedValue({ mtime: new Date("2024-01-01T00:00:00Z").getTime() });
 
 		const result = await pushGoogleKeepNotes(plugin);
@@ -94,9 +89,7 @@ describe("pushGoogleKeepNotes", () => {
 		jest.useFakeTimers().setSystemTime(new Date("2024-02-01T00:00:00Z"));
 		const { plugin, adapter } = createPlugin();
 		adapter.list.mockResolvedValue({ files: ["Keep/note.md"], folders: [] });
-		adapter.read.mockResolvedValue(
-			`---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent`
-		);
+		adapter.read.mockResolvedValue(`---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent`);
 		adapter.stat.mockResolvedValue({ mtime: new Date("2024-01-05T00:00:00Z").getTime() });
 		(apiPushNotes as jest.Mock).mockResolvedValue({
 			results: [{ path: "note.md", success: true }],
@@ -122,9 +115,7 @@ describe("pushGoogleKeepNotes", () => {
 		jest.useFakeTimers().setSystemTime(new Date("2024-01-01T00:00:00Z"));
 		const { plugin, adapter } = createPlugin();
 		adapter.list.mockResolvedValue({ files: ["Keep/note.md"], folders: [] });
-		adapter.read.mockResolvedValue(
-			`---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent`
-		);
+		adapter.read.mockResolvedValue(`---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent`);
 		adapter.stat.mockResolvedValue({
 			mtime: new Date("2024-01-01T00:00:00.500Z").getTime(),
 		});
@@ -173,9 +164,7 @@ describe("pushGoogleKeepNotes", () => {
 	it("surfaces errors from the push API", async () => {
 		const { plugin, adapter } = createPlugin();
 		adapter.list.mockResolvedValue({ files: ["Keep/note.md"], folders: [] });
-		adapter.read.mockResolvedValue(
-			"---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent"
-		);
+		adapter.read.mockResolvedValue("---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent");
 		adapter.stat.mockResolvedValue({ mtime: new Date("2024-01-05T00:00:00Z").getTime() });
 		(apiPushNotes as jest.Mock).mockRejectedValue(new Error("network failure"));
 
@@ -183,15 +172,12 @@ describe("pushGoogleKeepNotes", () => {
 		expect(Notice).toHaveBeenCalledWith("Failed to push notes.");
 	});
 
-	it("pushes KeepSidian notes outside the current saveLocation for backward compatibility", async () => {
+	it("only pushes KeepSidian notes under the current saveLocation", async () => {
 		jest.useFakeTimers().setSystemTime(new Date("2024-02-01T00:00:00Z"));
 		const { plugin, adapter } = createPlugin();
 		adapter.list.mockImplementation(async (path: string) => {
-			if (!path) {
-				return { files: [], folders: ["Archive"] };
-			}
-			if (path === "Archive") {
-				return { files: ["Archive/renamed-note.md"], folders: [] };
+			if (path === "Keep") {
+				return { files: ["Keep/note.md"], folders: [] };
 			}
 			return { files: [], folders: [] };
 		});
@@ -200,15 +186,16 @@ describe("pushGoogleKeepNotes", () => {
 		);
 		adapter.stat.mockResolvedValue({ mtime: new Date("2024-01-05T00:00:00Z").getTime() });
 		(apiPushNotes as jest.Mock).mockResolvedValue({
-			results: [{ path: "Archive/renamed-note.md", success: true }],
+			results: [{ path: "note.md", success: true }],
 		});
 
 		const pushed = await pushGoogleKeepNotes(plugin);
 
 		expect(pushed).toBe(1);
+		expect(adapter.list).toHaveBeenCalledWith("Keep");
 		expect(apiPushNotes).toHaveBeenCalledWith(email, token, [
 			expect.objectContaining({
-				path: "Archive/renamed-note.md",
+				path: "note.md",
 				content: expect.stringContaining("content"),
 			}),
 		]);
@@ -250,16 +237,10 @@ describe("pushGoogleKeepNotes", () => {
 	it("locks upload review selections for non-supporters", async () => {
 		const { plugin, adapter } = createPlugin();
 		adapter.list.mockResolvedValue({ files: ["Keep/note.md"], folders: [] });
-		adapter.read.mockResolvedValue(
-			"---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent"
-		);
+		adapter.read.mockResolvedValue("---\nKeepSidianLastSyncedDate: 2024-01-01T00:00:00.000Z\n---\ncontent");
 		adapter.stat.mockResolvedValue({ mtime: new Date("2024-01-05T00:00:00Z").getTime() });
 
-		const builtPlan = await buildPushSyncPlan(
-			plugin,
-			false,
-			"Available to project supporters"
-		);
+		const builtPlan = await buildPushSyncPlan(plugin, false, "Available to project supporters");
 
 		expect(builtPlan.plan.entries[0]).toEqual(
 			expect.objectContaining({

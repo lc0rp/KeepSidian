@@ -2,10 +2,17 @@ import type KeepSidianPlugin from "main";
 import { Setting } from "obsidian";
 import type { ToggleComponent } from "obsidian";
 
-export async function addAutoSyncSettings(
-	plugin: KeepSidianPlugin,
-	containerEl: HTMLElement
-): Promise<void> {
+export async function addAutoSyncSettings(plugin: KeepSidianPlugin, containerEl: HTMLElement): Promise<void> {
+	const setSettingDisabledState = (setting: Setting, disabled: boolean): void => {
+		setting.setDisabled(disabled);
+		const actionableElements = setting.controlEl.querySelectorAll("input, button, select, textarea");
+		for (const element of actionableElements) {
+			(
+				element as HTMLInputElement | HTMLButtonElement | HTMLSelectElement | HTMLTextAreaElement
+			).disabled = disabled;
+		}
+	};
+
 	new Setting(containerEl).setName("Background sync").setHeading();
 
 	let updateTwoWaySettingsState: () => void = () => {};
@@ -49,7 +56,7 @@ export async function addAutoSyncSettings(
 		);
 
 	if (!isSubscribed) {
-		intervalSetting.setDisabled(true);
+		setSettingDisabledState(intervalSetting, true);
 		intervalSetting.setClass("requires-subscription");
 	}
 
@@ -82,11 +89,19 @@ export async function addAutoSyncSettings(
 		manualTwoWayToggle?.setValue(manualTwoWayEnabled);
 		autoTwoWayToggle?.setValue(autoTwoWayEnabled);
 
-		const manualDesc = backupAcknowledged
-			? "Turn on the 'Upload' and 'Two-way sync' commands."
-			: "Turn on the 'Upload' and 'Two-way sync' commands. (Please opt-in above to activate)";
+		const manualBaseDesc = "Turn on the 'Upload' and 'Two-way sync' commands.";
+		const manualRequirements: string[] = [];
+		if (!isSubscribed) {
+			manualRequirements.push("Available to project supporters");
+		}
+		if (!backupAcknowledged) {
+			manualRequirements.push("Please opt-in above to activate");
+		}
+		const manualDesc = manualRequirements.length
+			? `${manualBaseDesc} (${formatRequirementList(manualRequirements)})`
+			: manualBaseDesc;
 		manualTwoWaySetting.setDesc(manualDesc);
-		manualTwoWaySetting.setDisabled(!backupAcknowledged);
+		setSettingDisabledState(manualTwoWaySetting, manualRequirements.length > 0);
 
 		const requirements: string[] = [];
 		if (!isSubscribed) {
@@ -104,12 +119,10 @@ export async function addAutoSyncSettings(
 		}
 
 		const autoDesc = requirements.length
-			? `Background sync will run uploads and downloads together when enabled. (${formatRequirementList(
-					requirements
-			  )})`
+			? `Background sync will run uploads and downloads together when enabled. (${formatRequirementList(requirements)})`
 			: "Background sync will run uploads and downloads together when enabled.";
 		autoTwoWaySetting.setDesc(autoDesc);
-		autoTwoWaySetting.setDisabled(requirements.length > 0);
+		setSettingDisabledState(autoTwoWaySetting, requirements.length > 0);
 		suppressTwoWayUpdates = false;
 	};
 
@@ -196,6 +209,7 @@ export async function addAutoSyncSettings(
 	});
 
 	if (!isSubscribed) {
+		manualTwoWaySetting.setClass("requires-subscription");
 		autoTwoWaySetting.setClass("requires-subscription");
 	}
 

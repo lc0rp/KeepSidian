@@ -892,15 +892,23 @@ describe("KeepSidianSettingsTab UI interactions", () => {
 		expect(autoToggle.checked).toBe(false);
 	});
 
-	test("non-premium users see locked auto two-way toggle", async () => {
+	test("non-premium users see locked two-way toggles", async () => {
 		const container = tab.containerEl;
 		subscriptionServiceMock.isSubscriptionActive.mockResolvedValue(false);
+		plugin.settings.twoWaySyncBackupAcknowledged = true;
 		await tabInternals.addAutoSyncSettings(container);
 
+		const manualSetting = findSettingByLabel(container, "Enable two-way sync");
 		const autoSetting = findSettingByLabel(container, "Enable two-way background sync");
+		expect(manualSetting).not.toBeNull();
 		expect(autoSetting).not.toBeNull();
+		expect(manualSetting?.classList.contains("requires-subscription")).toBe(true);
 		expect(autoSetting?.classList.contains("requires-subscription")).toBe(true);
+		expect((manualSetting?.querySelector('input[type="checkbox"]') as HTMLInputElement | null)?.disabled).toBe(true);
+		expect((autoSetting?.querySelector('input[type="checkbox"]') as HTMLInputElement | null)?.disabled).toBe(true);
+		const manualDesc = manualSetting?.querySelector(".setting-item-description")?.textContent;
 		const autoDesc = autoSetting?.querySelector(".setting-item-description")?.textContent;
+		expect(manualDesc).toContain("Available to project supporters");
 		expect(autoDesc).toContain("Available to project supporters");
 	});
 });

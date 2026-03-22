@@ -158,10 +158,7 @@ describe("Google Keep Import Functions", () => {
 
 				const expected = "2024-03-03T12:34:56.000Z";
 				expect(mockPlugin.settings.keepSidianLastSuccessfulSyncDate).toBe(expected);
-				expect(setVaultConfigMock).toHaveBeenCalledWith(
-					"KeepSidianLastSuccessfulSyncDate",
-					expected
-				);
+				expect(setVaultConfigMock).toHaveBeenCalledWith("KeepSidianLastSuccessfulSyncDate", expected);
 			} finally {
 				jest.useRealTimers();
 			}
@@ -235,9 +232,7 @@ describe("Google Keep Import Functions", () => {
 
 		it("should handle errors with premium features", async () => {
 			(requestUrl as jest.Mock).mockRejectedValue(new Error("Premium feature error"));
-			await expect(importGoogleKeepNotesWithOptions(mockPlugin, mockOptions)).rejects.toThrow(
-				"Premium feature error"
-			);
+			await expect(importGoogleKeepNotesWithOptions(mockPlugin, mockOptions)).rejects.toThrow("Premium feature error");
 			expect(Notice).toHaveBeenCalledWith("Failed to import notes.");
 		});
 	});
@@ -265,9 +260,7 @@ describe("Google Keep Import Functions", () => {
 					json: () => ({ notes: [] }),
 					text: JSON.stringify({ notes: [] }),
 				} as RequestUrlResponse);
-			(handleDuplicateNotes as jest.Mock)
-				.mockResolvedValueOnce("create")
-				.mockResolvedValueOnce("skip");
+			(handleDuplicateNotes as jest.Mock).mockResolvedValueOnce("create").mockResolvedValueOnce("skip");
 
 			const builtPlan = await buildImportSyncPlan(mockPlugin);
 
@@ -305,12 +298,7 @@ describe("Google Keep Import Functions", () => {
 				} as RequestUrlResponse);
 			(handleDuplicateNotes as jest.Mock).mockResolvedValueOnce("overwrite");
 
-			const builtPlan = await buildImportSyncPlan(
-				mockPlugin,
-				undefined,
-				false,
-				"Available to project supporters"
-			);
+			const builtPlan = await buildImportSyncPlan(mockPlugin, undefined, false, "Available to project supporters");
 
 			expect(builtPlan.plan.entries[0]).toEqual(
 				expect.objectContaining({
@@ -342,20 +330,45 @@ describe("Google Keep Import Functions", () => {
 				} as RequestUrlResponse);
 			(handleDuplicateNotes as jest.Mock).mockResolvedValueOnce("create");
 
-			await buildImportSyncPlan(
-				mockPlugin,
-				undefined,
-				true,
-				undefined,
-				undefined,
-				{
-					kind: "custom-since",
-					since: "2024-04-01T08:45:00.000Z",
-				}
-			);
+			await buildImportSyncPlan(mockPlugin, undefined, true, undefined, undefined, {
+				kind: "custom-since",
+				since: "2024-04-01T08:45:00.000Z",
+			});
 
 			const [[requestParams]] = (requestUrl as jest.Mock).mock.calls;
 			expect(requestParams.url).toContain("changed_gt=2024-04-01T08%3A45%3A00.000Z");
+		});
+
+		it("scopes duplicate lookup to saveLocation when building the review plan", async () => {
+			const response = {
+				notes: [{ title: "Create note", text: "body-1" }],
+			};
+			(mockPlugin.app.vault.adapter.list as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === "Test Folder") {
+					return { files: [], folders: [] };
+				}
+				throw new Error(`Unexpected duplicate lookup scope: ${path}`);
+			});
+			(requestUrl as jest.Mock)
+				.mockResolvedValueOnce({
+					status: 200,
+					headers: {},
+					arrayBuffer: new ArrayBuffer(0),
+					json: () => response,
+					text: JSON.stringify(response),
+				} as RequestUrlResponse)
+				.mockResolvedValueOnce({
+					status: 200,
+					headers: {},
+					arrayBuffer: new ArrayBuffer(0),
+					json: () => ({ notes: [] }),
+					text: JSON.stringify({ notes: [] }),
+				} as RequestUrlResponse);
+			(handleDuplicateNotes as jest.Mock).mockResolvedValueOnce("create");
+
+			await buildImportSyncPlan(mockPlugin);
+
+			expect(mockPlugin.app.vault.adapter.list).toHaveBeenCalledWith("Test Folder");
 		});
 	});
 
@@ -438,10 +451,7 @@ describe("Google Keep Import Functions", () => {
 			expect(mockPlugin.app.vault.adapter.exists).toHaveBeenCalledWith("Test Folder");
 			expect(mockPlugin.app.vault.adapter.exists).toHaveBeenCalledWith("Test Folder/media");
 			// saveLocation and media folder; logging may also ensure parent exists
-			const createFolderMock = mockPlugin.app.vault.createFolder as unknown as jest.Mock<
-				Promise<void>,
-				[string]
-			>;
+			const createFolderMock = mockPlugin.app.vault.createFolder as unknown as jest.Mock<Promise<void>, [string]>;
 			expect(createFolderMock.mock.calls.length).toBeGreaterThanOrEqual(2);
 		});
 
@@ -493,14 +503,14 @@ describe("Google Keep Import Functions", () => {
 
 			expect(compareModule.handleDuplicateNotes).not.toHaveBeenCalled();
 			expect(mockPlugin.app.vault.adapter.write).not.toHaveBeenCalled();
-                        expect(logSpy).toHaveBeenCalledWith(
-                                mockPlugin,
-                                "Skipped note without a title",
-                                expect.objectContaining({
-                                        batchKey: "sync:notes",
-                                        batchSize: 50,
-                                })
-                        );
+			expect(logSpy).toHaveBeenCalledWith(
+				mockPlugin,
+				"Skipped note without a title",
+				expect.objectContaining({
+					batchKey: "sync:notes",
+					batchSize: 50,
+				})
+			);
 			logSpy.mockRestore();
 		});
 
@@ -509,12 +519,8 @@ describe("Google Keep Import Functions", () => {
 			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("create");
 			jest.spyOn(mockPlugin.app.vault.adapter, "write").mockResolvedValue(undefined);
 			jest.spyOn(Date.prototype, "toISOString").mockReturnValue("2023-01-01T00:00:00.000Z");
-			jest.spyOn(obsidian, "normalizePath").mockReturnValue(
-				`${mockPlugin.settings.saveLocation}/${note.title}.md`
-			);
-			const ensureParentSpy = jest
-				.spyOn(pathsModule, "ensureParentFolderForFile")
-				.mockResolvedValue(undefined);
+			jest.spyOn(obsidian, "normalizePath").mockReturnValue(`${mockPlugin.settings.saveLocation}/${note.title}.md`);
+			const ensureParentSpy = jest.spyOn(pathsModule, "ensureParentFolderForFile").mockResolvedValue(undefined);
 			await syncModule.processAndSaveNote(mockPlugin, note, mockPlugin.settings.saveLocation);
 
 			expect(noteModule.normalizeNote).toHaveBeenCalledWith(note);
@@ -534,9 +540,9 @@ describe("Google Keep Import Functions", () => {
 			ensureParentSpy.mockRestore();
 		});
 
-			it("resolves note paths from save-location and filename patterns", async () => {
-				mockPlugin.settings.saveLocation = "KeepSidian/{note.year}/{note.month}";
-				mockPlugin.settings.noteFileNamePattern = "{note.date}-{title}";
+		it("resolves note paths from save-location and filename patterns", async () => {
+			mockPlugin.settings.saveLocation = "KeepSidian/{note.year}/{note.month}";
+			mockPlugin.settings.noteFileNamePattern = "{note.date}-{title}";
 			const datedNote: noteModule.NormalizedNote = {
 				...normalizedNote,
 				created: new Date("2024-03-20T14:30:45.000Z"),
@@ -544,16 +550,11 @@ describe("Google Keep Import Functions", () => {
 
 			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(datedNote);
 			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("create");
-			const ensureParentSpy = jest
-				.spyOn(pathsModule, "ensureParentFolderForFile")
-				.mockResolvedValue(undefined);
+			const ensureParentSpy = jest.spyOn(pathsModule, "ensureParentFolderForFile").mockResolvedValue(undefined);
 
 			await syncModule.processAndSaveNote(mockPlugin, note, mockPlugin.settings.saveLocation);
 
-			expect(ensureParentSpy).toHaveBeenCalledWith(
-				mockPlugin.app,
-				"KeepSidian/2024/03/2024-03-20-Note 1.md"
-			);
+			expect(ensureParentSpy).toHaveBeenCalledWith(mockPlugin.app, "KeepSidian/2024/03/2024-03-20-Note 1.md");
 			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalledWith(
 				"KeepSidian/2024/03/2024-03-20-Note 1.md",
 				expect.any(String)
@@ -569,11 +570,9 @@ describe("Google Keep Import Functions", () => {
 
 			const expectedNotePath = `${mockPlugin.settings.saveLocation}/${note.title}.md`;
 			// No write to note file when skipped; logging may still write to log file
-			expect(
-				(mockPlugin.app.vault.adapter.write as jest.Mock).mock.calls.some(
-					(c) => c[0] === expectedNotePath
-				)
-			).toBe(false);
+			expect((mockPlugin.app.vault.adapter.write as jest.Mock).mock.calls.some((c) => c[0] === expectedNotePath)).toBe(
+				false
+			);
 		});
 
 		it("should merge note file if duplicate action is merge and merge succeeds", async () => {
@@ -595,22 +594,15 @@ describe("Google Keep Import Functions", () => {
 			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("merge");
 			jest.spyOn(mockPlugin.app.vault.adapter, "read").mockResolvedValue(existingContent);
 			jest.spyOn(Date.prototype, "toISOString").mockReturnValue("2023-01-01T00:00:00.000Z");
-			jest.spyOn(obsidian, "normalizePath").mockReturnValue(
-				`${mockPlugin.settings.saveLocation}/${incomingNote.title}.md`
-			);
+			jest
+				.spyOn(obsidian, "normalizePath")
+				.mockReturnValue(`${mockPlugin.settings.saveLocation}/${incomingNote.title}.md`);
 
-			await syncModule.processAndSaveNote(
-				mockPlugin,
-				incomingNote,
-				mockPlugin.settings.saveLocation
-			);
+			await syncModule.processAndSaveNote(mockPlugin, incomingNote, mockPlugin.settings.saveLocation);
 
 			const expectedFilePath = `${mockPlugin.settings.saveLocation}/${incomingNote.title}.md`;
 			const expectedContent = `---\nExisting: true\nKeepSidianLastSyncedDate: 2023-01-01T00:00:00.000Z\n---\nLine 1\nLine 2`;
-			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalledWith(
-				expectedFilePath,
-				expectedContent
-			);
+			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalledWith(expectedFilePath, expectedContent);
 		});
 
 		it("should rename note file if merge has conflicts", async () => {
@@ -631,21 +623,14 @@ describe("Google Keep Import Functions", () => {
 			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("merge");
 			jest.spyOn(mockPlugin.app.vault.adapter, "read").mockResolvedValue(existingContent);
 			jest.spyOn(Date.prototype, "toISOString").mockReturnValue("2023-01-01T00:00:00.000Z");
-			jest.spyOn(obsidian, "normalizePath").mockReturnValue(
-				`${mockPlugin.settings.saveLocation}/${incomingNote.title}.md`
-			);
+			jest
+				.spyOn(obsidian, "normalizePath")
+				.mockReturnValue(`${mockPlugin.settings.saveLocation}/${incomingNote.title}.md`);
 
-			await syncModule.processAndSaveNote(
-				mockPlugin,
-				incomingNote,
-				mockPlugin.settings.saveLocation
-			);
+			await syncModule.processAndSaveNote(mockPlugin, incomingNote, mockPlugin.settings.saveLocation);
 
 			const expectedFilePath = `${mockPlugin.settings.saveLocation}/${incomingNote.title}-conflict-2023-01-01T00:00:00.000Z.md`;
-			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalledWith(
-				expectedFilePath,
-				expect.any(String)
-			);
+			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalledWith(expectedFilePath, expect.any(String));
 		});
 
 		it("should process attachments if present", async () => {
@@ -662,19 +647,13 @@ describe("Google Keep Import Functions", () => {
 
 			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(normalizedNoteWithAttachments);
 			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("overwrite");
-			const processAttachmentsSpy = jest
-				.spyOn(attachmentsModule, "processAttachments")
-				.mockResolvedValue({
-					downloaded: 2,
-					skippedIdentical: 0,
-				});
+			const processAttachmentsSpy = jest.spyOn(attachmentsModule, "processAttachments").mockResolvedValue({
+				downloaded: 2,
+				skippedIdentical: 0,
+			});
 			const logSpy = jest.spyOn(loggingModule, "logSync").mockResolvedValue(undefined);
 
-			await syncModule.processAndSaveNote(
-				mockPlugin,
-				preNormalizedNote,
-				mockPlugin.settings.saveLocation
-			);
+			await syncModule.processAndSaveNote(mockPlugin, preNormalizedNote, mockPlugin.settings.saveLocation);
 
 			expect(processAttachmentsSpy).toHaveBeenCalledWith(
 				mockPlugin.app,
@@ -682,14 +661,14 @@ describe("Google Keep Import Functions", () => {
 				mockPlugin.settings.saveLocation,
 				normalizedNoteWithAttachments.blob_names
 			);
-                        expect(logSpy).toHaveBeenCalledWith(
-                                mockPlugin,
-                                expect.stringContaining("downloaded 2 attachments"),
-                                expect.objectContaining({
-                                        batchKey: "sync:notes",
-                                        batchSize: 50,
-                                })
-                        );
+			expect(logSpy).toHaveBeenCalledWith(
+				mockPlugin,
+				expect.stringContaining("downloaded 2 attachments"),
+				expect.objectContaining({
+					batchKey: "sync:notes",
+					batchSize: 50,
+				})
+			);
 			processAttachmentsSpy.mockRestore();
 			logSpy.mockRestore();
 		});
@@ -708,19 +687,13 @@ describe("Google Keep Import Functions", () => {
 
 			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(normalizedNoteWithAttachments);
 			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("skip");
-			const processAttachmentsSpy = jest
-				.spyOn(attachmentsModule, "processAttachments")
-				.mockResolvedValue({
-					downloaded: 0,
-					skippedIdentical: 1,
-				});
+			const processAttachmentsSpy = jest.spyOn(attachmentsModule, "processAttachments").mockResolvedValue({
+				downloaded: 0,
+				skippedIdentical: 1,
+			});
 			const logSpy = jest.spyOn(loggingModule, "logSync").mockResolvedValue(undefined);
 
-			await syncModule.processAndSaveNote(
-				mockPlugin,
-				preNormalizedNote,
-				mockPlugin.settings.saveLocation
-			);
+			await syncModule.processAndSaveNote(mockPlugin, preNormalizedNote, mockPlugin.settings.saveLocation);
 
 			expect(processAttachmentsSpy).toHaveBeenCalledWith(
 				mockPlugin.app,
@@ -728,22 +701,22 @@ describe("Google Keep Import Functions", () => {
 				mockPlugin.settings.saveLocation,
 				normalizedNoteWithAttachments.blob_names
 			);
-                        expect(logSpy).toHaveBeenCalledWith(
-                                mockPlugin,
-                                expect.stringContaining("identical (skipped)"),
-                                expect.objectContaining({
-                                        batchKey: "sync:notes",
-                                        batchSize: 50,
-                                })
-                        );
-                        expect(logSpy).toHaveBeenCalledWith(
-                                mockPlugin,
-                                expect.stringContaining("attachments up to date"),
-                                expect.objectContaining({
-                                        batchKey: "sync:notes",
-                                        batchSize: 50,
-                                })
-                        );
+			expect(logSpy).toHaveBeenCalledWith(
+				mockPlugin,
+				expect.stringContaining("identical (skipped)"),
+				expect.objectContaining({
+					batchKey: "sync:notes",
+					batchSize: 50,
+				})
+			);
+			expect(logSpy).toHaveBeenCalledWith(
+				mockPlugin,
+				expect.stringContaining("attachments up to date"),
+				expect.objectContaining({
+					batchKey: "sync:notes",
+					batchSize: 50,
+				})
+			);
 			processAttachmentsSpy.mockRestore();
 			logSpy.mockRestore();
 		});
