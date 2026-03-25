@@ -22,6 +22,7 @@ import * as loggingModule from "@app/logging";
 import * as pathsModule from "@services/paths";
 import * as attachmentsModule from "../../../features/keep/io/attachments";
 import { parseResponse } from "../../../integrations/server/keepApi";
+import { NetworkError } from "@services/errors";
 
 // Mock the external modules
 jest.mock("../domain/compare");
@@ -203,6 +204,37 @@ describe("Google Keep Import Functions", () => {
 			expect(secondRequest.url).not.toContain("offset=");
 			expect(setTotalNotes).toHaveBeenCalledTimes(1);
 			expect(setTotalNotes).toHaveBeenCalledWith(2);
+		});
+
+		it("uses the larger sync page size for fetches", async () => {
+			await importGoogleKeepNotes(mockPlugin);
+
+			const [[requestParams]] = (requestUrl as jest.Mock).mock.calls;
+			expect(requestParams.url).toContain("limit=100");
+		});
+
+		it("retries after a rate-limited fetch response", async () => {
+			jest.useFakeTimers();
+			const emptyPage = { notes: [] };
+
+			(requestUrl as jest.Mock)
+				.mockRejectedValueOnce(new NetworkError("Too many requests", 429))
+				.mockResolvedValueOnce({
+					status: 200,
+					headers: {},
+					arrayBuffer: new ArrayBuffer(0),
+					json: () => emptyPage,
+					text: JSON.stringify(emptyPage),
+				} as RequestUrlResponse);
+
+			try {
+				const importPromise = importGoogleKeepNotes(mockPlugin);
+				await jest.runOnlyPendingTimersAsync();
+				await expect(importPromise).resolves.toBe(0);
+				expect(requestUrl).toHaveBeenCalledTimes(2);
+			} finally {
+				jest.useRealTimers();
+			}
 		});
 	});
 

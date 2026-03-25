@@ -20,6 +20,7 @@ import { resolveNoteFolder, resolveNotePath } from "@services/note-path-resolver
 import { flushLogSync, logSync } from "@app/logging";
 import type { GoogleKeepImportResponse, PremiumFeatureFlags, SyncFilters } from "@integrations/server/keepApi";
 import type { DownloadScope, SyncPlan, SyncPlanEntry } from "@types";
+import { NetworkError } from "@services/errors";
 import {
 	fetchNotes as apiFetchNotes,
 	fetchNotesWithPremiumFeatures as apiFetchNotesWithPremium,
@@ -34,6 +35,10 @@ import {
 const LAST_SUCCESSFUL_SYNC_DATE_KEY = "KeepSidianLastSuccessfulSyncDate";
 const NOTE_LOG_BATCH_KEY = "sync:notes";
 const NOTE_LOG_BATCH_SIZE = 50;
+const FETCH_NOTES_PAGE_LIMIT = 100;
+const FETCH_NOTES_MAX_ATTEMPTS = 3;
+const FETCH_NOTES_INITIAL_RETRY_DELAY_MS = 2_000;
+const FETCH_NOTES_RETRYABLE_STATUSES = new Set([429, 503]);
 const NOTE_LOG_BATCH_OPTIONS = {
 	batchKey: NOTE_LOG_BATCH_KEY,
 	batchSize: NOTE_LOG_BATCH_SIZE,
@@ -151,6 +156,46 @@ function logErrorIfNotTest(...args: unknown[]) {
 	}
 }
 
+function isRetryableFetchError(error: unknown): error is NetworkError {
+	return error instanceof NetworkError && FETCH_NOTES_RETRYABLE_STATUSES.has(error.status ?? -1);
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchImportPageWithRetry(
+	fetchFunction: (
+		offset: number,
+		limit: number,
+		filters?: SyncFilters,
+		cursor?: string
+	) => Promise<GoogleKeepImportResponse>,
+	offset: number,
+	limit: number,
+	filters?: SyncFilters,
+	cursor?: string
+): Promise<GoogleKeepImportResponse> {
+	let retryDelayMs = FETCH_NOTES_INITIAL_RETRY_DELAY_MS;
+
+	for (let attempt = 1; attempt <= FETCH_NOTES_MAX_ATTEMPTS; attempt++) {
+		try {
+			return await fetchFunction(offset, limit, filters, cursor);
+		} catch (error) {
+			if (!isRetryableFetchError(error) || attempt === FETCH_NOTES_MAX_ATTEMPTS) {
+				throw error;
+			}
+			logErrorIfNotTest(
+				`Rate limited while fetching notes at offset ${offset}; retrying in ${retryDelayMs}ms (attempt ${attempt}/${FETCH_NOTES_MAX_ATTEMPTS})`
+			);
+			await sleep(retryDelayMs);
+			retryDelayMs *= 2;
+		}
+	}
+
+	throw new Error("Retry loop exited unexpectedly");
+}
+
 async function fetchImportNotesBase(
 	plugin: KeepSidianPlugin,
 	fetchFunction: (
@@ -164,7 +209,7 @@ async function fetchImportNotesBase(
 ): Promise<FetchImportNotesResult> {
 	try {
 		let offset = 0;
-		const limit = 50;
+		const limit = FETCH_NOTES_PAGE_LIMIT;
 		let cursor: string | undefined;
 		let usingCursorPagination = false;
 		let hasError = false;
@@ -178,7 +223,13 @@ async function fetchImportNotesBase(
 
 		while (!hasError) {
 			try {
-				const response = await fetchFunction(offset, limit, syncFilters, cursor);
+				const response = await fetchImportPageWithRetry(
+					fetchFunction,
+					offset,
+					limit,
+					syncFilters,
+					cursor
+				);
 				completionDate = new Date().toISOString();
 				if (typeof response.total_notes === "number" && callbacks?.setTotalNotes && !hasReportedTotal) {
 					try {
