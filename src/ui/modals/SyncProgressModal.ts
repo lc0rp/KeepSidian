@@ -1,5 +1,13 @@
 import { App, Modal } from "obsidian";
-import type { DownloadScope, DownloadScopeKind, LastSyncSummary, SyncMode, SyncPlan, SyncPlanEntry } from "@types";
+import type {
+	DownloadScope,
+	DownloadScopeKind,
+	LastSyncSummary,
+	SyncMode,
+	SyncPlan,
+	SyncPlanEntry,
+	SyncRunStatus,
+} from "@types";
 import type {
 	PreparedSyncPlan,
 	RunPreparedSyncPlanResult,
@@ -31,8 +39,9 @@ interface SyncProgressModalOptions {
 		downloadScope?: DownloadScope
 	) => Promise<PreparedSyncPlan | null>;
 	runSyncPlan: (preparedPlan: PreparedSyncPlan, callbacks?: SyncPlanRunCallbacks) => Promise<RunPreparedSyncPlanResult>;
+	requestCancelSync?: () => boolean | void;
 	onOpenSyncLog: () => void | Promise<void>;
-	onClose?: () => void;
+	onClose?: (state: { activeRun: boolean }) => void;
 	getTwoWayGate: () => TwoWayGateState;
 	getLastSuccessfulDownloadDate: () => string | undefined;
 	openTwoWaySettings: () => void;
@@ -59,6 +68,12 @@ interface ExecutionSnapshot {
 	entryStates: Map<string, EntryRunState>;
 }
 
+interface ExecutionRowRefs {
+	row: HTMLDivElement;
+	statusSymbolEl: HTMLSpanElement;
+	badgeEl: HTMLSpanElement;
+}
+
 interface ChipRenderState {
 	key: ChipKey;
 	label: string;
@@ -71,6 +86,10 @@ interface ChipRenderState {
 interface ModalAlertState {
 	title: string;
 	message: string;
+}
+
+interface DismissPromptState {
+	activeRun: boolean;
 }
 
 const CHIP_ORDER: ChipKey[] = [
@@ -304,8 +323,11 @@ function getRunningTitle(plan: SyncPlan): string {
 	return plan.stage === "upload" ? "Running upload plan" : "Running download plan";
 }
 
-function getResultTitle(plan: SyncPlan, success: boolean | null): string {
-	if (success === false) {
+function getResultTitle(plan: SyncPlan, status: SyncRunStatus | null): string {
+	if (status === "canceled") {
+		return plan.stage === "upload" ? "Upload canceled" : "Download canceled";
+	}
+	if (status === "failed") {
 		return plan.stage === "upload" ? "Upload failed" : "Download failed";
 	}
 	return plan.stage === "upload" ? "Upload complete" : "Download complete";
@@ -338,10 +360,11 @@ export class SyncProgressModal extends Modal {
 	private customSinceInput = "";
 	private showSyncOptions = false;
 	private isSyncing = false;
+	private isCanceling = false;
 	private isGeneratingReview = false;
 	private processed = 0;
 	private total: number | undefined;
-	private lastResult: { success: boolean; processed: number } | null = null;
+	private lastResult: { status: SyncRunStatus; processed: number } | null = null;
 	private summary: LastSyncSummary | null = null;
 	private preparedPlan: PreparedSyncPlan | null = null;
 	private executionSnapshot: ExecutionSnapshot | null = null;
@@ -350,10 +373,13 @@ export class SyncProgressModal extends Modal {
 	private planBuildProcessed = 0;
 	private planBuildTotal: number | undefined;
 	private modalAlert: ModalAlertState | null = null;
+	private dismissPrompt: DismissPromptState | null = null;
 	private renderVersion = 0;
 	private modalTitleEl: HTMLHeadingElement | null = null;
 	private stepperEl: HTMLDivElement | null = null;
+	private headerMetaEl: HTMLDivElement | null = null;
 	private statusEl: HTMLDivElement | null = null;
+	private statusActionsEl: HTMLDivElement | null = null;
 	private alertHostEl: HTMLDivElement | null = null;
 	private bodyEl: HTMLDivElement | null = null;
 	private footerEl: HTMLDivElement | null = null;
@@ -362,6 +388,32 @@ export class SyncProgressModal extends Modal {
 	private planSummaryEl: HTMLDivElement | null = null;
 	private planSelectionSummaryEl: HTMLDivElement | null = null;
 	private planListEl: HTMLDivElement | null = null;
+	private executionRowRefs = new Map<string, ExecutionRowRefs>();
+	private chromeCloseButtonEl: HTMLElement | null = null;
+	private dismissPromptActionsEl: HTMLDivElement | null = null;
+	private allowBackgroundClose = false;
+	private readonly handleChromeCloseClick = (event: Event) => {
+		if (!this.isSyncing) {
+			return;
+		}
+		event.preventDefault();
+		if ("stopImmediatePropagation" in event) {
+			event.stopImmediatePropagation();
+		}
+		event.stopPropagation();
+		this.requestSyncCancellation();
+	};
+	private readonly handleContainerPointerDown = (event: PointerEvent) => {
+		if (!this.isBackdropInteraction(event.target)) {
+			return;
+		}
+		event.preventDefault();
+		if ("stopImmediatePropagation" in event) {
+			event.stopImmediatePropagation();
+		}
+		event.stopPropagation();
+		this.showDismissPrompt();
+	};
 
 	constructor(app: App, options: SyncProgressModalOptions) {
 		super(app);
@@ -369,14 +421,53 @@ export class SyncProgressModal extends Modal {
 	}
 
 	onOpen() {
+		this.bindChromeCloseButton();
+		this.bindBackdropDismissGuard();
 		void this.refreshUI();
 	}
 
 	onClose() {
+		const activeRun = this.isSyncing;
+		if (this.allowBackgroundClose) {
+			this.allowBackgroundClose = false;
+			this.dismissPrompt = null;
+			this.unbindChromeCloseButton();
+			this.unbindBackdropDismissGuard();
+			clearElement(this.contentEl);
+			this.modalTitleEl = null;
+			this.stepperEl = null;
+			this.headerMetaEl = null;
+			this.statusEl = null;
+			this.statusActionsEl = null;
+			this.alertHostEl = null;
+			this.bodyEl = null;
+			this.footerEl = null;
+			this.planActionsEl = null;
+			this.planPanelEl = null;
+			this.planSummaryEl = null;
+			this.planSelectionSummaryEl = null;
+			this.planListEl = null;
+			this.chromeCloseButtonEl = null;
+			this.dismissPromptActionsEl = null;
+			this.options.onClose?.({ activeRun });
+			return;
+		}
+		if (activeRun) {
+			this.requestSyncCancellation();
+			this.options.onClose?.({ activeRun });
+			this.open();
+			void this.refreshUI();
+			return;
+		}
+		this.unbindChromeCloseButton();
+		this.unbindBackdropDismissGuard();
+		this.dismissPrompt = null;
 		clearElement(this.contentEl);
 		this.modalTitleEl = null;
 		this.stepperEl = null;
+		this.headerMetaEl = null;
 		this.statusEl = null;
+		this.statusActionsEl = null;
 		this.alertHostEl = null;
 		this.bodyEl = null;
 		this.footerEl = null;
@@ -385,7 +476,98 @@ export class SyncProgressModal extends Modal {
 		this.planSummaryEl = null;
 		this.planSelectionSummaryEl = null;
 		this.planListEl = null;
-		this.options.onClose?.();
+		this.chromeCloseButtonEl = null;
+		this.dismissPromptActionsEl = null;
+		this.options.onClose?.({ activeRun });
+	}
+
+	private bindChromeCloseButton() {
+		const closeButton = this.modalEl.querySelector(".modal-close-button");
+		if (closeButton === this.chromeCloseButtonEl) {
+			this.syncChromeCloseButtonState();
+			return;
+		}
+		this.unbindChromeCloseButton();
+		if (!(closeButton instanceof HTMLElement)) {
+			return;
+		}
+		closeButton.addEventListener("click", this.handleChromeCloseClick, true);
+		this.chromeCloseButtonEl = closeButton;
+		this.syncChromeCloseButtonState();
+	}
+
+	private bindBackdropDismissGuard() {
+		this.unbindBackdropDismissGuard();
+		this.containerEl.addEventListener("pointerdown", this.handleContainerPointerDown, true);
+	}
+
+	private unbindBackdropDismissGuard() {
+		this.containerEl.removeEventListener("pointerdown", this.handleContainerPointerDown, true);
+	}
+
+	private isBackdropInteraction(target: EventTarget | null): boolean {
+		return target instanceof Node && !this.modalEl.contains(target);
+	}
+
+	private unbindChromeCloseButton() {
+		if (!this.chromeCloseButtonEl) {
+			return;
+		}
+		this.chromeCloseButtonEl.removeEventListener("click", this.handleChromeCloseClick, true);
+		if (this.chromeCloseButtonEl instanceof HTMLButtonElement) {
+			this.chromeCloseButtonEl.disabled = false;
+		}
+		this.chromeCloseButtonEl.classList.remove("is-disabled");
+		this.chromeCloseButtonEl = null;
+	}
+
+	private syncChromeCloseButtonState() {
+		if (!this.chromeCloseButtonEl) {
+			return;
+		}
+		const disableClose = this.isCanceling;
+		if (this.chromeCloseButtonEl instanceof HTMLButtonElement) {
+			this.chromeCloseButtonEl.disabled = disableClose;
+		}
+		this.chromeCloseButtonEl.classList.toggle("is-disabled", disableClose);
+	}
+
+	private requestSyncCancellation(): boolean {
+		if (!this.isSyncing) {
+			return false;
+		}
+		if (this.isCanceling) {
+			return true;
+		}
+		const requested = this.options.requestCancelSync?.();
+		if (requested === false) {
+			return false;
+		}
+		this.isCanceling = true;
+		this.modalAlert = null;
+		this.syncChromeCloseButtonState();
+		void this.refreshUI();
+		return true;
+	}
+
+	private showDismissPrompt() {
+		this.dismissPrompt = { activeRun: this.isSyncing };
+		this.modalAlert = null;
+		void this.refreshUI();
+	}
+
+	private async dismissToBackground() {
+		if (!this.isSyncing) {
+			return;
+		}
+		this.allowBackgroundClose = true;
+		this.dismissPrompt = null;
+		this.close();
+	}
+
+	private async confirmDismiss() {
+		this.dismissPrompt = null;
+		this.close();
 	}
 
 	setSelectedMode(mode: SyncMode) {
@@ -398,6 +580,7 @@ export class SyncProgressModal extends Modal {
 		this.showExecutionResult = false;
 		this.reviewFilterKey = "notes";
 		this.modalAlert = null;
+		this.dismissPrompt = null;
 		void this.refreshUI();
 	}
 
@@ -412,6 +595,7 @@ export class SyncProgressModal extends Modal {
 
 		this.downloadScopeKind = kind;
 		this.modalAlert = null;
+		this.dismissPrompt = null;
 		if (kind === "custom-since" && !this.customSinceInput) {
 			const lastSuccessfulDownloadDate = this.getLastSuccessfulDownloadDate();
 			if (lastSuccessfulDownloadDate) {
@@ -461,6 +645,7 @@ export class SyncProgressModal extends Modal {
 		this.planBuildTotal = undefined;
 		this.reviewFilterKey = "notes";
 		this.modalAlert = null;
+		this.dismissPrompt = null;
 		await this.refreshUI();
 		try {
 			const downloadScope = modeUsesDownload(mode) ? this.getDownloadScope() : undefined;
@@ -500,8 +685,11 @@ export class SyncProgressModal extends Modal {
 
 		this.initializeExecutionSnapshot(this.preparedPlan.plan);
 		this.isSyncing = true;
+		this.isCanceling = false;
+		this.syncChromeCloseButtonState();
 		this.showExecutionResult = false;
 		this.modalAlert = null;
+		this.dismissPrompt = null;
 		await this.refreshUI();
 
 		try {
@@ -519,12 +707,14 @@ export class SyncProgressModal extends Modal {
 				return;
 			}
 			this.preparedPlan = null;
-			this.showExecutionResult = true;
+			this.showExecutionResult = !result.canceled;
 		} catch (error) {
 			this.modalAlert = getFriendlySyncCenterError(error, "run");
 			this.showExecutionResult = false;
 		} finally {
 			this.isSyncing = false;
+			this.isCanceling = false;
+			this.syncChromeCloseButtonState();
 			await this.refreshUI();
 		}
 	}
@@ -535,17 +725,24 @@ export class SyncProgressModal extends Modal {
 		this.summary = null;
 		this.lastResult = null;
 		this.modalAlert = null;
+		this.dismissPrompt = null;
+		if (this.getSurface() === "running") {
+			return;
+		}
 		void this.refreshUI();
 	}
 
-	setComplete(success: boolean, processed: number) {
-		this.lastResult = { success, processed };
+	setComplete(status: SyncRunStatus | boolean, processed: number) {
+		const normalizedStatus =
+			typeof status === "boolean" ? (status ? "success" : "failed") : status;
+		this.lastResult = { status: normalizedStatus, processed };
 		if (this.executionSnapshot) {
-			this.showExecutionResult = true;
+			this.showExecutionResult = normalizedStatus !== "canceled";
 		}
-		if (success) {
+		if (normalizedStatus !== "failed") {
 			this.modalAlert = null;
 		}
+		this.dismissPrompt = null;
 		void this.refreshUI();
 	}
 
@@ -554,9 +751,12 @@ export class SyncProgressModal extends Modal {
 		if (!this.showExecutionResult) {
 			this.lastResult = null;
 		}
-		if (summary?.success) {
+		const summaryStatus =
+			summary == null ? null : (summary.status ?? (summary.success ? "success" : "failed"));
+		if (summaryStatus !== "failed") {
 			this.modalAlert = null;
 		}
+		this.dismissPrompt = null;
 		void this.refreshUI();
 	}
 
@@ -590,11 +790,55 @@ export class SyncProgressModal extends Modal {
 			return;
 		}
 		this.executionSnapshot.entryStates.set(entryId, success ? "done" : "failed");
+		if (this.canRefreshRunningInPlace(entryId)) {
+			this.refreshRunningExecutionUi(entryId);
+			return;
+		}
 		void this.refreshUI();
 	}
 
+	private canRefreshRunningInPlace(entryId?: string): boolean {
+		if (this.getSurface() !== "running" || !this.executionSnapshot || !this.statusEl || !this.stepperEl || !this.planSummaryEl) {
+			return false;
+		}
+		if (!this.planListEl) {
+			return false;
+		}
+		if (this.reviewFilterKey === "unchecked") {
+			return false;
+		}
+		if (entryId && this.reviewFilterKey !== "notes") {
+			const entry = this.executionSnapshot.plan.entries.find((candidate) => candidate.id === entryId);
+			if (!entry || getChipKeyForEntry(entry) !== this.reviewFilterKey) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private refreshRunningExecutionUi(entryId?: string) {
+		if (!this.executionSnapshot || !this.statusEl || !this.stepperEl || !this.planSummaryEl) {
+			return;
+		}
+		this.statusEl.textContent = this.getStatusCopy("running");
+		this.renderStepper(this.stepperEl, "running");
+		this.renderRunningSummary();
+		if (entryId) {
+			this.updateExecutionRowInPlace(entryId);
+		}
+	}
+
 	private ensureLayout() {
-		if (this.modalTitleEl && this.stepperEl && this.statusEl && this.alertHostEl && this.bodyEl && this.footerEl) {
+		if (
+			this.modalTitleEl &&
+			this.stepperEl &&
+			this.headerMetaEl &&
+			this.statusEl &&
+			this.statusActionsEl &&
+			this.alertHostEl &&
+			this.bodyEl &&
+			this.footerEl
+		) {
 			return;
 		}
 
@@ -605,9 +849,13 @@ export class SyncProgressModal extends Modal {
 		this.modalTitleEl.classList.add("keepsidian-modal-title");
 
 		this.stepperEl = createChild(this.contentEl, "div");
-		this.statusEl = createChild(this.contentEl, "div");
+		this.headerMetaEl = createChild(this.contentEl, "div");
+		this.headerMetaEl.classList.add("keepsidian-modal-header-meta");
+		this.statusEl = createChild(this.headerMetaEl, "div");
 		this.statusEl.classList.add("keepsidian-modal-status");
 		this.statusEl.setAttribute("aria-live", "polite");
+		this.statusActionsEl = createChild(this.headerMetaEl, "div");
+		this.statusActionsEl.classList.add("keepsidian-modal-status-actions");
 
 		this.alertHostEl = createChild(this.contentEl, "div");
 		this.bodyEl = createChild(this.contentEl, "div");
@@ -631,6 +879,11 @@ export class SyncProgressModal extends Modal {
 		const renderVersion = ++this.renderVersion;
 		const surface = this.getSurface();
 		this.ensureLayout();
+		this.bindChromeCloseButton();
+		this.syncChromeCloseButtonState();
+		if (surface !== "running") {
+			this.executionRowRefs.clear();
+		}
 		this.contentEl.className = "keepsidian-modal";
 		this.contentEl.classList.add(surface === "setup" ? "keepsidian-modal--compact" : "keepsidian-modal--plan");
 		this.modalEl.classList.remove("keepsidian-modal-shell--compact", "keepsidian-modal-shell--plan");
@@ -649,11 +902,28 @@ export class SyncProgressModal extends Modal {
 		if (this.statusEl) {
 			this.statusEl.textContent = this.getStatusCopy(surface);
 		}
+		if (this.statusActionsEl) {
+			clearElement(this.statusActionsEl);
+			if (surface === "running") {
+				const cancelButton = this.createActionButton(
+					this.statusActionsEl,
+					this.isCanceling ? "Canceling ..." : "Cancel",
+					async () => {
+						this.requestSyncCancellation();
+					}
+				);
+				cancelButton.classList.add("keepsidian-modal-inline-action", "keepsidian-modal-inline-action--cancel");
+				cancelButton.disabled = this.isCanceling;
+			}
+		}
 
 		if (this.alertHostEl) {
 			clearElement(this.alertHostEl);
 			if (this.modalAlert) {
 				this.renderAlert(this.alertHostEl, this.modalAlert);
+			}
+			if (this.dismissPrompt) {
+				this.renderDismissPrompt(this.alertHostEl, this.dismissPrompt);
 			}
 		}
 
@@ -683,6 +953,60 @@ export class SyncProgressModal extends Modal {
 		messageEl.classList.add("keepsidian-modal-alert-message");
 	}
 
+	private renderDismissPrompt(containerEl: HTMLElement, prompt: DismissPromptState) {
+		const promptEl = createChild(containerEl, "div");
+		promptEl.classList.add("keepsidian-modal-dismiss-prompt");
+		const titleEl = createChild(promptEl, "div", {
+			text: prompt.activeRun ? "Leave this sync running?" : "Close sync center?",
+		});
+		titleEl.classList.add("keepsidian-modal-dismiss-prompt-title");
+		const messageEl = createChild(promptEl, "div", {
+			text: prompt.activeRun
+				? "You clicked outside the dialog. Choose whether to cancel the sync, let it keep running in the background, or return to the dialog."
+				: "Close sync center or go back without losing your place?",
+		});
+		messageEl.classList.add("keepsidian-modal-dismiss-prompt-message");
+		this.dismissPromptActionsEl = createChild(promptEl, "div");
+		this.dismissPromptActionsEl.classList.add("keepsidian-modal-dismiss-prompt-actions");
+
+		if (prompt.activeRun) {
+			const cancelButton = this.createActionButton(
+				this.dismissPromptActionsEl,
+				this.isCanceling ? "Canceling ..." : "Cancel sync",
+				async () => {
+					this.dismissPrompt = null;
+					this.requestSyncCancellation();
+				}
+			);
+			cancelButton.classList.add("keepsidian-modal-dismiss-prompt-action--danger");
+			cancelButton.disabled = this.isCanceling;
+
+			const backgroundButton = this.createActionButton(
+				this.dismissPromptActionsEl,
+				"Run in background",
+				async () => {
+					await this.dismissToBackground();
+				}
+			);
+			backgroundButton.classList.add("keepsidian-modal-dismiss-prompt-action--ghost");
+		} else {
+			const closeButton = this.createActionButton(
+				this.dismissPromptActionsEl,
+				"Close",
+				async () => {
+					await this.confirmDismiss();
+				}
+			);
+			closeButton.classList.add("keepsidian-modal-dismiss-prompt-action--danger");
+		}
+
+		const backButton = this.createActionButton(this.dismissPromptActionsEl, "Back", async () => {
+			this.dismissPrompt = null;
+			await this.refreshUI();
+		});
+		backButton.classList.add("keepsidian-modal-dismiss-prompt-action--ghost");
+	}
+
 	private getTitle(surface: ModalSurface): string {
 		if (surface === "setup") {
 			return "Sync center";
@@ -697,7 +1021,7 @@ export class SyncProgressModal extends Modal {
 		if (surface === "running") {
 			return getRunningTitle(plan);
 		}
-		return getResultTitle(plan, this.lastResult?.success ?? null);
+		return getResultTitle(plan, this.lastResult?.status ?? null);
 	}
 
 	private getStatusCopy(surface: ModalSurface): string {
@@ -711,9 +1035,11 @@ export class SyncProgressModal extends Modal {
 			if (this.isSyncing) {
 				const phaseLabel = this.options.getCurrentPhaseLabel() ?? "Syncing";
 				if (typeof this.total === "number" && this.total > 0) {
-					return `${phaseLabel}: ${this.processed}/${this.total}`;
+					return this.isCanceling
+						? `Canceling... ${this.processed}/${this.total}`
+						: `${phaseLabel}: ${this.processed}/${this.total}`;
 				}
-				return `${phaseLabel}: ${this.processed}`;
+				return this.isCanceling ? `Canceling... ${this.processed}` : `${phaseLabel}: ${this.processed}`;
 			}
 			if (this.summary) {
 				return formatModalSummary(this.summary);
@@ -732,12 +1058,19 @@ export class SyncProgressModal extends Modal {
 			const handledCount = this.getExecutionHandledCount();
 			const pendingCount = Math.max(0, selectedCount - handledCount);
 			if (surface === "running") {
-				return `${selectedCount} selected. ${pendingCount} pending.`;
+				return this.isCanceling
+					? `${selectedCount} selected. Canceling...`
+					: `${selectedCount} selected. ${pendingCount} pending.`;
 			}
 			if (this.summary) {
 				return formatModalSummary(this.summary);
 			}
-			return this.lastResult?.success ? `Sync complete. Processed ${this.lastResult.processed} notes.` : "Sync failed.";
+			if (this.lastResult?.status === "canceled") {
+				return `Sync canceled after ${this.lastResult.processed} notes.`;
+			}
+			return this.lastResult?.status === "success"
+				? `Sync complete. Processed ${this.lastResult.processed} notes.`
+				: "Sync failed.";
 		}
 
 		return "";
@@ -853,7 +1186,10 @@ export class SyncProgressModal extends Modal {
 
 		if (this.showSyncOptions) {
 			const modeSectionEl = createChild(syncOptionsContainerEl, "div");
-			modeSectionEl.classList.add("keepsidian-sync-center-mode-section");
+			modeSectionEl.classList.add(
+				"keepsidian-sync-center-mode-section",
+				"keepsidian-sync-center-mode-section--primary"
+			);
 			const modeLabelEl = createChild(modeSectionEl, "div", { text: "Mode" });
 			modeLabelEl.classList.add("keepsidian-sync-center-mode-label");
 			const modePickerEl = createChild(syncOptionsContainerEl, "div");
@@ -1035,6 +1371,7 @@ export class SyncProgressModal extends Modal {
 			return;
 		}
 		clearElement(this.planActionsEl);
+		this.planActionsEl.classList.add("keepsidian-modal-actions--plan");
 
 		if (surface === "review") {
 			const backButton = this.createActionButton(this.planActionsEl, "◀︎ Back", async () => {
@@ -1071,18 +1408,12 @@ export class SyncProgressModal extends Modal {
 		}
 
 		if ((surface === "running" || surface === "result") && this.executionSnapshot) {
-			const selectedCount = this.getExecutionSelectedCount();
-			const handledCount = this.getExecutionHandledCount();
-			const runtimeCopy = createChild(this.planSummaryEl, "div", {
-				text:
-					surface === "running"
-						? `${handledCount} of ${selectedCount} selected notes dealt with.`
-						: `${handledCount} of ${selectedCount} selected notes dealt with.`,
-			});
-			runtimeCopy.classList.add("keepsidian-sync-plan-summary-copy");
+			this.renderRunningSummary();
 		}
 
-		this.renderChips(this.planSummaryEl, surface);
+		if (surface === "review") {
+			this.renderChips(this.planSummaryEl, surface);
+		}
 		this.renderSelectionSummary(this.planSelectionSummaryEl, surface);
 		this.renderEntries(this.planListEl, surface);
 
@@ -1158,6 +1489,20 @@ export class SyncProgressModal extends Modal {
 		}
 	}
 
+	private renderRunningSummary() {
+		if (!this.planSummaryEl || !this.executionSnapshot) {
+			return;
+		}
+		clearElement(this.planSummaryEl);
+		const selectedCount = this.getExecutionSelectedCount();
+		const handledCount = this.getExecutionHandledCount();
+		const runtimeCopy = createChild(this.planSummaryEl, "div", {
+			text: `${handledCount} of ${selectedCount} selected notes dealt with.`,
+		});
+		runtimeCopy.classList.add("keepsidian-sync-plan-summary-copy");
+		this.renderChips(this.planSummaryEl, "running");
+	}
+
 	private renderSelectionSummary(containerEl: HTMLElement, surface: "review" | "running" | "result") {
 		clearElement(containerEl);
 		containerEl.className = "keepsidian-sync-plan-selection-summary";
@@ -1200,6 +1545,7 @@ export class SyncProgressModal extends Modal {
 	private renderEntries(containerEl: HTMLElement, surface: "review" | "running" | "result") {
 		clearElement(containerEl);
 		containerEl.className = "keepsidian-sync-plan-list";
+		this.executionRowRefs.clear();
 		for (const entry of this.getFilteredEntries(surface)) {
 			const row = createChild(containerEl, "div");
 			row.classList.add("keepsidian-sync-plan-row");
@@ -1258,17 +1604,40 @@ export class SyncProgressModal extends Modal {
 		row.classList.add(`is-${state}`);
 		const statusEl = createChild(row, "div");
 		statusEl.classList.add("keepsidian-sync-plan-row-status");
-		createChild(statusEl, "span", {
+		const statusSymbolEl = createChild(statusEl, "span", {
 			text:
 				state === "done" || state === "instant" ? "✓" : state === "failed" ? "!" : state === "unchecked" ? "–" : "…",
 		});
 
 		const body = createChild(row, "div");
 		body.classList.add("keepsidian-sync-plan-row-body");
-		this.renderEntryBody(body, entry, getRuntimeStatusLabel(entry, state));
+		const badgeEl = this.renderEntryBody(body, entry, getRuntimeStatusLabel(entry, state));
+		if (row instanceof HTMLDivElement && statusSymbolEl instanceof HTMLSpanElement && badgeEl instanceof HTMLSpanElement) {
+			this.executionRowRefs.set(entry.id, { row, statusSymbolEl, badgeEl });
+		}
 	}
 
-	private renderEntryBody(body: HTMLElement, entry: SyncPlanEntry, badgeText: string) {
+	private updateExecutionRowInPlace(entryId: string) {
+		if (!this.executionSnapshot) {
+			return;
+		}
+		const refs = this.executionRowRefs.get(entryId);
+		if (!refs) {
+			return;
+		}
+		const entry = this.executionSnapshot.plan.entries.find((candidate) => candidate.id === entryId);
+		if (!entry) {
+			return;
+		}
+		const state = this.executionSnapshot.entryStates.get(entryId) ?? "pending";
+		refs.row.classList.remove("is-pending", "is-done", "is-failed", "is-unchecked", "is-instant");
+		refs.row.classList.add(`is-${state}`);
+		refs.statusSymbolEl.textContent =
+			state === "done" || state === "instant" ? "✓" : state === "failed" ? "!" : state === "unchecked" ? "–" : "…";
+		refs.badgeEl.textContent = getRuntimeStatusLabel(entry, state);
+	}
+
+	private renderEntryBody(body: HTMLElement, entry: SyncPlanEntry, badgeText: string): HTMLSpanElement {
 		const titleLine = createChild(body, "div");
 		titleLine.classList.add("keepsidian-sync-plan-row-title-line");
 		const title = createChild(titleLine, "div", { text: entry.title });
@@ -1281,6 +1650,7 @@ export class SyncProgressModal extends Modal {
 			const detail = createChild(body, "div", { text: entry.meta.detail });
 			detail.classList.add("keepsidian-sync-plan-row-detail");
 		}
+		return badge;
 	}
 
 	private getFilteredEntries(surface: "review" | "running" | "result"): SyncPlanEntry[] {

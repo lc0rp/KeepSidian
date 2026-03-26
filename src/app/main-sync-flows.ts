@@ -6,6 +6,8 @@ import type { PreNormalizedNote } from "@features/keep/domain/note";
 import type { NoteForPush } from "@features/keep/push/collectNotes";
 import { HIDDEN_CLASS } from "@app/ui-constants";
 import { logSync, prepareSyncLog } from "@app/logging";
+import { appendPerfTrace } from "@app/perf-trace";
+import { isSyncCancellationError } from "@app/sync-cancel";
 import {
 	startSyncUI,
 	finishSyncUI,
@@ -38,6 +40,7 @@ export interface PreparedSyncPlan {
 
 export interface RunPreparedSyncPlanResult {
 	nextPlan?: PreparedSyncPlan;
+	canceled?: boolean;
 }
 
 export interface SyncPlanBuildCallbacks {
@@ -213,6 +216,10 @@ export async function runPreparedSyncPlan(
 			const selectedEntryIds = preparedPlan.plan.entries
 				.filter((entry) => entry.selectable && entry.selected)
 				.map((entry) => entry.id);
+			await appendPerfTrace(plugin, "import-run-start", {
+				selectedCount: selectedNotes.length,
+				actionableCount: preparedPlan.plan.actionableCount,
+			});
 			const syncCallbacks = {
 				setTotalNotes: (n: number) => uiSetTotalNotes(plugin, n),
 				reportProgress: () => reportSyncProgress(plugin),
@@ -220,6 +227,7 @@ export async function runPreparedSyncPlan(
 					runCallbacks?.onEntrySettled?.(entryId, success),
 			};
 			uiSetTotalNotes(plugin, selectedNotes.length);
+			const importStartedAt = Date.now();
 			await importSelectedGoogleKeepNotes(
 				plugin,
 				selectedNotes,
@@ -227,6 +235,10 @@ export async function runPreparedSyncPlan(
 				preparedPlan.completionDate,
 				selectedEntryIds
 			);
+			await appendPerfTrace(plugin, "import-run-import-complete", {
+				durationMs: Date.now() - importStartedAt,
+				processedNotes: plugin.processedNotes,
+			});
 			if (preparedPlan.mode === "two-way") {
 				await logSync(
 					plugin,
@@ -254,15 +266,40 @@ export async function runPreparedSyncPlan(
 					},
 				};
 			}
+			const completionLogStartedAt = Date.now();
 			await logSync(
 				plugin,
 				`Manual sync ended - success. Processed ${plugin.processedNotes} note(s).`
 			);
-			finishSyncUI(plugin, true);
+			await appendPerfTrace(plugin, "import-run-success-log-complete", {
+				durationMs: Date.now() - completionLogStartedAt,
+			});
+			finishSyncUI(plugin, "success");
+			await appendPerfTrace(plugin, "import-run-finish-ui-complete", {
+				processedNotes: plugin.processedNotes,
+				totalNotes: plugin.totalNotes,
+			});
 			return {};
 		} catch (error: unknown) {
-			finishSyncUI(plugin, false);
 			const errorMessage = getErrorMessage(error);
+			if (isSyncCancellationError(error)) {
+				finishSyncUI(plugin, "canceled");
+				await appendPerfTrace(plugin, "import-run-cancelled", {
+					processedNotes: plugin.processedNotes,
+				});
+				await logSync(
+					plugin,
+					`${preparedPlan.mode === "two-way" ? "Two-way sync" : "Manual sync"} canceled. Processed ${
+						plugin.processedNotes
+					} note(s).`
+				);
+				return { canceled: true };
+			}
+			finishSyncUI(plugin, "failed");
+			await appendPerfTrace(plugin, "import-run-failed", {
+				error: errorMessage,
+				processedNotes: plugin.processedNotes,
+			});
 			await logSync(
 				plugin,
 				`${preparedPlan.mode === "two-way" ? "Two-way sync" : "Manual sync"} ended - failed: ${errorMessage}. Processed ${
@@ -302,14 +339,24 @@ export async function runPreparedSyncPlan(
 				? `Two-way sync ended - success. Pushed ${pushed} note(s).`
 				: `Push sync ended - success. Pushed ${pushed} note(s).`
 		);
-		finishSyncUI(plugin, true);
+		finishSyncUI(plugin, "success");
 		if (preparedPlan.mode === "two-way") {
 			onTwoWaySuccess();
 		}
 		return {};
 	} catch (error: unknown) {
-		finishSyncUI(plugin, false);
 		const errorMessage = getErrorMessage(error);
+		if (isSyncCancellationError(error)) {
+			finishSyncUI(plugin, "canceled");
+			await logSync(
+				plugin,
+				`${preparedPlan.mode === "two-way" ? "Two-way sync" : "Push sync"} canceled. Processed ${
+					plugin.processedNotes
+				} note(s).`
+			);
+			return { canceled: true };
+		}
+		finishSyncUI(plugin, "failed");
 		await logSync(
 			plugin,
 			`${preparedPlan.mode === "two-way" ? "Two-way sync" : "Push sync"} ended - failed: ${errorMessage}. Processed ${

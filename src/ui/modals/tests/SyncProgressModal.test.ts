@@ -31,6 +31,7 @@ describe("SyncProgressModal", () => {
 		]);
 		const buildSyncPlan = jest.fn().mockResolvedValue(preparedPlan);
 		const runSyncPlan = jest.fn().mockResolvedValue({});
+		const requestCancelSync = jest.fn();
 		const onOpenSyncLog = jest.fn().mockResolvedValue(undefined);
 		const openTwoWaySettings = jest.fn();
 		const isSupporterActive = jest.fn().mockResolvedValue(true);
@@ -43,6 +44,7 @@ describe("SyncProgressModal", () => {
 		return {
 			buildSyncPlan,
 			runSyncPlan,
+			requestCancelSync,
 			onOpenSyncLog,
 			onClose: jest.fn(),
 			getTwoWayGate: () => gateState,
@@ -304,6 +306,22 @@ describe("SyncProgressModal", () => {
 		expect(modal.contentEl.textContent).toContain("Review download plan");
 	});
 
+	test("outside clicks on review show a close confirmation instead of dismissing the modal", async () => {
+		const modal = new SyncProgressModal(app, modalOptions);
+		modal.onOpen();
+		getButton(modal, "Start sync").click();
+		await flushUI();
+
+		modal.containerEl.dispatchEvent(new Event("pointerdown", { bubbles: true, cancelable: true }));
+		await flushUI();
+
+		expect(modal.contentEl.textContent).toContain("Close sync center?");
+		expect(getButton(modal, "Close")).toBeTruthy();
+		expect(getButton(modal, "Back")).toBeTruthy();
+		expect(findButton(modal, "Cancel sync")).toBeNull();
+		expect(findButton(modal, "Run in background")).toBeNull();
+	});
+
 	test("chips filter the review list by category", async () => {
 		modalOptions.buildSyncPlan.mockResolvedValueOnce(
 			createPreparedSyncPlanFixture("import", "import", [
@@ -485,6 +503,151 @@ describe("SyncProgressModal", () => {
 		await flushUI();
 	});
 
+	test("running progress updates mutate existing execution rows instead of recreating them", async () => {
+		const plan = createPreparedSyncPlanFixture("import", "import", [
+			createSyncPlanEntryFixture("create", "Create", {
+				id: "create-1",
+				title: "Create row",
+			}),
+			createSyncPlanEntryFixture("merge", "Merge", {
+				id: "merge-1",
+				title: "Merge row",
+			}),
+		]);
+		const deferred = createDeferredResult();
+		modalOptions.buildSyncPlan.mockResolvedValueOnce(plan);
+		modalOptions.runSyncPlan.mockImplementationOnce(async (_preparedPlan, callbacks) => {
+			void callbacks?.onEntrySettled;
+			return await deferred.promise;
+		});
+
+		const modal = new SyncProgressModal(app, modalOptions);
+		modal.onOpen();
+		getButton(modal, "Start sync").click();
+		await flushUI();
+		getButton(modal, "Execute").click();
+		await flushUI();
+
+		const firstRowBefore = modal.contentEl.querySelector(".keepsidian-sync-plan-row") as HTMLDivElement;
+		const firstBadgeBefore = firstRowBefore.querySelector(".keepsidian-sync-plan-row-badge") as HTMLSpanElement;
+		expect(firstBadgeBefore.textContent).toBe("Pending");
+
+		modal.setProgress(1, 2);
+		await flushUI();
+
+		const firstRowAfterProgress = modal.contentEl.querySelector(".keepsidian-sync-plan-row") as HTMLDivElement;
+		expect(firstRowAfterProgress).toBe(firstRowBefore);
+
+		const runCallback = modalOptions.runSyncPlan.mock.calls[0]?.[1];
+		runCallback.onEntrySettled("create-1", true);
+		await flushUI();
+
+		const firstRowAfterSettled = modal.contentEl.querySelector(".keepsidian-sync-plan-row") as HTMLDivElement;
+		const firstBadgeAfterSettled = firstRowAfterSettled.querySelector(
+			".keepsidian-sync-plan-row-badge"
+		) as HTMLSpanElement;
+		expect(firstRowAfterSettled).toBe(firstRowBefore);
+		expect(firstBadgeAfterSettled.textContent).toBe("Created");
+		expect(firstRowAfterSettled.classList.contains("is-done")).toBe(true);
+
+		deferred.resolve({});
+		await flushUI();
+	});
+
+	test("closing during a running sync requests cancellation and preserves the modal instance state", async () => {
+		const deferred = createDeferredResult();
+		modalOptions.runSyncPlan.mockImplementationOnce(async (_preparedPlan, callbacks) => {
+			void callbacks?.onEntrySettled;
+			return await deferred.promise;
+		});
+
+		const modal = new SyncProgressModal(app, modalOptions);
+		modal.onOpen();
+		getButton(modal, "Start sync").click();
+		await flushUI();
+		getButton(modal, "Execute").click();
+		await flushUI();
+
+		modal.onClose();
+		await flushUI();
+
+		expect(modalOptions.requestCancelSync).toHaveBeenCalledTimes(1);
+		expect(modalOptions.onClose).toHaveBeenCalledWith({ activeRun: true });
+		expect(getButton(modal, "Canceling ...").disabled).toBe(true);
+
+		modal.onOpen();
+		await flushUI();
+		expect(modal.contentEl.textContent).toContain("Running download plan");
+
+		deferred.resolve({});
+		await flushUI();
+	});
+
+	test("outside clicks during a running sync show cancel and background options", async () => {
+		const deferred = createDeferredResult();
+		modalOptions.runSyncPlan.mockImplementationOnce(async (_preparedPlan, callbacks) => {
+			void callbacks?.onEntrySettled;
+			return await deferred.promise;
+		});
+
+		const modal = new SyncProgressModal(app, modalOptions);
+		modal.onOpen();
+		getButton(modal, "Start sync").click();
+		await flushUI();
+		getButton(modal, "Execute").click();
+		await flushUI();
+
+		modal.containerEl.dispatchEvent(new Event("pointerdown", { bubbles: true, cancelable: true }));
+		await flushUI();
+
+		expect(modal.contentEl.textContent).toContain("Leave this sync running?");
+		expect(getButton(modal, "Cancel sync")).toBeTruthy();
+		expect(getButton(modal, "Run in background")).toBeTruthy();
+		expect(getButton(modal, "Back")).toBeTruthy();
+
+		deferred.resolve({});
+		await flushUI();
+	});
+
+	test("cancel button keeps the running dialog open until the sync aborts, then returns to sync center", async () => {
+		const deferred = createDeferredResult();
+		const canceledSummary: LastSyncSummary = {
+			timestamp: Date.now(),
+			processedNotes: 1,
+			totalNotes: 1,
+			success: false,
+			status: "canceled",
+			mode: "import",
+		};
+		const modal = new SyncProgressModal(app, modalOptions);
+		modalOptions.runSyncPlan.mockImplementationOnce(async () => {
+			const result = await deferred.promise;
+			return result;
+		});
+		modal.onOpen();
+		getButton(modal, "Start sync").click();
+		await flushUI();
+		getButton(modal, "Execute").click();
+		await flushUI();
+
+		getButton(modal, "Cancel").click();
+		await flushUI();
+
+		expect(modalOptions.requestCancelSync).toHaveBeenCalledTimes(1);
+		expect(getButton(modal, "Canceling ...").disabled).toBe(true);
+		expect(modal.contentEl.textContent).toContain("Running download plan");
+
+		modal.setComplete("canceled", 1);
+		modal.setIdleSummary(canceledSummary);
+		deferred.resolve({ canceled: true });
+		await flushUI();
+
+		expect(modal.contentEl.textContent).toContain("Sync center");
+		expect(modal.contentEl.textContent).toContain("Last import attempt");
+		expect(modal.contentEl.textContent).toContain("was canceled after 1/1 note");
+		expect(modal.contentEl.textContent).not.toContain("Download failed");
+	});
+
 	test("two-way review advances to upload review and refreshes the upload stage in place", async () => {
 		const importPlan = createPreparedSyncPlanFixture("two-way", "import", [
 			createSyncPlanEntryFixture("merge", "Merge", {
@@ -563,6 +726,7 @@ describe("SyncProgressModal", () => {
 			processedNotes: 4,
 			totalNotes: 4,
 			success: true,
+			status: "success",
 			mode: "two-way",
 		};
 		modal.setComplete(true, 4);

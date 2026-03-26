@@ -123,4 +123,16 @@ describe("status bar gating", () => {
 		expect(hide).toHaveBeenCalledTimes(1);
 		jest.useRealTimers();
 	});
+
+	it("records canceled syncs distinctly from failed syncs", () => {
+		finishSyncUI(plugin, "canceled");
+
+		expect(plugin.lastSyncSummary).toEqual(
+			expect.objectContaining({
+				success: false,
+				status: "canceled",
+			})
+		);
+		expect(plugin.statusTextEl?.textContent).toBe("Last sync canceled");
+	});
 });

@@ -2,6 +2,7 @@ import { Notice } from "obsidian";
 import type KeepSidianPlugin from "@app/main";
 import { normalizePathSafe } from "@services/paths";
 import { logSync, flushLogSync } from "@app/logging";
+import { SyncCancellationError, isSyncCancellationError } from "@app/sync-cancel";
 import { buildFrontmatterWithSyncDate, wrapMarkdown } from "./frontmatter";
 import { FRONTMATTER_GOOGLE_KEEP_URL_KEY } from "./constants";
 import type { SyncCallbacks } from "./sync";
@@ -20,6 +21,13 @@ import type { SyncPlan, SyncPlanEntry } from "@types";
 const SKIPPED_LOG_BATCH_SIZE = 50;
 const PUSH_PAYLOAD_BATCH_SIZE = 20;
 const NOTE_LOG_BATCH_SIZE = 20;
+
+function throwIfSyncCancelled(plugin: KeepSidianPlugin): void {
+	const cancelablePlugin = plugin as KeepSidianPlugin & {
+		throwIfSyncCancelled?: () => void;
+	};
+	cancelablePlugin.throwIfSyncCancelled?.();
+}
 
 function mapResultsByPath(results?: PushNoteResult[]): Map<string, PushNoteResult> {
 	const map = new Map<string, PushNoteResult>();
@@ -148,6 +156,7 @@ export async function pushGoogleKeepNotes(
 	preparedNotes?: NoteForPush[]
 ): Promise<number> {
 	try {
+		throwIfSyncCancelled(plugin);
 		const { notesToPush, skippedNotes } = preparedNotes
 			? { notesToPush: preparedNotes, skippedNotes: [] }
 			: await collectNotesToPush(plugin);
@@ -177,6 +186,7 @@ export async function pushGoogleKeepNotes(
 		let successCount = 0;
 
 		for (let index = 0; index < notesToPush.length; index += PUSH_PAYLOAD_BATCH_SIZE) {
+			throwIfSyncCancelled(plugin);
 			const batch = notesToPush.slice(index, index + PUSH_PAYLOAD_BATCH_SIZE);
 			const payloadBatch: PushNotePayload[] = batch.map((note) => ({
 				path: note.relativePath,
@@ -192,6 +202,7 @@ export async function pushGoogleKeepNotes(
 			const batchSize = NOTE_LOG_BATCH_SIZE;
 			const batchOptions = { batchKey, batchSize };
 			for (const [batchIndex, note] of batch.entries()) {
+				throwIfSyncCancelled(plugin);
 				let pushSucceeded = false;
 				try {
 					const pushTimestamp = roundDateToSeconds(new Date()).toISOString();
@@ -266,6 +277,9 @@ export async function pushGoogleKeepNotes(
 					successCount += 1;
 					pushSucceeded = true;
 				} catch (error: unknown) {
+					if (error instanceof SyncCancellationError) {
+						throw error;
+					}
 					await flushLogSync(plugin, { batchKey });
 					await logSync(
 						plugin,
@@ -287,6 +301,9 @@ export async function pushGoogleKeepNotes(
 		new Notice("Pushed Google Keep notes.");
 		return successCount;
 	} catch (error: unknown) {
+		if (isSyncCancellationError(error)) {
+			throw error;
+		}
 		new Notice("Failed to push notes.");
 		throw error;
 	}

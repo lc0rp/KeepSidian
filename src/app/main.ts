@@ -7,6 +7,7 @@ import type { NoteImportOptions } from "@ui/modals/NoteImportOptionsModal";
 import { SyncProgressModal } from "@ui/modals/SyncProgressModal";
 import { initializeStatusBar } from "@app/sync-ui";
 import { logSync } from "@app/logging";
+import { SyncCancellationError } from "@app/sync-cancel";
 import { getLastSuccessfulSyncDate } from "@features/keep/sync";
 import { KeepSidianSettingsTab } from "@ui/settings/KeepSidianSettingsTab";
 import { SubscriptionSettingsTab } from "@ui/settings/SubscriptionSettingsTab";
@@ -45,6 +46,10 @@ interface SyncCenterOpenOptions {
 	autoStart?: boolean;
 }
 
+interface ActiveSyncRequest {
+	cancelRequested: boolean;
+}
+
 export default class KeepSidianPlugin extends Plugin {
 	settings: KeepSidianPluginSettings;
 	subscriptionService: SubscriptionService;
@@ -64,6 +69,7 @@ export default class KeepSidianPlugin extends Plugin {
 	currentSyncPhaseLabel: string | null = null;
 	private autoSyncInterval?: ReturnType<typeof setInterval>;
 	private isSyncing = false;
+	private activeSyncRequest: ActiveSyncRequest | null = null;
 	private subscriptionActive: boolean | null = null;
 	private lastAutoSyncGateReasons: string[] | null = null;
 
@@ -337,6 +343,20 @@ export default class KeepSidianPlugin extends Plugin {
 		return this.isSyncing;
 	}
 
+	requestCurrentSyncCancel(): boolean {
+		if (!this.activeSyncRequest || this.activeSyncRequest.cancelRequested) {
+			return false;
+		}
+		this.activeSyncRequest.cancelRequested = true;
+		return true;
+	}
+
+	throwIfSyncCancelled(): void {
+		if (this.activeSyncRequest?.cancelRequested) {
+			throw new SyncCancellationError();
+		}
+	}
+
 	openSyncProgressModal() {
 		this.openSyncCenter();
 	}
@@ -357,6 +377,8 @@ export default class KeepSidianPlugin extends Plugin {
 					if (!this.ensureCredentials()) {
 						return {};
 					}
+					const syncRequest: ActiveSyncRequest = { cancelRequested: false };
+					this.activeSyncRequest = syncRequest;
 					this.isSyncing = true;
 					try {
 						return await runPreparedSyncPlan(
@@ -367,8 +389,14 @@ export default class KeepSidianPlugin extends Plugin {
 							callbacks
 						);
 					} finally {
+						if (this.activeSyncRequest === syncRequest) {
+							this.activeSyncRequest = null;
+						}
 						this.isSyncing = false;
 					}
+				},
+				requestCancelSync: () => {
+					return this.requestCurrentSyncCancel();
 				},
 				onOpenSyncLog: () => this.openLatestSyncLog(),
 				getTwoWayGate: () => this.getTwoWayGateSnapshot(),
@@ -385,8 +413,10 @@ export default class KeepSidianPlugin extends Plugin {
 						isActive
 					);
 				},
-				onClose: () => {
-					this.progressModal = null;
+				onClose: ({ activeRun }) => {
+					if (!activeRun) {
+						this.progressModal = null;
+					}
 				},
 			});
 		}
@@ -398,15 +428,15 @@ export default class KeepSidianPlugin extends Plugin {
 		const mode = options?.mode ?? "import";
 		const autoStart = options?.autoStart ?? false;
 		const modal = this.ensureSyncCenterModal();
-		modal.setSelectedMode(mode);
 		if (this.isSyncInProgress()) {
 			const total = this.totalNotes ?? undefined;
 			modal.setProgress(this.processedNotes, total);
 		} else {
+			modal.setSelectedMode(mode);
 			modal.setIdleSummary(this.lastSyncSummary);
 		}
 		modal.open();
-		if (autoStart) {
+		if (autoStart && !this.isSyncInProgress()) {
 			void modal.beginReview(mode);
 		}
 	}

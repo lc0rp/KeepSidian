@@ -6,6 +6,7 @@ import {
 
 export type SyncMode = "import" | "push" | "two-way";
 export type SaveLocationMode = "custom" | "daily-notes";
+export type SyncRunStatus = "success" | "failed" | "canceled";
 
 export const LEGACY_SAVE_LOCATION = "/Google Keep";
 export const NEW_INSTALL_SAVE_LOCATION = "/KeepSidian";
@@ -17,6 +18,7 @@ export interface LastSyncSummary {
 	processedNotes: number;
 	totalNotes?: number | null;
 	success: boolean;
+	status?: SyncRunStatus;
 	mode: SyncMode;
 }
 

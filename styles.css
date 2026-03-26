@@ -264,6 +264,25 @@ If your plugin does not need CSS, delete this file.
 	color: var(--text-muted);
 }
 
+.keepsidian-modal-header-meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.keepsidian-modal-status {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.keepsidian-modal-status-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	flex: 0 0 auto;
+}
+
 .keepsidian-modal-alert {
 	display: flex;
 	flex-direction: column;
@@ -286,11 +305,65 @@ If your plugin does not need CSS, delete this file.
 	color: var(--text-normal);
 }
 
+.keepsidian-modal-dismiss-prompt {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 14px 16px;
+	border: 1px solid color-mix(in srgb, var(--color-orange, #f59e0b) 24%, var(--background-modifier-border));
+	border-radius: 14px;
+	background:
+		linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--color-orange, #f59e0b) 10%, var(--background-secondary)) 0%,
+			color-mix(in srgb, var(--background-secondary) 94%, transparent) 100%
+		);
+	box-shadow: 0 10px 24px rgb(0 0 0 / 10%);
+}
+
+.keepsidian-modal-dismiss-prompt-title {
+	font-size: var(--font-ui-medium);
+	font-weight: 700;
+	color: var(--text-normal);
+}
+
+.keepsidian-modal-dismiss-prompt-message {
+	font-size: var(--font-ui-small);
+	line-height: 1.45;
+	color: var(--text-muted);
+}
+
+.keepsidian-modal-dismiss-prompt-actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.keepsidian-modal-dismiss-prompt-actions .keepsidian-modal-action {
+	flex: 0 0 auto;
+	min-width: 124px;
+}
+
+.keepsidian-modal-dismiss-prompt-action--danger {
+	border-color: color-mix(in srgb, var(--color-red, #ef4444) 36%, var(--background-modifier-border));
+	background: color-mix(in srgb, var(--color-red, #ef4444) 10%, var(--background-secondary));
+	color: color-mix(in srgb, var(--color-red, #ef4444) 78%, white 10%);
+}
+
+.keepsidian-modal-dismiss-prompt-action--ghost {
+	background: color-mix(in srgb, var(--background-primary-alt) 72%, transparent);
+}
+
 .keepsidian-modal-actions {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: stretch;
 	gap: 8px;
+}
+
+.keepsidian-modal-actions--plan {
+	margin-bottom: 10px;
 }
 
 .keepsidian-modal-action {
@@ -381,6 +454,12 @@ If your plugin does not need CSS, delete this file.
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+}
+
+.keepsidian-sync-center-mode-section--primary {
+	margin-top: 14px;
+	padding-top: 14px;
+	border-top: 1px solid var(--background-modifier-border);
 }
 
 .keepsidian-sync-center-scope-section {
@@ -1042,7 +1121,49 @@ If your plugin does not need CSS, delete this file.
 }
 
 .keepsidian-modal-close {
-	margin-top: 2px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	margin-top: 12px;
+}
+
+.keepsidian-modal-inline-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 124px;
+	padding: 7px 16px;
+	border-radius: 999px;
+	font-weight: 600;
+	box-shadow: none;
+	transition:
+		background-color 140ms ease,
+		border-color 140ms ease,
+		color 140ms ease,
+		transform 140ms ease;
+}
+
+.keepsidian-modal-inline-action--cancel {
+	border: 1px solid color-mix(in srgb, var(--color-red, #ef4444) 42%, var(--background-modifier-border));
+	background: color-mix(in srgb, var(--color-red, #ef4444) 10%, var(--background-secondary));
+	color: color-mix(in srgb, var(--color-red, #ef4444) 82%, white 8%);
+}
+
+.keepsidian-modal-inline-action--cancel:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--color-red, #ef4444) 16%, var(--background-secondary));
+	border-color: color-mix(in srgb, var(--color-red, #ef4444) 56%, var(--background-modifier-border));
+	transform: translateY(-1px);
+}
+
+.keepsidian-modal-inline-action--cancel:disabled {
+	opacity: 0.65;
+	transform: none;
+}
+
+.modal-close-button.is-disabled {
+	opacity: 0.45;
+	cursor: default;
 }
 
 @media (max-width: 720px) {
@@ -1054,6 +1175,20 @@ If your plugin does not need CSS, delete this file.
 
 	.keepsidian-sync-stepper {
 		gap: 8px;
+	}
+
+	.keepsidian-modal-header-meta {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 10px;
+	}
+
+	.keepsidian-modal-status-actions {
+		justify-content: stretch;
+	}
+
+	.keepsidian-modal-inline-action {
+		width: 100%;
 	}
 
 	.keepsidian-sync-plan {

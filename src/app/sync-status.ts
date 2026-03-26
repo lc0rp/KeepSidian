@@ -1,4 +1,8 @@
-import type { LastSyncSummary, SyncMode } from "../types/keepsidian-plugin-settings";
+import type {
+	LastSyncSummary,
+	SyncMode,
+	SyncRunStatus,
+} from "../types/keepsidian-plugin-settings";
 
 function formatCount(summary: LastSyncSummary, includeNotesWord = true): string {
         const { processedNotes, totalNotes } = summary;
@@ -37,11 +41,19 @@ function formatTimestamp(timestamp: number): string {
         }
 }
 
+function getSummaryStatus(summary: LastSyncSummary): SyncRunStatus {
+	return summary.status ?? (summary.success ? "success" : "failed");
+}
+
 export function formatStatusBarText(summary: LastSyncSummary | null): string {
         if (!summary) {
                 return "Last sync: never";
         }
-        if (!summary.success) {
+        const status = getSummaryStatus(summary);
+        if (status === "canceled") {
+                return "Last sync canceled";
+        }
+        if (status === "failed") {
                 return "Last sync failed";
         }
         return typeof summary.totalNotes === "number" && summary.totalNotes > 0
@@ -54,7 +66,12 @@ export function formatStatusBarTooltip(summary: LastSyncSummary | null): string 
                 return "KeepSidian has not synced yet.";
         }
         const formattedTime = formatTimestamp(summary.timestamp);
-        if (!summary.success) {
+        const status = getSummaryStatus(summary);
+        if (status === "canceled") {
+                const count = formatCount(summary);
+                return `KeepSidian last sync was canceled: ${formattedTime} (processed ${count}).`;
+        }
+        if (status === "failed") {
                 const count = formatCount(summary);
                 return `KeepSidian last sync failed: ${formattedTime} (processed ${count}).`;
         }
@@ -69,8 +86,12 @@ export function formatModalSummary(summary: LastSyncSummary | null): string {
         const formattedTime = formatTimestamp(summary.timestamp);
         const modeText = describeMode(summary.mode);
         const count = formatCount(summary);
-        if (summary.success) {
+        const status = getSummaryStatus(summary);
+        if (status === "success") {
                 return `Last ${modeText} completed on ${formattedTime}: Synced ${count}.`;
+        }
+        if (status === "canceled") {
+                return `Last ${modeText} attempt on ${formattedTime} was canceled after ${count}.`;
         }
         return `Last ${modeText} attempt on ${formattedTime} failed after ${count}.`;
 }

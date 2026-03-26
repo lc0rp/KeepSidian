@@ -264,6 +264,30 @@ describe("KeepSidianPlugin", () => {
 		});
 	});
 
+	describe("openSyncCenter", () => {
+		it("preserves the running modal state instead of resetting the mode while syncing", () => {
+			const modalStub = {
+				setSelectedMode: jest.fn(),
+				setProgress: jest.fn(),
+				setIdleSummary: jest.fn(),
+				open: jest.fn(),
+				beginReview: jest.fn(),
+			};
+			plugin.progressModal =
+				modalStub as unknown as KeepSidianPlugin["progressModal"];
+			(plugin as unknown as { isSyncing: boolean }).isSyncing = true;
+			plugin.processedNotes = 3;
+			plugin.totalNotes = 10;
+
+			plugin.openSyncCenter({ mode: "two-way", autoStart: true });
+
+			expect(modalStub.setSelectedMode).not.toHaveBeenCalled();
+			expect(modalStub.setProgress).toHaveBeenCalledWith(3, 10);
+			expect(modalStub.open).toHaveBeenCalledTimes(1);
+			expect(modalStub.beginReview).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("openLatestSyncLog", () => {
 		beforeEach(async () => {
 			await plugin.onload();

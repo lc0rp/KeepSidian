@@ -11,6 +11,28 @@ describe("KeepSidian", function () {
 	const exactButtonByText = (label: string): string =>
 		`//*[self::button or @role="button"][normalize-space(.)="${label}"]`;
 
+	const triggerSyncCenterBackdropClick = async (): Promise<void> => {
+		await browser.executeObsidian(({ app }) => {
+			const plugin = app.plugins.getPlugin("keepsidian") as
+				| {
+						progressModal?: {
+							containerEl?: HTMLElement;
+						};
+				  }
+				| undefined;
+			const containerEl = plugin?.progressModal?.containerEl;
+			if (!containerEl) {
+				throw new Error("Sync center container is not available");
+			}
+			containerEl.dispatchEvent(
+				new PointerEvent("pointerdown", {
+					bubbles: true,
+					cancelable: true,
+				})
+			);
+		});
+	};
+
 	const openKeepSidianSettingsTab = async (): Promise<void> => {
 		await completeMobileOnboardingIfNeeded();
 
@@ -108,18 +130,42 @@ describe("KeepSidian", function () {
 		plansByMode: Partial<
 			Record<SyncMode, ReturnType<typeof createPreparedSyncPlanFixture>>
 		>,
-		options?: { runDelayMs?: number; initialMode?: SyncMode; gateAllowed?: boolean }
+		options?: {
+			runDelayMs?: number;
+			initialMode?: SyncMode;
+			gateAllowed?: boolean;
+			supportCancel?: boolean;
+		}
 	): Promise<void> => {
 		const runDelayMs = options?.runDelayMs ?? 500;
 		const initialMode = options?.initialMode ?? "import";
 		const gateAllowed = options?.gateAllowed ?? false;
+		const supportCancel = options?.supportCancel ?? false;
 		await browser.executeObsidian(
-			({ app }, preparedPlans, delayMs, requestedMode, allowGate) => {
+			({ app }, preparedPlans, delayMs, requestedMode, allowGate, allowCancel) => {
 				type KeepSidianPluginWindow = Window & {
 					app?: {
 						plugins?: {
 							getPlugin?: (id: string) => {
 								openSyncCenter?: (options?: { mode?: SyncMode }) => void;
+								lastSyncSummary?: {
+									timestamp: number;
+									processedNotes: number;
+									totalNotes?: number | null;
+									success: boolean;
+									status?: "success" | "failed" | "canceled";
+									mode: SyncMode;
+								} | null;
+								settings?: {
+									lastSyncSummary?: {
+										timestamp: number;
+										processedNotes: number;
+										totalNotes?: number | null;
+										success: boolean;
+										status?: "success" | "failed" | "canceled";
+										mode: SyncMode;
+									} | null;
+								};
 								progressModal?: {
 									options?: {
 										buildSyncPlan?: (mode: SyncMode) => Promise<unknown>;
@@ -159,6 +205,30 @@ describe("KeepSidian", function () {
 					allowed: allowGate,
 					reasons: allowGate ? [] : ["Confirm backups"],
 				});
+				let cancelRequested = false;
+				const setCanceledSummary = (processedNotes: number, totalNotes: number, mode: SyncMode) => {
+					const summary = {
+						timestamp: Date.now(),
+						processedNotes,
+						totalNotes,
+						success: false,
+						status: "canceled" as const,
+						mode,
+					};
+					plugin.lastSyncSummary = summary;
+					if (plugin.settings) {
+						plugin.settings.lastSyncSummary = summary;
+					}
+					modal.setComplete?.("canceled", processedNotes);
+					modal.setIdleSummary?.(summary);
+				};
+				modal.options.requestCancelSync = () => {
+					if (!allowCancel || cancelRequested) {
+						return false;
+					}
+					cancelRequested = true;
+					return true;
+				};
 				modal.options.buildSyncPlan = async (mode) => {
 					const selectedPlan = preparedPlans[mode];
 					if (!selectedPlan) {
@@ -172,21 +242,32 @@ describe("KeepSidian", function () {
 					const selectableEntries = activePlan.plan.entries.filter(
 						(entry) => entry.selectable && entry.selected
 					);
-					await new Promise((resolve) => {
-						window.setTimeout(() => {
-							for (const entry of selectableEntries) {
-								callbacks?.onEntrySettled?.(entry.id, true);
-							}
-							resolve(undefined);
-						}, delayMs);
-					});
+					const totalNotes = selectableEntries.length;
+					const startedAt = Date.now();
+					while (Date.now() - startedAt < delayMs) {
+						if (allowCancel && cancelRequested) {
+							setCanceledSummary(0, totalNotes, activePlan.mode);
+							return { canceled: true };
+						}
+						await new Promise((resolve) => {
+							window.setTimeout(resolve, 50);
+						});
+					}
+					if (allowCancel && cancelRequested) {
+						setCanceledSummary(0, totalNotes, activePlan.mode);
+						return { canceled: true };
+					}
+					for (const entry of selectableEntries) {
+						callbacks?.onEntrySettled?.(entry.id, true);
+					}
 					return {};
 				};
 			},
 			plansByMode,
 			runDelayMs,
 			initialMode,
-			gateAllowed
+			gateAllowed,
+			supportCancel
 		);
 	};
 
@@ -416,6 +497,127 @@ describe("KeepSidian", function () {
 		).toBe(true);
 		expect(await browser.$(buttonByText("Open sync log")).isExisting()).toBe(true);
 		expect(await browser.$(buttonByText("Close")).isExisting()).toBe(true);
+	});
+
+	it("guards the review dialog against outside-click dismissal (desktop)", async function () {
+		if (isAndroid()) {
+			this.skip();
+			return;
+		}
+
+		const seededPlan = createPreparedSyncPlanFixture("import", "import", [
+			createSyncPlanEntryFixture("create", "Create", {
+				id: "create-1",
+				title: "E2E guarded review note",
+				path: "Keep/E2E guarded review note.md",
+			}),
+		]);
+
+		await openSeededSyncCenter({ import: seededPlan }, { runDelayMs: 1200, initialMode: "import" });
+
+		const startSyncButton = browser.$(buttonByText("Start sync"));
+		await startSyncButton.waitForExist({ timeout: 20000 });
+		await startSyncButton.click();
+
+		const reviewTitle = browser.$('//*[normalize-space(.)="Review download plan"]');
+		await reviewTitle.waitForExist({ timeout: 20000 });
+
+		await triggerSyncCenterBackdropClick();
+
+		const closePrompt = browser.$('//*[normalize-space(.)="Close sync center?"]');
+		await closePrompt.waitForExist({ timeout: 20000 });
+		expect(await browser.$(exactButtonByText("Close")).isExisting()).toBe(true);
+		expect(await browser.$(exactButtonByText("Back")).isExisting()).toBe(true);
+		expect(await browser.$(buttonByText("Cancel sync")).isExisting()).toBe(false);
+		expect(await browser.$(buttonByText("Run in background")).isExisting()).toBe(false);
+
+		await browser.$(exactButtonByText("Back")).click();
+		await browser.waitUntil(async () => !(await closePrompt.isExisting()), {
+			timeout: 20000,
+			interval: 200,
+		});
+	});
+
+	it("shows cancel and background guard options while a seeded sync is running (desktop)", async function () {
+		if (isAndroid()) {
+			this.skip();
+			return;
+		}
+
+		const seededPlan = createPreparedSyncPlanFixture("import", "import", [
+			createSyncPlanEntryFixture("create", "Create", {
+				id: "create-1",
+				title: "E2E guarded running note",
+				path: "Keep/E2E guarded running note.md",
+			}),
+		]);
+
+		await openSeededSyncCenter({ import: seededPlan }, { runDelayMs: 1500, initialMode: "import" });
+
+		const startSyncButton = browser.$(buttonByText("Start sync"));
+		await startSyncButton.waitForExist({ timeout: 20000 });
+		await startSyncButton.click();
+		await browser.$(buttonByText("Execute")).click();
+
+		const runningTitle = browser.$('//*[normalize-space(.)="Running download plan"]');
+		await runningTitle.waitForExist({ timeout: 20000 });
+		expect(await browser.$(exactButtonByText("Cancel")).isExisting()).toBe(true);
+
+		await triggerSyncCenterBackdropClick();
+
+		const runningPrompt = browser.$('//*[normalize-space(.)="Leave this sync running?"]');
+		await runningPrompt.waitForExist({ timeout: 20000 });
+		expect(await browser.$(exactButtonByText("Cancel sync")).isExisting()).toBe(true);
+		expect(await browser.$(exactButtonByText("Run in background")).isExisting()).toBe(true);
+		expect(await browser.$(exactButtonByText("Back")).isExisting()).toBe(true);
+
+		await browser.$(exactButtonByText("Back")).click();
+
+		const completeTitle = browser.$('//*[normalize-space(.)="Download complete"]');
+		await completeTitle.waitForExist({ timeout: 20000 });
+	});
+
+	it("cancels a seeded running sync and returns to sync center with canceled status (desktop)", async function () {
+		if (isAndroid()) {
+			this.skip();
+			return;
+		}
+
+		const seededPlan = createPreparedSyncPlanFixture("import", "import", [
+			createSyncPlanEntryFixture("create", "Create", {
+				id: "create-1",
+				title: "E2E canceled note",
+				path: "Keep/E2E canceled note.md",
+			}),
+		]);
+
+		await openSeededSyncCenter(
+			{ import: seededPlan },
+			{ runDelayMs: 4000, initialMode: "import", supportCancel: true }
+		);
+
+		const startSyncButton = browser.$(buttonByText("Start sync"));
+		await startSyncButton.waitForExist({ timeout: 20000 });
+		await startSyncButton.click();
+		await browser.$(buttonByText("Execute")).click();
+
+		const runningTitle = browser.$('//*[normalize-space(.)="Running download plan"]');
+		await runningTitle.waitForExist({ timeout: 20000 });
+
+		const cancelButton = browser.$(exactButtonByText("Cancel"));
+		await cancelButton.waitForExist({ timeout: 20000 });
+		await cancelButton.click();
+
+		const cancelingButton = browser.$(exactButtonByText("Canceling ..."));
+		await cancelingButton.waitForExist({ timeout: 20000 });
+
+		const canceledSummary = browser.$('//*[contains(normalize-space(.),"was canceled after")]');
+		await canceledSummary.waitForExist({ timeout: 20000 });
+		expect(await browser.$('//*[normalize-space(.)="Sync center"]').isExisting()).toBe(true);
+		expect(await browser.$(buttonByText("Start sync")).isExisting()).toBe(true);
+		expect(await browser.$('//*[contains(normalize-space(.),"failed after")]').isExisting()).toBe(
+			false
+		);
 	});
 
 	it("walks setup to review to run to done for upload mode with seeded data (desktop)", async function () {

@@ -584,12 +584,16 @@ export class Modal {
 	titleEl: EnhancedElement<"div">;
 	contentEl: EnhancedElement<"div">;
 	modalEl: EnhancedElement<"div">;
+	containerEl: EnhancedElement<"div">;
 
 	constructor(app: App) {
 		this.app = app;
 		this.titleEl = enhanceElement(document.createElement("div"));
 		this.contentEl = enhanceElement(document.createElement("div"));
 		this.modalEl = enhanceElement(document.createElement("div"));
+		this.containerEl = enhanceElement(document.createElement("div"));
+		this.modalEl.appendChild(this.contentEl);
+		this.containerEl.appendChild(this.modalEl);
 	}
 
 	open(): void {}

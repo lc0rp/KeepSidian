@@ -72,7 +72,9 @@ async function handleDuplicateNotes(
 	const noteFilePath =
 		(await findExistingKeepNotePath(app, incomingNote, preferredPath, existingKeepNoteIndex, saveLocation)) ??
 		preferredPath;
-	const fileExists = await app.vault.adapter.exists(noteFilePath);
+	const fileExists = existingKeepNoteIndex
+		? existingKeepNoteIndex.existingPaths.has(noteFilePath)
+		: noteFilePath !== preferredPath || (await app.vault.adapter.exists(noteFilePath));
 
 	if (fileExists) {
 		const updatedFileInfo: UpdatedFileInfo = getUpdatedFileInfo(incomingNote);

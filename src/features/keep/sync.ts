@@ -21,6 +21,7 @@ import { flushLogSync, logSync } from "@app/logging";
 import type { GoogleKeepImportResponse, PremiumFeatureFlags, SyncFilters } from "@integrations/server/keepApi";
 import type { DownloadScope, SyncPlan, SyncPlanEntry } from "@types";
 import { NetworkError } from "@services/errors";
+import { SyncCancellationError } from "@app/sync-cancel";
 import {
 	fetchNotes as apiFetchNotes,
 	fetchNotesWithPremiumFeatures as apiFetchNotesWithPremium,
@@ -31,6 +32,7 @@ import {
 	updateExistingKeepNoteIndex,
 	type ExistingKeepNoteIndex,
 } from "./domain/noteLookup";
+import { appendPerfTrace } from "@app/perf-trace";
 
 const LAST_SUCCESSFUL_SYNC_DATE_KEY = "KeepSidianLastSuccessfulSyncDate";
 const NOTE_LOG_BATCH_KEY = "sync:notes";
@@ -39,10 +41,107 @@ const FETCH_NOTES_PAGE_LIMIT = 100;
 const FETCH_NOTES_MAX_ATTEMPTS = 3;
 const FETCH_NOTES_INITIAL_RETRY_DELAY_MS = 2_000;
 const FETCH_NOTES_RETRYABLE_STATUSES = new Set([429, 503]);
+const NOTE_SAVE_CONCURRENCY = 4;
+const NOTE_PERF_LOG_INTERVAL = 25;
+const NOTE_PERF_SLOW_THRESHOLD_MS = 1_500;
 const NOTE_LOG_BATCH_OPTIONS = {
 	batchKey: NOTE_LOG_BATCH_KEY,
 	batchSize: NOTE_LOG_BATCH_SIZE,
 } as const;
+
+type NoteSaveAction = "skipped" | "created" | "merged" | "conflict" | "overwritten";
+
+interface NoteSaveMetrics {
+	action: NoteSaveAction;
+	totalDurationMs: number;
+	resolveExistingPathDurationMs: number;
+	existsCheckDurationMs: number;
+	duplicateDecisionDurationMs: number;
+	readExistingDurationMs: number;
+	ensureParentFolderDurationMs: number;
+	writeNoteDurationMs: number;
+	attachmentDurationMs: number;
+	attachmentFetchDurationMs: number;
+	attachmentCompareDurationMs: number;
+	attachmentWriteDurationMs: number;
+	logDurationMs: number;
+}
+
+interface SaveBatchMetrics {
+	processed: number;
+	totalDurationMs: number;
+	ensureParentFolderDurationMs: number;
+	writeNoteDurationMs: number;
+	attachmentDurationMs: number;
+	duplicateDecisionDurationMs: number;
+	logDurationMs: number;
+}
+
+function throwIfSyncCancelled(plugin: KeepSidianPlugin): void {
+	const cancelablePlugin = plugin as KeepSidianPlugin & {
+		throwIfSyncCancelled?: () => void;
+	};
+	cancelablePlugin.throwIfSyncCancelled?.();
+}
+
+function getNowMs(): number {
+	if (typeof performance !== "undefined" && typeof performance.now === "function") {
+		return performance.now();
+	}
+	return Date.now();
+}
+
+function formatDurationMs(durationMs: number): string {
+	return `${durationMs.toFixed(0)}ms`;
+}
+
+async function measureAsyncDuration(work: () => Promise<void>): Promise<number> {
+	const startedAt = getNowMs();
+	await work();
+	return getNowMs() - startedAt;
+}
+
+function logPerformanceSummary(
+	label: string,
+	metrics: SaveBatchMetrics
+): void {
+	if (metrics.processed === 0) {
+		return;
+	}
+
+	const averageTotalMs = metrics.totalDurationMs / metrics.processed;
+	const averageEnsureParentMs = metrics.ensureParentFolderDurationMs / metrics.processed;
+	const averageWriteMs = metrics.writeNoteDurationMs / metrics.processed;
+	const averageAttachmentMs = metrics.attachmentDurationMs / metrics.processed;
+	const averageDuplicateMs = metrics.duplicateDecisionDurationMs / metrics.processed;
+	const averageLogMs = metrics.logDurationMs / metrics.processed;
+	logInfoIfNotTest(
+		`[KeepSidian perf] ${label}: processed=${metrics.processed} avg_total=${formatDurationMs(averageTotalMs)} avg_duplicate=${formatDurationMs(averageDuplicateMs)} avg_ensure_parent=${formatDurationMs(averageEnsureParentMs)} avg_write=${formatDurationMs(averageWriteMs)} avg_attachments=${formatDurationMs(averageAttachmentMs)} avg_log=${formatDurationMs(averageLogMs)}`
+	);
+}
+
+async function withKeyedLock<T>(
+	locks: Map<string, Promise<void>>,
+	key: string,
+	work: () => Promise<T>
+): Promise<T> {
+	const previous = locks.get(key) ?? Promise.resolve();
+	let release!: () => void;
+	const current = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const chained = previous.then(() => current);
+	locks.set(key, chained);
+	await previous;
+	try {
+		return await work();
+	} finally {
+		release();
+		if (locks.get(key) === chained) {
+			locks.delete(key);
+		}
+	}
+}
 
 function getVaultConfig(plugin: KeepSidianPlugin, key: string): unknown {
 	const vault = plugin.app?.vault as { getConfig?: (configKey: string) => unknown } | undefined;
@@ -150,6 +249,18 @@ function logErrorIfNotTest(...args: unknown[]) {
 			typeof process !== "undefined" && (process.env?.NODE_ENV === "test" || !!process.env?.JEST_WORKER_ID);
 		if (!isTest) {
 			console.error(...args);
+		}
+	} catch {
+		// no-op
+	}
+}
+
+function logInfoIfNotTest(...args: unknown[]) {
+	try {
+		const isTest =
+			typeof process !== "undefined" && (process.env?.NODE_ENV === "test" || !!process.env?.JEST_WORKER_ID);
+		if (!isTest) {
+			console.debug(...args);
 		}
 	} catch {
 		// no-op
@@ -522,31 +633,186 @@ export async function processAndSaveNotes(
 	callbacks?: SyncCallbacks,
 	noteEntryIds?: string[]
 ) {
+	throwIfSyncCancelled(plugin);
+	const batchStartedAt = getNowMs();
+	const frontmatterFixStartedAt = getNowMs();
 	await ensurePascalCaseFrontmatter(plugin);
+	await appendPerfTrace(plugin, "save-batch-frontmatter-fix-complete", {
+		durationMs: getNowMs() - frontmatterFixStartedAt,
+	});
+	const existingIndexStartedAt = getNowMs();
 	const existingKeepNoteIndex = await buildExistingKeepNoteIndex(plugin.app, plugin.settings.saveLocation);
+	throwIfSyncCancelled(plugin);
+	await appendPerfTrace(plugin, "save-batch-index-built", {
+		durationMs: getNowMs() - existingIndexStartedAt,
+		existingPaths: existingKeepNoteIndex.existingPaths.size,
+		indexedKeepUrls: existingKeepNoteIndex.pathByKeepUrl.size,
+	});
+	const ensuredFolders = new Map<string, Promise<void>>();
+	const noteLocks = new Map<string, Promise<void>>();
+	const batchMetrics: SaveBatchMetrics = {
+		processed: 0,
+		totalDurationMs: 0,
+		ensureParentFolderDurationMs: 0,
+		writeNoteDurationMs: 0,
+		attachmentDurationMs: 0,
+		duplicateDecisionDurationMs: 0,
+		logDurationMs: 0,
+	};
+
+	const ensureFolderCached = async (path: string): Promise<void> => {
+		const existing = ensuredFolders.get(path);
+		if (existing) {
+			await existing;
+			return;
+		}
+
+		const pending = ensureFolder(plugin.app, path).catch((error: unknown) => {
+			ensuredFolders.delete(path);
+			throw error;
+		});
+		ensuredFolders.set(path, pending);
+		await pending;
+	};
 
 	try {
-		for (const [index, note] of notes.entries()) {
-			const normalizedNote = normalizeNote(note);
-			const noteFolder = resolveNoteFolder(plugin.app, plugin.settings, normalizedNote);
-			await ensureFolder(plugin.app, noteFolder);
-			await ensureFolder(plugin.app, mediaFolderPath(noteFolder));
-			const entryId = noteEntryIds?.[index];
-			try {
-				await processAndSaveNote(plugin, note, plugin.settings.saveLocation, normalizedNote, existingKeepNoteIndex);
-				callbacks?.reportProgress?.();
-				if (entryId) {
-					callbacks?.onEntrySettled?.(entryId, true);
+		let nextIndex = 0;
+		let fatalError: unknown = null;
+		const workerCount = Math.min(NOTE_SAVE_CONCURRENCY, Math.max(notes.length, 1));
+		await appendPerfTrace(plugin, "save-batch-start", {
+			noteCount: notes.length,
+			workerCount,
+		});
+
+		const worker = async (): Promise<void> => {
+			while (true) {
+				if (fatalError) {
+					return;
 				}
-			} catch (error: unknown) {
-				if (entryId) {
-					callbacks?.onEntrySettled?.(entryId, false);
+				throwIfSyncCancelled(plugin);
+
+				const index = nextIndex;
+				nextIndex += 1;
+				if (index >= notes.length) {
+					return;
 				}
-				throw error;
+
+				const note = notes[index];
+				const normalizedNote = normalizeNote(note);
+				const noteFolder = resolveNoteFolder(plugin.app, plugin.settings, normalizedNote);
+				const folderEnsureStartedAt = getNowMs();
+				await ensureFolderCached(noteFolder);
+				await ensureFolderCached(mediaFolderPath(noteFolder));
+				throwIfSyncCancelled(plugin);
+				const folderEnsureDurationMs = getNowMs() - folderEnsureStartedAt;
+				const entryId = noteEntryIds?.[index];
+				const saveKey = normalizePathSafe(resolveNotePath(plugin.app, plugin.settings, normalizedNote));
+
+				try {
+					const metrics = await withKeyedLock(noteLocks, saveKey, async () =>
+						processAndSaveNote(
+							plugin,
+							note,
+							plugin.settings.saveLocation,
+							normalizedNote,
+							existingKeepNoteIndex,
+							async (filePath: string) => {
+								const parent = dirnameSafe(filePath);
+								if (!parent) {
+									return;
+								}
+								await ensureFolderCached(parent);
+							},
+							async (folderPath: string) => {
+								await ensureFolderCached(folderPath);
+							}
+						)
+					);
+					batchMetrics.processed += 1;
+					batchMetrics.totalDurationMs += metrics.totalDurationMs;
+					batchMetrics.ensureParentFolderDurationMs += metrics.ensureParentFolderDurationMs;
+					batchMetrics.writeNoteDurationMs += metrics.writeNoteDurationMs;
+					batchMetrics.attachmentDurationMs += metrics.attachmentDurationMs;
+					batchMetrics.duplicateDecisionDurationMs += metrics.duplicateDecisionDurationMs;
+					batchMetrics.logDurationMs += metrics.logDurationMs;
+
+					if (metrics.totalDurationMs >= NOTE_PERF_SLOW_THRESHOLD_MS) {
+						logInfoIfNotTest(
+							`[KeepSidian perf] "${normalizedNote.title}" action=${metrics.action} total=${formatDurationMs(metrics.totalDurationMs)} duplicate=${formatDurationMs(metrics.duplicateDecisionDurationMs)} ensure_parent=${formatDurationMs(metrics.ensureParentFolderDurationMs)} write=${formatDurationMs(metrics.writeNoteDurationMs)} attachments=${formatDurationMs(metrics.attachmentDurationMs)} log=${formatDurationMs(metrics.logDurationMs)}`
+						);
+					}
+					await appendPerfTrace(plugin, "note-save-complete", {
+						title: normalizedNote.title,
+						action: metrics.action,
+						totalDurationMs: metrics.totalDurationMs,
+						folderEnsureDurationMs,
+						resolveExistingPathDurationMs: metrics.resolveExistingPathDurationMs,
+						existsCheckDurationMs: metrics.existsCheckDurationMs,
+						duplicateDecisionDurationMs: metrics.duplicateDecisionDurationMs,
+						readExistingDurationMs: metrics.readExistingDurationMs,
+						ensureParentFolderDurationMs: metrics.ensureParentFolderDurationMs,
+						writeNoteDurationMs: metrics.writeNoteDurationMs,
+						attachmentDurationMs: metrics.attachmentDurationMs,
+						attachmentFetchDurationMs: metrics.attachmentFetchDurationMs,
+						attachmentCompareDurationMs: metrics.attachmentCompareDurationMs,
+						attachmentWriteDurationMs: metrics.attachmentWriteDurationMs,
+						logDurationMs: metrics.logDurationMs,
+						unaccountedDurationMs:
+							metrics.totalDurationMs -
+							(
+								folderEnsureDurationMs +
+								metrics.resolveExistingPathDurationMs +
+								metrics.existsCheckDurationMs +
+								metrics.duplicateDecisionDurationMs +
+								metrics.readExistingDurationMs +
+								metrics.ensureParentFolderDurationMs +
+								metrics.writeNoteDurationMs +
+								metrics.attachmentDurationMs +
+								metrics.logDurationMs
+							),
+					});
+					if (batchMetrics.processed % NOTE_PERF_LOG_INTERVAL === 0) {
+						logPerformanceSummary("import-progress", batchMetrics);
+					}
+
+					callbacks?.reportProgress?.();
+					if (entryId) {
+						callbacks?.onEntrySettled?.(entryId, true);
+					}
+				} catch (error: unknown) {
+					await appendPerfTrace(plugin, "note-save-failed", {
+						title: normalizedNote.title,
+						error: error instanceof Error ? error.message : String(error),
+					});
+					if (!fatalError) {
+						fatalError = error;
+					}
+					if (entryId) {
+						callbacks?.onEntrySettled?.(entryId, false);
+					}
+					return;
+				}
 			}
+		};
+
+		await Promise.all(Array.from({ length: workerCount }, () => worker()));
+		logPerformanceSummary("import-complete", batchMetrics);
+		await appendPerfTrace(plugin, "save-batch-workers-complete", {
+			processed: batchMetrics.processed,
+			totalDurationMs: getNowMs() - batchStartedAt,
+			averageTotalDurationMs:
+				batchMetrics.processed > 0 ? batchMetrics.totalDurationMs / batchMetrics.processed : 0,
+		});
+		if (fatalError) {
+			throw fatalError instanceof Error ? fatalError : new Error("KeepSidian sync failed");
 		}
 	} finally {
+		const flushStartedAt = getNowMs();
 		await flushLogSync(plugin, { batchKey: NOTE_LOG_BATCH_KEY });
+		await appendPerfTrace(plugin, "save-batch-log-flush-complete", {
+			durationMs: getNowMs() - flushStartedAt,
+			totalDurationMs: getNowMs() - batchStartedAt,
+		});
 	}
 }
 
@@ -555,15 +821,38 @@ export async function processAndSaveNote(
 	note: PreNormalizedNote,
 	saveLocation: string,
 	preNormalizedNote?: ReturnType<typeof normalizeNote>,
-	existingKeepNoteIndex?: ExistingKeepNoteIndex
-) {
+	existingKeepNoteIndex?: ExistingKeepNoteIndex,
+	ensureParentFolderForPath: (filePath: string) => Promise<void> = async (filePath: string) =>
+		await ensureParentFolderForFile(plugin.app, filePath),
+	ensureFolderForPath: (folderPath: string) => Promise<void> = async (folderPath: string) =>
+		await ensureFolder(plugin.app, folderPath)
+): Promise<NoteSaveMetrics> {
+	const metrics: NoteSaveMetrics = {
+		action: "created",
+		totalDurationMs: 0,
+		resolveExistingPathDurationMs: 0,
+		existsCheckDurationMs: 0,
+		duplicateDecisionDurationMs: 0,
+		readExistingDurationMs: 0,
+		ensureParentFolderDurationMs: 0,
+		writeNoteDurationMs: 0,
+		attachmentDurationMs: 0,
+		attachmentFetchDurationMs: 0,
+		attachmentCompareDurationMs: 0,
+		attachmentWriteDurationMs: 0,
+		logDurationMs: 0,
+	};
+	const startedAt = getNowMs();
 	const normalizedNote = preNormalizedNote ?? normalizeNote(note);
 	const noteTitle = normalizedNote.title;
 	if (!noteTitle) {
 		await logSync(plugin, "Skipped note without a title", NOTE_LOG_BATCH_OPTIONS);
-		return;
+		metrics.action = "skipped";
+		metrics.totalDurationMs = getNowMs() - startedAt;
+		return metrics;
 	}
 	const resolvedNotePath = resolveNotePath(plugin.app, plugin.settings, normalizedNote);
+	const resolveExistingPathStartedAt = getNowMs();
 	let noteFilePath =
 		(await findExistingKeepNotePath(
 			plugin.app,
@@ -572,36 +861,65 @@ export async function processAndSaveNote(
 			existingKeepNoteIndex,
 			saveLocation
 		)) ?? resolvedNotePath;
+	metrics.resolveExistingPathDurationMs = getNowMs() - resolveExistingPathStartedAt;
 	const noteLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
 	const noteFolder = dirnameSafe(noteFilePath);
 
 	const lastSyncedDate = new Date().toISOString();
+	const ensureParentFolder = async (filePath: string): Promise<void> => {
+		metrics.ensureParentFolderDurationMs += await measureAsyncDuration(async () => {
+			await ensureParentFolderForPath(filePath);
+		});
+	};
+	const ensureFolderPath = async (folderPath: string): Promise<void> => {
+		metrics.ensureParentFolderDurationMs += await measureAsyncDuration(async () => {
+			await ensureFolderForPath(folderPath);
+		});
+	};
+	const logNote = async (message: string): Promise<void> => {
+		metrics.logDurationMs += await measureAsyncDuration(async () => {
+			await logSync(plugin, message, NOTE_LOG_BATCH_OPTIONS);
+		});
+	};
 
 	try {
-		const existedBefore = await plugin.app.vault.adapter.exists(noteFilePath);
-		const duplicateNotesAction = await handleDuplicateNotes(
-			saveLocation,
-			normalizedNote,
-			plugin.app,
-			noteFilePath,
-			existingKeepNoteIndex
-		);
+		throwIfSyncCancelled(plugin);
+		const duplicateDecisionStartedAt = getNowMs();
+		const duplicateNotesAction =
+			existingKeepNoteIndex &&
+			noteFilePath === resolvedNotePath &&
+			!existingKeepNoteIndex.existingPaths.has(noteFilePath)
+				? "create"
+				: await handleDuplicateNotes(
+						saveLocation,
+						normalizedNote,
+						plugin.app,
+						noteFilePath,
+						existingKeepNoteIndex
+					);
+		metrics.duplicateDecisionDurationMs = getNowMs() - duplicateDecisionStartedAt;
 		const newFrontmatter = normalizedNote.frontmatter;
 		const newTextWithoutFrontmatter = normalizedNote.textWithoutFrontmatter;
 
 		if (duplicateNotesAction === "skip") {
-			await logSync(plugin, `${noteLink} - identical (skipped)`, NOTE_LOG_BATCH_OPTIONS);
+			metrics.action = "skipped";
+			await logNote(`${noteLink} - identical (skipped)`);
 		} else if (duplicateNotesAction === "create") {
+			metrics.action = "created";
 			const mdFrontmatter = buildFrontmatterWithSyncDate(newFrontmatter, lastSyncedDate);
 			const newMdContent = wrapMarkdown(mdFrontmatter, newTextWithoutFrontmatter);
-			await ensureParentFolderForFile(plugin.app, noteFilePath);
+			await ensureParentFolder(noteFilePath);
+			const writeStartedAt = getNowMs();
 			await plugin.app.vault.adapter.write(noteFilePath, newMdContent);
+			metrics.writeNoteDurationMs += getNowMs() - writeStartedAt;
 			if (existingKeepNoteIndex) {
 				updateExistingKeepNoteIndex(existingKeepNoteIndex, noteFilePath, normalizedNote);
 			}
-			await logSync(plugin, `${noteLink} - new file created`, NOTE_LOG_BATCH_OPTIONS);
+			await logNote(`${noteLink} - new file created`);
 		} else {
+			const readStartedAt = getNowMs();
 			const existingMarkdownFileContentRaw = await plugin.app.vault.adapter.read(noteFilePath);
+			metrics.readExistingDurationMs += getNowMs() - readStartedAt;
 			const existingMarkdownFileContent =
 				typeof existingMarkdownFileContentRaw === "string" ? existingMarkdownFileContentRaw : "";
 			const [existingFrontmatter, existingTextWithoutFrontmatter] = extractFrontmatter(existingMarkdownFileContent);
@@ -617,69 +935,93 @@ export async function processAndSaveNote(
 				const mergedMdContent = wrapMarkdown(mdFrontmatter, mergedText);
 
 				if (!hasConflict) {
-					await ensureParentFolderForFile(plugin.app, noteFilePath);
+					metrics.action = "merged";
+					await ensureParentFolder(noteFilePath);
+					const writeStartedAt = getNowMs();
 					await plugin.app.vault.adapter.write(noteFilePath, mergedMdContent);
+					metrics.writeNoteDurationMs += getNowMs() - writeStartedAt;
 					if (existingKeepNoteIndex) {
 						updateExistingKeepNoteIndex(existingKeepNoteIndex, noteFilePath, normalizedNote);
 					}
-					await logSync(plugin, `${noteLink} - merged (no conflict)`, NOTE_LOG_BATCH_OPTIONS);
+					await logNote(`${noteLink} - merged (no conflict)`);
 				} else {
+					metrics.action = "conflict";
 					// Write a conflict copy
 					noteFilePath = noteFilePath.replace(/\.md$/, "");
 					noteFilePath = `${noteFilePath}${CONFLICT_FILE_SUFFIX}${lastSyncedDate}.md`;
 
-					await ensureParentFolderForFile(plugin.app, noteFilePath);
+					await ensureParentFolder(noteFilePath);
+					const writeStartedAt = getNowMs();
 					await plugin.app.vault.adapter.write(noteFilePath, mergedMdContent);
+					metrics.writeNoteDurationMs += getNowMs() - writeStartedAt;
 					if (existingKeepNoteIndex) {
 						updateExistingKeepNoteIndex(existingKeepNoteIndex, noteFilePath, normalizedNote);
 					}
 					const conflictLink = `[${noteTitle}](${normalizePathSafe(noteFilePath)})`;
-					await logSync(plugin, `${conflictLink} - conflict copy created`, NOTE_LOG_BATCH_OPTIONS);
+					await logNote(`${conflictLink} - conflict copy created`);
 				}
 			} else {
+				metrics.action = "overwritten";
 				const mdContentWithSyncDate = wrapMarkdown(mdFrontmatter, newTextWithoutFrontmatter);
 
 				// overwrite path: write to current path
-				await ensureParentFolderForFile(plugin.app, noteFilePath);
+				await ensureParentFolder(noteFilePath);
+				const writeStartedAt = getNowMs();
 				await plugin.app.vault.adapter.write(noteFilePath, mdContentWithSyncDate);
+				metrics.writeNoteDurationMs += getNowMs() - writeStartedAt;
 				if (existingKeepNoteIndex) {
 					updateExistingKeepNoteIndex(existingKeepNoteIndex, noteFilePath, normalizedNote);
 				}
-				await logSync(plugin, `${noteLink} - ${existedBefore ? "overwritten" : "created"}`, NOTE_LOG_BATCH_OPTIONS);
+				await logNote(`${noteLink} - overwritten`);
 			}
 		}
 
 		if (normalizedNote.blob_urls && normalizedNote.blob_urls.length > 0) {
+			throwIfSyncCancelled(plugin);
 			if (noteFolder) {
-				await ensureFolder(plugin.app, mediaFolderPath(noteFolder));
+				await ensureFolderPath(mediaFolderPath(noteFolder));
 			}
-			const { downloaded, skippedIdentical } = await processAttachments(
+			const {
+				downloaded,
+				skippedIdentical,
+				totalDurationMs = 0,
+				fetchDurationMs = 0,
+				compareDurationMs = 0,
+				writeDurationMs = 0,
+			} = await processAttachments(
 				plugin.app,
 				normalizedNote.blob_urls,
 				noteFolder || resolveNoteFolder(plugin.app, plugin.settings, normalizedNote),
-				normalizedNote.blob_names
+				normalizedNote.blob_names,
+				{
+					email: plugin.settings.email,
+					token: plugin.settings.token,
+				}
 			);
+			metrics.attachmentDurationMs += totalDurationMs;
+			metrics.attachmentFetchDurationMs += fetchDurationMs;
+			metrics.attachmentCompareDurationMs += compareDurationMs;
+			metrics.attachmentWriteDurationMs += writeDurationMs;
 			if (downloaded > 0) {
 				const attachmentWord = downloaded === 1 ? "attachment" : "attachments";
 				const skippedSuffix = skippedIdentical > 0 ? ` (${skippedIdentical} identical skipped)` : "";
-				await logSync(
-					plugin,
-					`${noteLink} - downloaded ${downloaded} ${attachmentWord}${skippedSuffix}`,
-					NOTE_LOG_BATCH_OPTIONS
-				);
+				await logNote(`${noteLink} - downloaded ${downloaded} ${attachmentWord}${skippedSuffix}`);
 			} else if (skippedIdentical > 0) {
 				const skippedWord = skippedIdentical === 1 ? "attachment" : "attachments";
-				await logSync(
-					plugin,
-					`${noteLink} - attachments up to date (${skippedIdentical} ${skippedWord} identical)`,
-					NOTE_LOG_BATCH_OPTIONS
-				);
+				await logNote(`${noteLink} - attachments up to date (${skippedIdentical} ${skippedWord} identical)`);
 			}
 		}
 	} catch (err: unknown) {
+		if (err instanceof SyncCancellationError) {
+			throw err;
+		}
 		const errorMessage = err instanceof Error ? err.message : String(err);
 		await flushLogSync(plugin, { batchKey: NOTE_LOG_BATCH_KEY });
 		await logSync(plugin, `${noteLink} - error: ${errorMessage}`);
 		throw err;
+	} finally {
+		metrics.totalDurationMs = getNowMs() - startedAt;
 	}
+
+	return metrics;
 }

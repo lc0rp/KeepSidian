@@ -38,16 +38,6 @@ function normalizeVaultPathForScope(path: string): string {
 	return normalizePathSafe(path).replace(/^\/+/, "").replace(/\/+$/, "");
 }
 
-function isPathWithinFolder(path: string, folder: string): boolean {
-	const normalizedFolder = normalizeVaultPathForScope(folder);
-	if (!normalizedFolder) {
-		return true;
-	}
-
-	const normalizedPath = normalizeVaultPathForScope(path);
-	return normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`);
-}
-
 export async function listMarkdownFilesRecursively(adapter: ListableAdapter, folder = ""): Promise<string[]> {
 	const normalizedFolder = normalizePathSafe(folder);
 	if (typeof adapter.list !== "function") {
@@ -85,20 +75,42 @@ export async function buildExistingKeepNoteIndex(
 	rootFolder = ""
 ): Promise<ExistingKeepNoteIndex> {
 	const adapter = app.vault.adapter;
+	const normalizedRootFolder = normalizeVaultPathForScope(rootFolder);
+	if (normalizedRootFolder) {
+		const markdownFiles = await listMarkdownFilesRecursively(adapter, normalizedRootFolder);
+		const existingPaths = new Set(markdownFiles.map((filePath) => normalizePathSafe(filePath)));
+		const pathByKeepUrl = new Map<string, string>();
+
+		for (const filePath of existingPaths) {
+			try {
+				const content = await adapter.read(filePath);
+				const [, , frontmatterDict] = extractFrontmatter(content);
+				const existingKeepUrl = getFrontmatterStringValue(frontmatterDict, FRONTMATTER_GOOGLE_KEEP_URL_KEY);
+				if (existingKeepUrl) {
+					pathByKeepUrl.set(existingKeepUrl, filePath);
+				}
+			} catch {
+				// Ignore unreadable candidates during lookup.
+			}
+		}
+
+		return {
+			pathByKeepUrl,
+			existingPaths,
+		};
+	}
+
 	const metadataBackedFiles = app.vault.getMarkdownFiles?.();
 	if (Array.isArray(metadataBackedFiles) && metadataBackedFiles.length > 0) {
 		const existingPaths = new Set(
 			metadataBackedFiles
 				.map((file) => normalizePathSafe(file.path))
-				.filter((path) => path.length > 0 && isPathWithinFolder(path, rootFolder))
+				.filter((path) => path.length > 0)
 		);
 		const pathByKeepUrl = new Map<string, string>();
 
 		for (const file of metadataBackedFiles) {
 			const normalizedPath = normalizePathSafe(file.path);
-			if (!isPathWithinFolder(normalizedPath, rootFolder)) {
-				continue;
-			}
 			const frontmatterDict = app.metadataCache?.getFileCache?.(file)?.frontmatter;
 			if (!frontmatterDict) {
 				continue;
@@ -115,7 +127,7 @@ export async function buildExistingKeepNoteIndex(
 		};
 	}
 
-	const markdownFiles = await listMarkdownFilesRecursively(adapter, rootFolder);
+	const markdownFiles = await listMarkdownFilesRecursively(adapter, normalizedRootFolder);
 	const existingPaths = new Set(markdownFiles.map((filePath) => normalizePathSafe(filePath)));
 	const pathByKeepUrl = new Map<string, string>();
 
@@ -165,7 +177,7 @@ export async function findExistingKeepNotePath(
 		if (index?.existingPaths.has(normalizedPreferredPath)) {
 			return normalizedPreferredPath;
 		}
-		if (typeof adapter.exists === "function" && (await adapter.exists(normalizedPreferredPath))) {
+		if (!index && typeof adapter.exists === "function" && (await adapter.exists(normalizedPreferredPath))) {
 			return normalizedPreferredPath;
 		}
 	}

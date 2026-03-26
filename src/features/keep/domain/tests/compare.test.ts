@@ -90,7 +90,7 @@ describe("handleDuplicateNotes", () => {
 	});
 
 	it("finds existing notes by GoogleKeepUrl when the filename no longer matches the title inside saveLocation", async () => {
-		adapter.exists.mockImplementation(async (path: string) => path === "/save/location/old-name.md");
+		adapter.exists.mockResolvedValue(false);
 		adapter.list.mockResolvedValue({ files: ["/save/location/old-name.md"], folders: [] });
 		adapter.read.mockResolvedValue("---\nGoogleKeepUrl: https://keep.google.com/u/0/#NOTE/123\n---\nExisting content");
 		adapter.stat.mockResolvedValue({
@@ -123,8 +123,8 @@ describe("handleDuplicateNotes", () => {
 
 		const result = await handleDuplicateNotes("/save/location", incomingNote, mockApp);
 		expect(["skip", "merge", "overwrite"]).toContain(result);
-		expect(adapter.list).toHaveBeenCalledWith("/save/location");
-		expect(adapter.exists).toHaveBeenCalledWith("/save/location/old-name.md");
+		expect(adapter.list).toHaveBeenCalledWith("save/location");
+		expect(adapter.exists).toHaveBeenCalledWith("/save/location/Renamed title.md");
 	});
 
 	it("reuses a prebuilt Keep-note index instead of rescanning saveLocation", async () => {
@@ -179,27 +179,17 @@ describe("handleDuplicateNotes", () => {
 		expect(adapter.read).toHaveBeenCalledTimes(readCallsAfterIndexBuild);
 	});
 
-	it("ignores matching Keep notes outside saveLocation when building the metadata-backed index", async () => {
-		(mockApp.vault as unknown as { getMarkdownFiles: () => Array<{ path: string }> }).getMarkdownFiles = () => [
+	it("scans only the scoped saveLocation instead of the whole vault", async () => {
+		const getMarkdownFiles = jest.fn(() => [
 			{ path: "Archive/old-name.md" },
 			{ path: "/save/location/unrelated.md" },
-		];
-		(
-			mockApp as unknown as {
-				metadataCache: {
-					getFileCache: (file: { path: string }) => { frontmatter?: Record<string, unknown> } | null;
-				};
-			}
-		).metadataCache = {
-			getFileCache: (file) =>
-				file.path === "Archive/old-name.md"
-					? {
-							frontmatter: {
-								GoogleKeepUrl: "https://keep.google.com/u/0/#NOTE/123",
-							},
-						}
-					: { frontmatter: {} },
-		};
+		]);
+		(mockApp.vault as unknown as { getMarkdownFiles: typeof getMarkdownFiles }).getMarkdownFiles = getMarkdownFiles;
+		adapter.list.mockResolvedValue({
+			files: ["/save/location/unrelated.md"],
+			folders: [],
+		});
+		adapter.read.mockResolvedValue("---\n---\nOther");
 
 		const incomingNote: NormalizedNote = {
 			title: "Renamed title",
@@ -234,8 +224,9 @@ describe("handleDuplicateNotes", () => {
 		);
 
 		expect(resolvedPath).toBe("/save/location/Renamed title.md");
-		expect(adapter.list).not.toHaveBeenCalled();
-		expect(adapter.read).not.toHaveBeenCalled();
+		expect(getMarkdownFiles).not.toHaveBeenCalled();
+		expect(adapter.list).toHaveBeenCalledWith("save/location");
+		expect(adapter.read).toHaveBeenCalledWith("/save/location/unrelated.md");
 	});
 });
 

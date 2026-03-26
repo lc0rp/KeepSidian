@@ -494,6 +494,42 @@ describe("Google Keep Import Functions", () => {
 
 			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalled();
 		});
+
+		it("reuses ensured parent folders during note writes instead of re-checking them", async () => {
+			jest.spyOn(loggingModule, "logSync").mockResolvedValue(undefined);
+			jest.spyOn(loggingModule, "flushLogSync").mockResolvedValue(undefined);
+			const ensureFolderSpy = jest.spyOn(pathsModule, "ensureFolder");
+
+			await processAndSaveNotes(mockPlugin, mockNotes);
+
+			expect(ensureFolderSpy).toHaveBeenCalledTimes(2);
+			expect(ensureFolderSpy.mock.calls.map(([, path]) => path)).toEqual(["Test Folder", "Test Folder/media"]);
+		});
+
+		it("reuses ensured media folders for attachment notes", async () => {
+			const noteWithAttachment = [
+				{
+					...mockNotes[0],
+					blob_urls: ["https://example.com/blob-1"],
+				},
+			];
+			jest.spyOn(loggingModule, "logSync").mockResolvedValue(undefined);
+			jest.spyOn(loggingModule, "flushLogSync").mockResolvedValue(undefined);
+			jest.spyOn(attachmentsModule, "processAttachments").mockResolvedValue({
+				downloaded: 1,
+				skippedIdentical: 0,
+				totalDurationMs: 0,
+				fetchDurationMs: 0,
+				compareDurationMs: 0,
+				writeDurationMs: 0,
+			});
+			const ensureFolderSpy = jest.spyOn(pathsModule, "ensureFolder");
+
+			await processAndSaveNotes(mockPlugin, noteWithAttachment);
+
+			expect(ensureFolderSpy).toHaveBeenCalledTimes(2);
+			expect(ensureFolderSpy.mock.calls.map(([, path]) => path)).toEqual(["Test Folder", "Test Folder/media"]);
+		});
 	});
 
 	describe("processAndSaveNote", () => {
@@ -568,7 +604,33 @@ describe("Google Keep Import Functions", () => {
 				mockPlugin.app,
 				`${mockPlugin.settings.saveLocation}/${note.title}.md`
 			);
-			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalled();
+			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalledWith(
+				`${mockPlugin.settings.saveLocation}/${note.title}.md`,
+				expect.any(String)
+			);
+			ensureParentSpy.mockRestore();
+		});
+
+		it("fast-paths create when the scoped index shows no matching file", async () => {
+			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(normalizedNote);
+			const duplicateSpy = jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("create");
+			const ensureParentSpy = jest.spyOn(pathsModule, "ensureParentFolderForFile").mockResolvedValue(undefined);
+
+			await syncModule.processAndSaveNote(mockPlugin, note, mockPlugin.settings.saveLocation, normalizedNote, {
+				existingPaths: new Set(),
+				pathByKeepUrl: new Map(),
+			});
+
+			expect(duplicateSpy).not.toHaveBeenCalled();
+			expect(mockPlugin.app.vault.adapter.exists).not.toHaveBeenCalled();
+			expect(ensureParentSpy).toHaveBeenCalledWith(
+				mockPlugin.app,
+				`${mockPlugin.settings.saveLocation}/${note.title}.md`
+			);
+			expect(mockPlugin.app.vault.adapter.write).toHaveBeenCalledWith(
+				`${mockPlugin.settings.saveLocation}/${note.title}.md`,
+				expect.any(String)
+			);
 			ensureParentSpy.mockRestore();
 		});
 
@@ -677,12 +739,16 @@ describe("Google Keep Import Functions", () => {
 				blob_urls: ["http://example.com/blob1", "http://example.com/blob2"],
 			};
 
-			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(normalizedNoteWithAttachments);
-			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("overwrite");
-			const processAttachmentsSpy = jest.spyOn(attachmentsModule, "processAttachments").mockResolvedValue({
-				downloaded: 2,
-				skippedIdentical: 0,
-			});
+				jest.spyOn(noteModule, "normalizeNote").mockReturnValue(normalizedNoteWithAttachments);
+				jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("overwrite");
+				const processAttachmentsSpy = jest.spyOn(attachmentsModule, "processAttachments").mockResolvedValue({
+					downloaded: 2,
+					skippedIdentical: 0,
+					totalDurationMs: 24,
+					fetchDurationMs: 12,
+					compareDurationMs: 6,
+					writeDurationMs: 6,
+				});
 			const logSpy = jest.spyOn(loggingModule, "logSync").mockResolvedValue(undefined);
 
 			await syncModule.processAndSaveNote(mockPlugin, preNormalizedNote, mockPlugin.settings.saveLocation);
@@ -691,7 +757,11 @@ describe("Google Keep Import Functions", () => {
 				mockPlugin.app,
 				preNormalizedNote.blob_urls,
 				mockPlugin.settings.saveLocation,
-				normalizedNoteWithAttachments.blob_names
+				normalizedNoteWithAttachments.blob_names,
+				{
+					email: mockPlugin.settings.email,
+					token: mockPlugin.settings.token,
+				}
 			);
 			expect(logSpy).toHaveBeenCalledWith(
 				mockPlugin,
@@ -717,12 +787,16 @@ describe("Google Keep Import Functions", () => {
 				blob_urls: ["http://example.com/blob1"],
 			};
 
-			jest.spyOn(noteModule, "normalizeNote").mockReturnValue(normalizedNoteWithAttachments);
-			jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("skip");
-			const processAttachmentsSpy = jest.spyOn(attachmentsModule, "processAttachments").mockResolvedValue({
-				downloaded: 0,
-				skippedIdentical: 1,
-			});
+				jest.spyOn(noteModule, "normalizeNote").mockReturnValue(normalizedNoteWithAttachments);
+				jest.spyOn(compareModule, "handleDuplicateNotes").mockResolvedValue("skip");
+				const processAttachmentsSpy = jest.spyOn(attachmentsModule, "processAttachments").mockResolvedValue({
+					downloaded: 0,
+					skippedIdentical: 1,
+					totalDurationMs: 18,
+					fetchDurationMs: 8,
+					compareDurationMs: 6,
+					writeDurationMs: 4,
+				});
 			const logSpy = jest.spyOn(loggingModule, "logSync").mockResolvedValue(undefined);
 
 			await syncModule.processAndSaveNote(mockPlugin, preNormalizedNote, mockPlugin.settings.saveLocation);
@@ -731,7 +805,11 @@ describe("Google Keep Import Functions", () => {
 				mockPlugin.app,
 				preNormalizedNote.blob_urls,
 				mockPlugin.settings.saveLocation,
-				normalizedNoteWithAttachments.blob_names
+				normalizedNoteWithAttachments.blob_names,
+				{
+					email: mockPlugin.settings.email,
+					token: mockPlugin.settings.token,
+				}
 			);
 			expect(logSpy).toHaveBeenCalledWith(
 				mockPlugin,

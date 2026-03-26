@@ -1,7 +1,7 @@
 import { Notice, ProgressBarComponent } from "obsidian";
 import type KeepSidianPlugin from "@app/main";
 import { formatStatusBarText, formatStatusBarTooltip } from "@app/sync-status";
-import type { LastSyncSummary } from "@types";
+import type { LastSyncSummary, SyncRunStatus } from "@types";
 import { HIDDEN_CLASS } from "@app/ui-constants";
 
 type StatusBarItemElement = HTMLElement & {
@@ -203,7 +203,16 @@ export function reportSyncProgress(plugin: KeepSidianPlugin) {
 	updateProgressNotice(plugin);
 }
 
-export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
+function normalizeSyncRunStatus(status: SyncRunStatus | boolean): SyncRunStatus {
+	if (typeof status === "boolean") {
+		return status ? "success" : "failed";
+	}
+	return status;
+}
+
+export function finishSyncUI(plugin: KeepSidianPlugin, status: SyncRunStatus | boolean) {
+	const normalizedStatus = normalizeSyncRunStatus(status);
+	const success = normalizedStatus === "success";
 	clearScheduledSyncUiHides(plugin);
 	if (plugin.progressNotice) {
 		const noticeControls = getNoticeControls(plugin.progressNotice);
@@ -211,12 +220,16 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 		if (setMessage) {
 			setMessage.call(
 				noticeControls,
-				success ? "Synced Google Keep Notes." : "Failed to sync Google Keep Notes."
+				success
+					? "Synced Google Keep Notes."
+					: normalizedStatus === "canceled"
+						? "Canceled Google Keep sync."
+						: "Failed to sync Google Keep Notes."
 			);
 		}
 		const hideNotice = noticeControls?.hide;
 		if (hideNotice) {
-			const delay = success ? 4000 : 10000;
+			const delay = success ? 4000 : normalizedStatus === "canceled" ? 6000 : 10000;
 			const activeNotice = plugin.progressNotice;
 			plugin.progressNoticeHideTimeout = setTimeout(() => {
 				if (plugin.progressNotice === activeNotice) {
@@ -233,6 +246,7 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 		processedNotes: plugin.processedNotes,
 		totalNotes: typeof totalValue === "number" && totalValue > 0 ? totalValue : null,
 		success,
+		status: normalizedStatus,
 		mode: plugin.currentSyncMode ?? "import",
 	};
 	plugin.lastSyncSummary = summary;
@@ -240,7 +254,7 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 	plugin.currentSyncPhaseLabel = null;
 	updateStatusBarSummary(plugin);
 	if (plugin.progressContainerEl) {
-		plugin.progressContainerEl.toggleClass("complete", !!success);
+		plugin.progressContainerEl.toggleClass("complete", success);
 		plugin.progressContainerEl.toggleClass("failed", !success);
 		plugin.progressBarHideTimeout = setTimeout(() => {
 			if (plugin.progressContainerEl) {
@@ -249,7 +263,7 @@ export function finishSyncUI(plugin: KeepSidianPlugin, success: boolean) {
 			plugin.progressBarHideTimeout = null;
 		}, 3000);
 	}
-	plugin.progressModal?.setComplete(success, plugin.processedNotes);
+	plugin.progressModal?.setComplete(normalizedStatus, plugin.processedNotes);
 	plugin.progressModal?.setIdleSummary(summary);
 	void plugin.saveSettings();
 }
