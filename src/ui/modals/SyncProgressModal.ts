@@ -171,25 +171,49 @@ function formatScopeTimestamp(isoString: string): string {
 	}
 }
 
-function toDatetimeLocalValue(isoString: string): string {
+const CUSTOM_SCOPE_INPUT_FORMAT = "YYYY-MM-DD HH:MM";
+const CUSTOM_SCOPE_INPUT_PATTERN = /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))$/;
+
+function toCustomScopeInputValue(isoString: string): string {
 	const parsed = new Date(isoString);
 	if (Number.isNaN(parsed.getTime())) {
 		return "";
 	}
 
 	const offsetMs = parsed.getTimezoneOffset() * 60_000;
-	return new Date(parsed.getTime() - offsetMs).toISOString().slice(0, 16);
+	return new Date(parsed.getTime() - offsetMs).toISOString().slice(0, 16).replace("T", " ");
 }
 
 function parseCustomScopeInput(value: string): { iso?: string; error?: string } {
-	if (!value.trim()) {
+	const trimmedValue = value.trim();
+	if (!trimmedValue) {
 		return {
 			error: "Choose a custom date.",
 		};
 	}
 
-	const parsed = new Date(value);
-	if (Number.isNaN(parsed.getTime())) {
+	const match = trimmedValue.match(CUSTOM_SCOPE_INPUT_PATTERN);
+	if (!match) {
+		return {
+			error: "Choose a valid custom date.",
+		};
+	}
+
+	const [, yearString, monthString, dayString, hourString, minuteString] = match;
+	const year = Number(yearString);
+	const month = Number(monthString);
+	const day = Number(dayString);
+	const hour = Number(hourString);
+	const minute = Number(minuteString);
+	const parsed = new Date(year, month - 1, day, hour, minute, 0, 0);
+	if (
+		Number.isNaN(parsed.getTime()) ||
+		parsed.getFullYear() !== year ||
+		parsed.getMonth() !== month - 1 ||
+		parsed.getDate() !== day ||
+		parsed.getHours() !== hour ||
+		parsed.getMinutes() !== minute
+	) {
 		return {
 			error: "Choose a valid custom date.",
 		};
@@ -599,7 +623,7 @@ export class SyncProgressModal extends Modal {
 		if (kind === "custom-since" && !this.customSinceInput) {
 			const lastSuccessfulDownloadDate = this.getLastSuccessfulDownloadDate();
 			if (lastSuccessfulDownloadDate) {
-				this.customSinceInput = toDatetimeLocalValue(lastSuccessfulDownloadDate);
+				this.customSinceInput = toCustomScopeInputValue(lastSuccessfulDownloadDate);
 			}
 		}
 		void this.refreshUI();
@@ -1295,26 +1319,34 @@ export class SyncProgressModal extends Modal {
 			inputWrap.classList.add("keepsidian-sync-center-scope-input-wrap");
 
 			const input = createChild(inputWrap, "input");
-			input.type = "datetime-local";
+			input.type = "text";
 			input.value = this.customSinceInput;
+			input.placeholder = CUSTOM_SCOPE_INPUT_FORMAT;
+			input.autocomplete = "off";
+			input.setAttribute("aria-label", `Custom start date (${CUSTOM_SCOPE_INPUT_FORMAT})`);
+			input.setAttribute("data-keepsidian-role", "custom-since-input");
 			input.classList.add("keepsidian-sync-center-scope-input");
+
+			const helper = createChild(sectionEl, "div");
+			helper.classList.add("keepsidian-sync-center-scope-helper");
+			const syncCustomScopeHelper = () => {
+				const error = parseCustomScopeInput(input.value).error ?? null;
+				helper.textContent = error ?? `Use ${CUSTOM_SCOPE_INPUT_FORMAT}. Notes changed after this date will be included.`;
+				helper.classList.toggle("is-warning", Boolean(error));
+			};
+			syncCustomScopeHelper();
+
 			input.addEventListener("input", () => {
 				this.customSinceInput = input.value;
 				this.modalAlert = null;
+				syncCustomScopeHelper();
 			});
 			input.addEventListener("change", () => {
 				this.customSinceInput = input.value;
 				this.modalAlert = null;
+				syncCustomScopeHelper();
 				void this.refreshUI();
 			});
-
-			const error = this.getCustomScopeError();
-			const helperText = error ?? "Notes changed after this date will be included.";
-			const helper = createChild(sectionEl, "div", { text: helperText });
-			helper.classList.add("keepsidian-sync-center-scope-helper");
-			if (error) {
-				helper.classList.add("is-warning");
-			}
 		}
 	}
 

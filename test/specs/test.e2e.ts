@@ -465,8 +465,10 @@ describe("KeepSidian", function () {
 		expect(await browser.$(exactButtonByText("Custom")).isExisting()).toBe(true);
 
 		await browser.$(exactButtonByText("Custom")).click();
-		const customSinceInput = browser.$('//input[@type="datetime-local"]');
+		const customSinceInput = browser.$('//input[@data-keepsidian-role="custom-since-input"]');
 		await customSinceInput.waitForExist({ timeout: 20000 });
+		await customSinceInput.setValue("2025-04-12 09:17");
+		expect(await customSinceInput.getValue()).toBe("2025-04-12 09:17");
 		await browser.$(exactButtonByText("All dates")).click();
 
 		const startSyncButton = browser.$(buttonByText("Start sync"));

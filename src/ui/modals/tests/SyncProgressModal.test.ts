@@ -89,6 +89,10 @@ describe("SyncProgressModal", () => {
 		await Promise.resolve();
 	}
 
+	function getCustomSinceInput(modal: SyncProgressModal): HTMLInputElement | null {
+		return modal.contentEl.querySelector('input[data-keepsidian-role="custom-since-input"]') as HTMLInputElement | null;
+	}
+
 	function createDeferredResult() {
 		let resolvePromise: (value: RunPreparedSyncPlanResult) => void = () => undefined;
 		const promise = new Promise<RunPreparedSyncPlanResult>((resolve) => {
@@ -190,14 +194,16 @@ describe("SyncProgressModal", () => {
 		expect(modalOptions.isSupporterActive).toHaveBeenCalled();
 		expect(modal.contentEl.textContent).toContain("Download options");
 		expect(modal.contentEl.textContent).toContain("Premium options active: true");
-		expect(modal.contentEl.querySelector('input[type="datetime-local"]')).toBeNull();
+		expect(getCustomSinceInput(modal)).toBeNull();
 
 		getButton(modal, "Custom").click();
 		await flushUI();
 
-		const input = modal.contentEl.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+		const input = getCustomSinceInput(modal) as HTMLInputElement;
 		expect(input).toBeTruthy();
-		expect(input.value).toContain("2024-03-01T");
+		expect(input.value).toContain("2024-03-01");
+		expect(input.placeholder).toBe("YYYY-MM-DD HH:MM");
+		expect(modal.contentEl.textContent).toContain("Use YYYY-MM-DD HH:MM.");
 
 		getButton(modal, "Upload").click();
 		await flushUI();
@@ -215,9 +221,9 @@ describe("SyncProgressModal", () => {
 		getButton(modal, "Custom").click();
 		await flushUI();
 
-		const input = modal.contentEl.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+		const input = getCustomSinceInput(modal) as HTMLInputElement;
 		expect(input).toBeTruthy();
-		input.value = "2999-01-01T00:00";
+		input.value = "2999-01-01 00:00";
 		input.dispatchEvent(new Event("change"));
 		await flushUI();
 
@@ -227,6 +233,37 @@ describe("SyncProgressModal", () => {
 		expect(modalOptions.buildSyncPlan).not.toHaveBeenCalled();
 		expect(modal.contentEl.textContent).toContain("Couldn’t prepare the sync review");
 		expect(modal.contentEl.textContent).toContain("Custom date must be in the past.");
+	});
+
+	test("custom date input accepts a full four-digit year and builds a matching local timestamp", async () => {
+		const modal = new SyncProgressModal(app, modalOptions);
+		modal.onOpen();
+
+		getButton(modal, "Customize sync").click();
+		await flushUI();
+		getButton(modal, "Custom").click();
+		await flushUI();
+
+		const input = getCustomSinceInput(modal) as HTMLInputElement;
+		expect(input).toBeTruthy();
+		input.value = "2025-04-12 09:17";
+		input.dispatchEvent(new Event("input"));
+		expect(modal.contentEl.textContent).toContain("Use YYYY-MM-DD HH:MM.");
+		expect(modal.contentEl.textContent).not.toContain("Choose a custom date.");
+		input.dispatchEvent(new Event("change"));
+		await flushUI();
+
+		getButton(modal, "Start sync").click();
+		await flushUI();
+
+		expect(modalOptions.buildSyncPlan).toHaveBeenLastCalledWith(
+			"import",
+			expect.any(Object),
+			{
+				kind: "custom-since",
+				since: new Date(2025, 3, 12, 9, 17, 0, 0).toISOString(),
+			}
+		);
 	});
 
 	test("reopening the modal resets download scope to the default", async () => {
