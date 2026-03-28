@@ -659,6 +659,7 @@ const getRepoSlug = () => {
 
 const publishDraftRelease = async (version, { dryRun = false } = {}) => {
 	const repo = getRepoSlug() ?? "lc0rp/KeepSidian";
+	const isPrerelease = parseVersion(version).prerelease !== null;
 
 	if (dryRun) {
 		console.log(`[dry-run] Would publish GitHub release for ${version}`);
@@ -702,7 +703,7 @@ const publishDraftRelease = async (version, { dryRun = false } = {}) => {
 			"-f",
 			"draft=false",
 			"-f",
-			"prerelease=true",
+			`prerelease=${isPrerelease ? "true" : "false"}`,
 			"-f",
 			`name=${version}`,
 		]);
