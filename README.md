@@ -1,12 +1,7 @@
 # KeepSidian: 2-way Obsidian-Google Keep sync
 
-[![License](https://img.shields.io/github/license/lc0rp/KeepSidian?style=flat-square)](LICENSE)
-[![Issues](https://img.shields.io/github/issues/lc0rp/KeepSidian?style=flat-square)](https://github.com/lc0rp/KeepSidian/issues)
-[![Release](https://img.shields.io/github/v/release/lc0rp/KeepSidian?style=flat-square)](https://github.com/lc0rp/KeepSidian/releases)
+[![License](https://img.shields.io/github/license/lc0rp/KeepSidian?style=flat-square)](LICENSE) [![Issues](https://img.shields.io/github/issues/lc0rp/KeepSidian?style=flat-square)](https://github.com/lc0rp/KeepSidian/issues) [![Release](https://img.shields.io/github/v/release/lc0rp/KeepSidian?style=flat-square)](https://github.com/lc0rp/KeepSidian/releases)
 [![Downloads](https://img.shields.io/github/downloads/lc0rp/KeepSidian/total?style=flat-square)](https://github.com/lc0rp/KeepSidian/releases)
-
-> ⚠️ **Note**: Not affiliated with the Android app Capsidian (Formerly "Keepsidian"). For Android app questions, please
-> see [👉 this thread](https://forum.obsidian.md/t/app-keepsidian/101491/15).
 
 As a regular user of both Google Keep and Obsidian, I set out to make it easier to exchange data between both apps.
 
