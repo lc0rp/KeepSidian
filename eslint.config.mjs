@@ -61,6 +61,8 @@ export default defineConfig([
     rules: {
       "@typescript-eslint/ban-ts-comment": "off",
       "@typescript-eslint/no-empty-function": "off",
+      "@typescript-eslint/no-deprecated": "warn",
+      "@typescript-eslint/no-unnecessary-type-assertion": "warn",
       "no-prototype-builtins": "off",
       "@typescript-eslint/no-misused-promises": ["error", { "checksVoidReturn": { "attributes": false, "properties": false, "returns": false, "variables": false } }],
       "obsidianmd/ui/sentence-case": [
