@@ -33,7 +33,7 @@ jobs:
       - name: Build plugin
         run: |
           cutoff="$(python3 -c 'from datetime import datetime, timedelta, timezone; print((datetime.now(timezone.utc) - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%SZ"))')"
-          npm install --before="$cutoff"
+          npm ci --before="$cutoff"
           npm run build
 
       - name: Create release
