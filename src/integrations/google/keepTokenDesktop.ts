@@ -415,13 +415,13 @@ const resolveSessionForWebview = (webview: WebviewTag) => {
 		}
 	}
 	if (partition && electron?.session?.fromPartition) {
-		const session = electron.session.fromPartition(partition) as CookieSession | undefined;
+		const session = electron.session.fromPartition(partition);
 		if (session) {
 			return { session, source: "partition", partition };
 		}
 	}
 	if (electron?.session?.defaultSession) {
-		return { session: electron.session.defaultSession as CookieSession, source: "default", partition };
+		return { session: electron.session.defaultSession, source: "default", partition };
 	}
 	return { session: undefined, source: "unavailable", partition };
 };
@@ -833,7 +833,7 @@ function wireOAuthHandlers(
 	};
 
 	const bind = (target: WebviewTag, event: string, handler: (...args: unknown[]) => void) => {
-		const wrapped = handler as unknown as EventListener;
+		const wrapped: EventListener = handler;
 		target.addEventListener(event, wrapped);
 		removeListeners.push(() => {
 			try {
@@ -970,13 +970,13 @@ async function getOAuthToken(
 		];
 		if (partitionAttribute && electron?.session?.fromPartition) {
 			candidateSessions.push({
-				session: electron.session.fromPartition(partitionAttribute) as CookieSession,
+				session: electron.session.fromPartition(partitionAttribute),
 				source: "partition",
 			});
 		}
 		if (electron?.session?.defaultSession) {
 			candidateSessions.push({
-				session: electron.session.defaultSession as CookieSession,
+				session: electron.session.defaultSession,
 				source: "default",
 			});
 		}

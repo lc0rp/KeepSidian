@@ -482,14 +482,14 @@ const resolveSessionForWebview = (webview: WebviewTag) => {
 		}
 	}
 	if (partition && electron?.session?.fromPartition) {
-		const session = electron.session.fromPartition(partition) as CookieSession | undefined;
+		const session = electron.session.fromPartition(partition);
 		if (session) {
 			return { session, source: "partition", partition };
 		}
 	}
 	if (electron?.session?.defaultSession) {
 		return {
-			session: electron.session.defaultSession as CookieSession,
+			session: electron.session.defaultSession,
 			source: "default",
 			partition,
 		};
@@ -530,11 +530,11 @@ async function attachSessionCookieWatcher(
 				});
 			}
 		};
-		session.cookies.on("changed", listener as unknown as (...args: unknown[]) => void);
+		session.cookies.on("changed", listener);
 		logSessionEvent("info", "Attached oauth_token session cookie watcher");
 		return () => {
 			try {
-				session.cookies?.removeListener?.("changed", listener as unknown as (...args: unknown[]) => void);
+				session.cookies?.removeListener?.("changed", listener);
 				logSessionEvent("debug", "Removed oauth_token session cookie watcher");
 			} catch (error) {
 				logSessionEvent("warn", "Failed removing oauth_token session cookie watcher", {
@@ -609,9 +609,9 @@ async function attachSessionWebRequestWatcher(
 		return () => {
 			try {
 				if (typeof webRequest?.removeListener === "function") {
-					webRequest.removeListener("headers-received", listener as unknown as (...args: unknown[]) => void);
+					webRequest.removeListener("headers-received", listener);
 				} else if (typeof webRequest?.off === "function") {
-					webRequest.off("headers-received", listener as unknown as (...args: unknown[]) => void);
+					webRequest.off("headers-received", listener);
 				}
 				logSessionEvent("debug", "Removed oauth_token webRequest watcher");
 			} catch (error) {
@@ -878,7 +878,7 @@ function wireOAuthHandlers(
 	};
 
 	const bind = (target: WebviewTag, event: string, handler: (...args: unknown[]) => void) => {
-		const wrapped = handler as unknown as EventListener;
+		const wrapped: EventListener = handler;
 		target.addEventListener(event, wrapped);
 		removeListeners.push(() => {
 			try {
@@ -1169,13 +1169,13 @@ async function getOAuthToken(
 		];
 		if (partitionAttribute && electron?.session?.fromPartition) {
 			candidateSessions.push({
-				session: electron.session.fromPartition(partitionAttribute) as CookieSession,
+				session: electron.session.fromPartition(partitionAttribute),
 				source: "partition",
 			});
 		}
 		if (electron?.session?.defaultSession) {
 			candidateSessions.push({
-				session: electron.session.defaultSession as CookieSession,
+				session: electron.session.defaultSession,
 				source: "default",
 			});
 		}
@@ -1747,13 +1747,13 @@ async function getOAuthToken(
 			];
 			if (partitionAttribute && electron?.session?.fromPartition) {
 				candidateSessions.push({
-					session: electron.session.fromPartition(partitionAttribute) as CookieSession,
+					session: electron.session.fromPartition(partitionAttribute),
 					source: "partition",
 				});
 			}
 			if (electron?.session?.defaultSession) {
 				candidateSessions.push({
-					session: electron.session.defaultSession as CookieSession,
+					session: electron.session.defaultSession,
 					source: "default",
 				});
 			}
