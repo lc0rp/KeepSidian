@@ -31,7 +31,7 @@ function hasSetText(element: HTMLElement | null): element is StatusBarItemElemen
 }
 
 function getNoticeControls(notice: Notice | null): NoticeWithControls | null {
-	return notice ? (notice as NoticeWithControls) : null;
+	return notice;
 }
 
 function formatSyncNoticeMessage(processedNotes: number, totalNotes: number | null): string {

@@ -93,7 +93,7 @@ export async function runPlaywrightFlow(
 			}
 			const remaining = context.pages().filter((pageEntry) => !pageEntry.isClosed());
 			if (remaining.length > 0) {
-				void setActivePage(remaining[remaining.length - 1] as AutomationPage);
+				void setActivePage(remaining[remaining.length - 1]);
 			} else {
 				pageClosed = true;
 			}

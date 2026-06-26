@@ -10,12 +10,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: "18.x"
+          node-version: "22.x"
 
       - name: Verify backend URL
         run: |
@@ -32,7 +32,8 @@ jobs:
 
       - name: Build plugin
         run: |
-          npm install
+          cutoff="$(python3 -c 'from datetime import datetime, timedelta, timezone; print((datetime.now(timezone.utc) - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%SZ"))')"
+          npm install --before="$cutoff"
           npm run build
 
       - name: Create release

@@ -241,14 +241,11 @@ async function attachSessionCookieWatcher(
 				});
 			}
 		};
-		session.cookies.on("changed", listener as unknown as (...args: unknown[]) => void);
+		session.cookies.on("changed", listener);
 		logSessionEvent("info", "Attached oauth_token session cookie watcher");
 		return () => {
 			try {
-				session.cookies?.removeListener?.(
-					"changed",
-					listener as unknown as (...args: unknown[]) => void
-				);
+				session.cookies?.removeListener?.("changed", listener);
 				logSessionEvent("debug", "Removed oauth_token session cookie watcher");
 			} catch (error) {
 				logSessionEvent("warn", "Failed removing oauth_token session cookie watcher", {
@@ -323,15 +320,9 @@ async function attachSessionWebRequestWatcher(
 		return () => {
 			try {
 				if (typeof webRequest?.removeListener === "function") {
-					webRequest.removeListener(
-						"headers-received",
-						listener as unknown as (...args: unknown[]) => void
-					);
+					webRequest.removeListener("headers-received", listener);
 				} else if (typeof webRequest?.off === "function") {
-					webRequest.off(
-						"headers-received",
-						listener as unknown as (...args: unknown[]) => void
-					);
+					webRequest.off("headers-received", listener);
 				}
 				logSessionEvent("debug", "Removed oauth_token webRequest watcher");
 			} catch (error) {
@@ -509,17 +500,14 @@ async function attachPartitionCookieWatcher(
 				});
 			}
 		};
-		cookiesModule.on("changed", listener as unknown as (...args: unknown[]) => void);
+		cookiesModule.on("changed", listener);
 		logSessionEvent("info", "Attached oauth_token cookie watcher", {
 			partition,
 			usedDefault: targetSession === electron.session?.defaultSession,
 		});
 		return () => {
 			try {
-				cookiesModule.removeListener(
-					"changed",
-					listener as unknown as (...args: unknown[]) => void
-				);
+				cookiesModule.removeListener("changed", listener);
 				logSessionEvent("debug", "Removed oauth_token cookie watcher", { partition });
 			} catch (error) {
 				logSessionEvent("warn", "Failed removing oauth_token cookie watcher", {
@@ -651,15 +639,9 @@ async function attachWebRequestWatcher(
 		return () => {
 			try {
 				if (typeof webRequest?.removeListener === "function") {
-					webRequest.removeListener(
-						"headers-received",
-						listener as unknown as (...args: unknown[]) => void
-					);
+					webRequest.removeListener("headers-received", listener);
 				} else if (typeof webRequest?.off === "function") {
-					webRequest.off(
-						"headers-received",
-						listener as unknown as (...args: unknown[]) => void
-					);
+					webRequest.off("headers-received", listener);
 				}
 				logSessionEvent("debug", "Removed oauth_token webRequest watcher", { partition });
 			} catch (error) {
